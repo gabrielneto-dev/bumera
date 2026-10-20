@@ -1,50 +1,30 @@
 # Project State
 
-Last updated: 2026-10-16
-Latest checkpoint: Context/checkpoints/CP-20261018-1325-m0-skeleton.md
+Last updated: 2026-10-20
+Latest checkpoint: Context/checkpoints/CP-20261020-1021-m1-complete.md
 
 ## Current objective
-Define the architecture details and start building the app engine (dental scheduling + webhook triggers), then n8n WhatsApp flows. Pilot with 1–3 clinics.
+Ship the pilot: confirmação/lembrete over WhatsApp for 1–3 dental clinics (modules 1–3, no AI), hosted on the user's server.
 
-## Approved plan
-`CTX-DEC-20261017-mvp-simplified`, `CTX-PLN-20261017-mvp-milestones` (drafts `CTX-NTE-20261017-*-draft` are the reference, adjusted by the decision)
+## Working (built, tested, committed through 81612fc)
+- Next.js 16 app (front + back in one project) with Better Auth: clinics (SaaS multi-tenant), roles admin/secretary/dentist, team invitations, on-screen e-mail code verification.
+- Registry and agenda: patients (encrypted CPF, per-clinic unique), dentists, procedures, appointments with database-enforced no-overlap, free-slot booking, day agenda, pending queue.
+- Quality: 146 unit/integration tests (~94% statements) + 1 Playwright e2e; typecheck, lint, production build pass.
+- Server (`ssh my-server`): clean Ubuntu + Docker with only the Bumera Postgres (`bumera_dev`, `bumera_test`); app runs locally through an SSH tunnel. Details: `CTX-NTE-20261020-m1-implementation`, `CTX-FCT-20261017-server-inventory`.
 
-## Working
-M0 built locally (Next.js + Prisma + Better Auth + tenant isolation), running against the Bumera dev Postgres on the server through an SSH tunnel. M1 committed; not deployed.
-
-## In progress
-Questionnaire sessions to close open questions.
+## Not built yet
+Reminders for n8n (M2), first n8n flow + Evolution (M3), inbound WhatsApp / opt-out replies (M4), app deployment on the server, backups, n8n protection, LGPD checklist, e-mail provider, password reset.
 
 ## Blockers
-None hard. Data model needs multi-tenancy, calendar and trigger answers.
+None.
 
-## Last completed plan
-`CTX-PLN-20261020-m1-registry-and-agenda`: M1 complete (schema, libs, services, pages, team, on-screen e-mail, Playwright e2e)
+## Active decisions (full lists in the branch indexes)
+Three engines (app, n8n, Evolution) · app owns the DB (PostgreSQL) · Next.js + Tailwind + shadcn/ui · MVP simplified (n8n polls the app for reminders) · e-mail shown on screen for now · modules 1–3 first, AI last · pilot with 1–3 clinics at ~R$50/month (not final) · backups deferred to first client; n8n temporarily exposed (accepted risks).
 
-## Active decisions
-- No e-mail provider for now; e-mail content is shown on screen via an `EmailTransport` — `CTX-DEC-20261020-email-on-screen`
-- M0 implementation facts and gotchas — `CTX-NTE-20261018-m0-implementation`
-- No Proxmox; server wiped of old workloads, own n8n/Postgres for Bumera — `CTX-DEC-20261018-no-proxmox-clean-server`
-- MVP simplified (polling reminders, Better Auth, Prisma, Compose) — `CTX-DEC-20261017-mvp-simplified`
-- Three engines: Next.js app (front+back together), n8n, Evolution API (separate) — `CTX-DEC-20261016-three-engines`
-- Only the app owns the DB; others use its API — `CTX-DEC-20261016-single-db-owner`
-- Next.js + Tailwind + shadcn/ui; n8n — `CTX-DEC-20261016-stack-nextjs-n8n`
-- SaaS multi-tenant (one installation, isolated clinics) — `CTX-DEC-20261016-saas-multi-tenant`
-- PostgreSQL — `CTX-DEC-20261016-postgresql`
-- WhatsApp inbound: Evolution → app → n8n, verify Evolution capability — `CTX-DEC-20261016-inbound-routing-app-first`
-- Pilot starts with confirmação/lembrete — `CTX-DEC-20261016-pilot-first-module`
-- 1–N dentists per clinic; roles: admin, secretary, dentist; reminder timing defined per clinic — `CTX-DEC-20261017-*`
-- Patient minimum fields; WhatsApp registrations/bookings pending until secretary confirms; no duplicate patients; consent + opt-out — `CTX-DEC-20261017-*`
-- Duplicate rule: CPF unique per clinic; conflicts alert the secretary — `CTX-DEC-20261017-patient-duplicate-rules`
-- Auth: e-mail/password via vetted library, admin invites team — `CTX-DEC-20261017-auth-email-password-invites`
-- Backups deferred to first client; n8n temporarily exposed (accepted risks) — `CTX-DEC-20261017-defer-backups`, `CTX-DEC-20261017-network-exposure-phased`
-- Trigger defaults and delivery retries — `CTX-DEC-20261017-default-trigger-timings`, `CTX-DEC-20261017-trigger-delivery-retries`
-- Hosted on user's home machine (Cloudflare Tunnel + own domain) — `CTX-DEC-20261016-self-hosted-home-server`
-- Modules 1–3 first, AI last — `CTX-DEC-20261014-module-sequencing`
-- Pilot: 1–3 clinics at ~R$50/month, feedback-based (assumption/plan, not final)
-
-## Open critical questions
-Backlog: all `CTX-QUE-20261016-*` (see branch indexes). Most urgent: M2 reminders for n8n polling, `CTX-QUE-20261018-app-deployment`, CPF key backup before real data, `llm-usage-in-pilot`, pilot clinics.
+## Open questions
+`CTX-QUE-20261018-app-deployment` · `CTX-QUE-20261016-service-auth` · `CTX-QUE-20261016-llm-usage-in-pilot` · `CTX-QUE-20261016-pilot-first-module-and-clinics` (which clinics; plan to research the ideal profile on request: `CTX-PLN-20261017-pilot-clinic-research`) · `CTX-QUE-20261018-email-provider` (postponed).
 
 ## Next likely steps
-M2: reminders (`reminders` table recomputed with appointment changes, `due`/`result` endpoints), then M3 first n8n flow; decide deployment before M3.
+1. M2: `reminders` table recomputed with appointment changes, `GET /api/v1/reminders/due` and `POST .../result` with claim, retries and stale guard (`CTX-PLN-20261017-mvp-milestones`).
+2. Decide deployment (Dockerfile/Compose, hostname, build memory) before M3.
+3. Back up the CPF keys outside the repo before real patient data.

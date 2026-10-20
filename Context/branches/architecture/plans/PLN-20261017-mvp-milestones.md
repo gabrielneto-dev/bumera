@@ -22,3 +22,6 @@ Repo layout and verification steps are in the plan file named in `CTX-DEC-202610
 
 ## Progress 2026-10-18
 M0 mostly done (see `CTX-NTE-20261018-m0-implementation`). Remaining in M0: browser e2e test (Playwright) and app container/deploy on the server (`CTX-QUE-20261018-app-deployment`). Next: M1.
+
+## Progress 2026-10-20
+M0 and M1 done (the originally planned M1 was split into M1a-M1f and completed). Next: M2 reminders, M3 first n8n flow, M4 inbound and hardening. App deployment decision needed before M3 (`CTX-QUE-20261018-app-deployment`).

@@ -35,3 +35,6 @@
 
 ## 2026-10-20
 - M1 completed; plan marked completed; follow-ups recorded.
+
+## 2026-10-20 (full save)
+- Added M1 code-map note and checkpoint; rewrote STATE; fixed MAP and branch indexes; taxonomy tag `infrastructure`; scheduling-interface plan completed.

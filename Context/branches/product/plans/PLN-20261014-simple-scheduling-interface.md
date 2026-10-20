@@ -4,10 +4,10 @@ type: plan
 title: Interface de agendamento simples (nome, CPF e poucos campos)
 branch: product
 tags: [scheduling, ui]
-status: candidate
+status: completed
 confidence: medium
 created_at: 2026-10-14
-updated_at: 2026-10-14
+updated_at: 2026-10-20
 related: [CTX-ASM-20261014-stack-candidates, CTX-RSK-20261014-lgpd-patient-data]
 ---
 
@@ -17,3 +17,6 @@ Build a simple scheduling/registration interface collecting client name, CPF and
 
 ## Update 2026-10-16
 This interface is part of the app engine (`CTX-DEC-20261016-three-engines`); it is a dental scheduling system (calendar, patient registration, scheduling API). Used by the clinic secretary, who also confirms registrations that originate from WhatsApp.
+
+## Completed 2026-10-20
+Delivered by M1 (agenda, patients, dentists, procedures, team): see `CTX-PLN-20261020-m1-registry-and-agenda` and `CTX-NTE-20261020-m1-implementation`.
