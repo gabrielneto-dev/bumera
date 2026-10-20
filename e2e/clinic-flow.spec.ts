@@ -45,13 +45,13 @@ test("a clinic is set up, books an appointment and brings a secretary in by invi
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Nome").fill("Dra. Ana Paula");
     await dialog.getByRole("button", { name: "Cadastrar" }).click();
-    await expect(page.getByRole("cell", { name: "Dra. Ana Paula" })).toBeVisible();
+    await expect(page.getByText("Dra. Ana Paula")).toBeVisible();
 
     await page.goto("/procedimentos");
     await page.getByRole("button", { name: "Novo procedimento" }).click();
     await page.getByRole("dialog").getByLabel("Nome").fill("Limpeza");
     await page.getByRole("dialog").getByRole("button", { name: "Cadastrar" }).click();
-    await expect(page.getByRole("cell", { name: "Limpeza" })).toBeVisible();
+    await expect(page.getByText("Limpeza")).toBeVisible();
   });
 
   await test.step("registers a patient, keeping what was typed when the CPF is wrong", async () => {
@@ -67,7 +67,7 @@ test("a clinic is set up, books an appointment and brings a secretary in by invi
 
     await dialog.getByLabel("CPF (opcional)").fill("529.982.247-25");
     await dialog.getByRole("button", { name: "Cadastrar" }).click();
-    await expect(page.getByRole("cell", { name: "Maria Souza" })).toBeVisible();
+    await expect(page.getByText("Maria Souza")).toBeVisible();
     await expect(page.getByText("***.***.***-25")).toBeVisible();
   });
 
@@ -158,6 +158,7 @@ test("a clinic is set up, books an appointment and brings a secretary in by invi
     await expect(secretary.getByText("Maria Souza")).toBeVisible();
     await secretary.goto("/equipe");
     await expect(secretary).toHaveURL(/\/agenda/);
+    await expect(secretary.getByText("Seu perfil não tem acesso a essa página")).toBeVisible();
     await context.close();
   });
 });

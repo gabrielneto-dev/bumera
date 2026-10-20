@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { ActionDialog } from "@/components/form/action-dialog";
 import { EmptyState } from "@/components/empty-state";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import type { AppointmentStatus } from "@/generated/prisma/client";
 import { can } from "@/lib/authz";
+import { cn } from "@/lib/utils";
 import { formatDayLong, formatTime, shiftDay, todayInClinic } from "@/lib/dates";
 import { APPOINTMENT_STATUS_LABEL } from "@/lib/labels";
 import { formatBrPhone } from "@/lib/phone";
@@ -64,17 +65,20 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const today = todayInClinic();
   const day = typeof params.dia === "string" && DAY_PATTERN.test(params.dia) ? params.dia : today;
   const dentistId = typeof params.dentista === "string" ? params.dentista : undefined;
+  const showCancelled = params.canceladas === "1";
+  const accessDenied = params.aviso === "sem-permissao";
 
   const canBook = can(ctx.role, "appointment", "create");
   const [appointments, dentists, procedures, patients] = await Promise.all([
-    listDay(ctx, { day, dentistId }),
+    listDay(ctx, { day, dentistId, includeCancelled: showCancelled }),
     listDentists(ctx, {}),
     listProcedures(ctx, {}),
     canBook ? listPatients(ctx, { limit: PATIENT_PICKER_LIMIT }) : Promise.resolve({ items: [], total: 0 }),
   ]);
 
-  const dentistQuery = dentistId ? `&dentista=${dentistId}` : "";
-  const dayHref = (target: string) => `/agenda?dia=${target}${dentistQuery}`;
+  const keep = `${dentistId ? `&dentista=${dentistId}` : ""}${showCancelled ? "&canceladas=1" : ""}`;
+  const dayHref = (target: string) => `/agenda?dia=${target}${keep}`;
+  const cancelledToggleHref = `/agenda?dia=${day}${dentistId ? `&dentista=${dentistId}` : ""}${showCancelled ? "" : "&canceladas=1"}`;
   const groups = groupByDentist(appointments);
   const canUpdate = can(ctx.role, "appointment", "update");
   const canCancel = can(ctx.role, "appointment", "cancel");
@@ -120,6 +124,13 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
         }
       />
 
+      {accessDenied && (
+        <div role="alert" className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <ShieldAlert className="size-4 shrink-0" aria-hidden />
+          Seu perfil não tem acesso a essa página. Fale com o administrador da clínica se precisar dela.
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2">
         <div className="flex items-center gap-1">
           <Link href={dayHref(shiftDay(day, -1))} className={buttonVariants({ variant: "ghost", size: "icon" })} aria-label="Dia anterior">
@@ -132,8 +143,13 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
             <ChevronRight />
           </Link>
         </div>
+        <Link href={cancelledToggleHref} className={buttonVariants({ variant: "ghost", size: "sm" })} aria-pressed={showCancelled}>
+          {showCancelled ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+          {showCancelled ? "Ocultar canceladas" : "Mostrar canceladas"}
+        </Link>
         <form method="get" className="ml-auto flex items-center gap-2">
           {dentistId && <input type="hidden" name="dentista" value={dentistId} />}
+          {showCancelled && <input type="hidden" name="canceladas" value="1" />}
           <label className="sr-only" htmlFor="dia">
             Ir para o dia
           </label>
@@ -152,13 +168,13 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
 
       {dentists.length > 1 && (
         <nav aria-label="Filtrar por dentista" className="flex flex-wrap gap-2">
-          <Link href={`/agenda?dia=${day}`} className={buttonVariants({ variant: dentistId ? "outline" : "default", size: "sm" })}>
+          <Link href={`/agenda?dia=${day}${showCancelled ? "&canceladas=1" : ""}`} className={buttonVariants({ variant: dentistId ? "outline" : "default", size: "sm" })}>
             Todos
           </Link>
           {dentists.map((dentist) => (
             <Link
               key={dentist.id}
-              href={`/agenda?dia=${day}&dentista=${dentist.id}`}
+              href={`/agenda?dia=${day}&dentista=${dentist.id}${showCancelled ? "&canceladas=1" : ""}`}
               className={buttonVariants({ variant: dentistId === dentist.id ? "default" : "outline", size: "sm" })}
             >
               {dentist.name}
@@ -168,8 +184,16 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
       )}
 
       {!ready && canBook && (
-        <div className="rounded-xl border border-dashed bg-card px-6 py-5 text-sm text-muted-foreground">
-          Para agendar, cadastre ao menos um dentista e um procedimento.
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 px-5 py-4 text-sm">
+          <p>Para agendar, cadastre ao menos um dentista e um procedimento.</p>
+          <div className="flex gap-2">
+            <Link href="/dentistas" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Dentistas
+            </Link>
+            <Link href="/procedimentos" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Procedimentos
+            </Link>
+          </div>
         </div>
       )}
 
@@ -185,20 +209,23 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
               {group.items.map((appointment) => (
                 <StaggerItem
                   key={appointment.id}
-                  className="relative flex flex-wrap items-center gap-x-5 gap-y-2 overflow-hidden rounded-xl border bg-card py-3.5 pr-4 pl-5 transition-shadow hover:shadow-sm"
+                  className={cn(
+                    "relative flex flex-wrap items-center gap-x-5 gap-y-3 overflow-hidden rounded-xl border bg-card py-3.5 pr-4 pl-5 transition-shadow hover:shadow-sm",
+                    INACTIVE_STATUSES.includes(appointment.status) && "bg-card/60 opacity-75",
+                  )}
                 >
                   <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${STATUS_RAIL[appointment.status]}`} />
-                  <div className="w-28 shrink-0 tabular-nums">
+                  <div className="order-1 w-28 shrink-0 tabular-nums">
                     <p className="font-heading text-xl leading-none">{formatTime(appointment.startsAt)}</p>
                     <p className="mt-1 text-xs text-muted-foreground">até {formatTime(appointment.endsAt)}</p>
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="order-3 min-w-0 basis-full sm:order-2 sm:basis-0 sm:flex-1">
                     <p className="truncate font-medium">{appointment.patient.name}</p>
                     <p className="truncate text-sm text-muted-foreground">
                       {appointment.procedure.name} · {formatBrPhone(appointment.patient.phoneE164)}
                     </p>
                   </div>
-                  <Badge variant={BADGE_VARIANT[appointment.status]}>{APPOINTMENT_STATUS_LABEL[appointment.status]}</Badge>
+                  <Badge variant={BADGE_VARIANT[appointment.status]} className="order-2 ml-auto sm:order-3 sm:ml-0">{APPOINTMENT_STATUS_LABEL[appointment.status]}</Badge>
                   <StatusActions
                     appointmentId={appointment.id}
                     status={appointment.status}

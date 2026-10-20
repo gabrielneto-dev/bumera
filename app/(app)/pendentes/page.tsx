@@ -1,16 +1,33 @@
-import { ClipboardList } from "lucide-react";
+import { CalendarClock, ClipboardList, UserPlus } from "lucide-react";
+import type { ReactNode } from "react";
+import { AvatarInitials } from "@/components/avatar-initials";
 import { EmptyState } from "@/components/empty-state";
+import { ConfirmButton } from "@/components/form/confirm-button";
+import { Stagger, StaggerItem } from "@/components/motion";
+import { PageHeader } from "@/components/page-header";
 import { formatDayLong, formatTime } from "@/lib/dates";
 import { formatBrPhone } from "@/lib/phone";
 import { listPending } from "@/lib/services/appointments";
 import { listPatients } from "@/lib/services/patients";
 import { getServiceContext } from "@/lib/services/server";
 import { approveAppointmentAction, approvePatientAction, rejectAppointmentAction } from "./actions";
-import { ConfirmButton } from "@/components/form/confirm-button";
 
 export const metadata = { title: "Pendentes" };
 // Per-user page: it depends on the session cookie, so navigating here may block (loading.tsx covers the wait).
 export const instant = false;
+
+function Section({ icon: Icon, title, count, children }: { icon: typeof UserPlus; title: string; count: number; children: ReactNode }) {
+  return (
+    <div className="space-y-3">
+      <h2 className="flex items-center gap-2 text-sm font-medium tracking-wide text-muted-foreground uppercase">
+        <Icon className="size-4" aria-hidden />
+        {title}
+        <span className="rounded-full bg-warning/20 px-2 py-0.5 text-xs font-semibold text-foreground tabular-nums">{count}</span>
+      </h2>
+      {children}
+    </div>
+  );
+}
 
 export default async function PendentesPage() {
   const ctx = await getServiceContext();
@@ -22,42 +39,40 @@ export default async function PendentesPage() {
 
   return (
     <section className="space-y-8">
-      <header className="space-y-1">
-        <h1 className="font-heading text-3xl tracking-tight">Pendentes</h1>
-        <p className="text-sm text-muted-foreground">
-          Cadastros e consultas que chegaram por WhatsApp e esperam a sua confirmação.
-        </p>
-      </header>
+      <PageHeader
+        title="Pendentes"
+        description="Cadastros e consultas que chegaram por WhatsApp e esperam a sua confirmação."
+      />
 
       {isEmpty && (
         <EmptyState icon={ClipboardList} title="Tudo em dia">
-Quando um paciente se cadastrar ou marcar horário pelo WhatsApp, aparece aqui.
-</EmptyState>
+          Quando um paciente se cadastrar ou marcar horário pelo WhatsApp, aparece aqui.
+        </EmptyState>
       )}
 
       {patients.items.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="font-heading text-xl tracking-tight">Pacientes novos</h2>
-          <ul className="space-y-2">
+        <Section icon={UserPlus} title="Pacientes novos" count={patients.items.length}>
+          <Stagger className="space-y-2">
             {patients.items.map((patient) => (
-              <li key={patient.id} className="flex flex-wrap items-center gap-4 rounded-2xl border bg-card p-4">
+              <StaggerItem key={patient.id} className="flex flex-wrap items-center gap-4 rounded-2xl border bg-card p-4">
+                <AvatarInitials name={patient.name} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{patient.name}</p>
-                  <p className="text-sm text-muted-foreground">{formatBrPhone(patient.phoneE164)}</p>
+                  <p className="text-sm text-muted-foreground tabular-nums">{formatBrPhone(patient.phoneE164)}</p>
                 </div>
                 <ConfirmButton label="Confirmar cadastro" action={approvePatientAction.bind(null, patient.id)} />
-              </li>
+              </StaggerItem>
             ))}
-          </ul>
-        </div>
+          </Stagger>
+        </Section>
       )}
 
       {appointments.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="font-heading text-xl tracking-tight">Consultas</h2>
-          <ul className="space-y-2">
+        <Section icon={CalendarClock} title="Consultas" count={appointments.length}>
+          <Stagger className="space-y-2">
             {appointments.map((appointment) => (
-              <li key={appointment.id} className="flex flex-wrap items-center gap-4 rounded-2xl border bg-card p-4">
+              <StaggerItem key={appointment.id} className="relative flex flex-wrap items-center gap-4 overflow-hidden rounded-2xl border bg-card py-4 pr-4 pl-5">
+                <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-warning" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{appointment.patient.name}</p>
                   <p className="text-sm text-muted-foreground first-letter:uppercase">
@@ -69,10 +84,10 @@ Quando um paciente se cadastrar ou marcar horário pelo WhatsApp, aparece aqui.
                   <ConfirmButton label="Recusar" variant="ghost" action={rejectAppointmentAction.bind(null, appointment.id)} />
                   <ConfirmButton label="Aprovar" action={approveAppointmentAction.bind(null, appointment.id)} />
                 </div>
-              </li>
+              </StaggerItem>
             ))}
-          </ul>
-        </div>
+          </Stagger>
+        </Section>
       )}
     </section>
   );

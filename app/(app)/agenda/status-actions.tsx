@@ -60,8 +60,8 @@ export function StatusActions({ appointmentId, status, canUpdate, canCancel, cha
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <div className="flex flex-wrap justify-end gap-1">
+    <div className="order-4 flex flex-col items-start gap-1 sm:items-end">
+      <div className="flex flex-wrap gap-1 sm:justify-end">
         {options.map((option) => (
           <Button
             key={option.to}

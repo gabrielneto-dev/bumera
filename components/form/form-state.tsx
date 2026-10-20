@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { type ComponentProps, createContext, type ReactNode, useContext } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ function useSubmitted(name: string): string | string[] | undefined {
 }
 
 const controlClass =
-  "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm";
+  "h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm";
 
 interface FieldShellProps {
   name: string;
@@ -118,7 +119,16 @@ export function SelectField({ name, label, options, hint, placeholder, defaultVa
   );
 }
 
-export function CheckboxField({ name, label, defaultChecked, value }: { name: string; label: string; defaultChecked?: boolean; value?: string }) {
+interface CheckboxFieldProps {
+  name: string;
+  label: string;
+  defaultChecked?: boolean;
+  value?: string;
+  /** "chip" renders a toggle pill (the input stays a real, keyboard-focusable checkbox). */
+  variant?: "default" | "chip";
+}
+
+export function CheckboxField({ name, label, defaultChecked, value, variant = "default" }: CheckboxFieldProps) {
   const id = value ? `${name}-${value}` : name;
   const values = useActionFormState().values;
   const submitted = values?.[name];
@@ -126,6 +136,16 @@ export function CheckboxField({ name, label, defaultChecked, value }: { name: st
   const checked = values
     ? Array.isArray(submitted) ? submitted.includes(value ?? "on") : submitted !== undefined && (value === undefined || submitted === value)
     : defaultChecked;
+  if (variant === "chip") {
+    return (
+      <label htmlFor={id} className="relative cursor-pointer select-none">
+        <input id={id} type="checkbox" name={name} value={value} defaultChecked={checked} className="peer sr-only" />
+        <span className="flex h-9 w-full items-center justify-center rounded-lg border border-input px-0 text-sm text-muted-foreground transition-colors hover:bg-muted peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:font-medium peer-checked:text-primary peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50">
+          {label}
+        </span>
+      </label>
+    );
+  }
   return (
     <label htmlFor={id} className="flex items-center gap-2 text-sm">
       <input
@@ -167,6 +187,7 @@ export function SubmitButton({ children }: { children: ReactNode }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending}>
+      {pending && <Loader2 className="animate-spin" aria-hidden />}
       {pending ? "Salvando…" : children}
     </Button>
   );

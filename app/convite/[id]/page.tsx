@@ -17,7 +17,7 @@ const ROLE_LABEL: Record<string, string> = { secretary: "secretária", dentist: 
 
 export default function InvitePage({ params }: PageProps<"/convite/[id]">) {
   return (
-    <CenteredCard icon={MailOpen} eyebrow="Você foi convidado" title="Convite para a clínica">
+    <CenteredCard icon={MailOpen} eyebrow="Convite" title="Convite para a clínica">
       <Suspense fallback={<Skeleton className="h-32 w-full" />}>
         <InviteContent params={params} />
       </Suspense>

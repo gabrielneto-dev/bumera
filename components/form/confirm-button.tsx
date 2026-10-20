@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ export function ConfirmButton({ label, variant = "default", confirmMessage, acti
   return (
     <div className="flex flex-col items-end gap-1">
       <Button type="button" size="sm" variant={variant} disabled={isPending} onClick={onClick}>
+        {isPending && <Loader2 className="animate-spin" aria-hidden />}
         {label}
       </Button>
       {error && (

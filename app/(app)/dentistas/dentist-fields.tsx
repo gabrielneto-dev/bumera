@@ -15,9 +15,9 @@ export function DentistFields({ dentist }: { dentist?: DentistDto }) {
       </div>
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Dias de atendimento</legend>
-        <div className="flex flex-wrap gap-x-4 gap-y-2">
+        <div className="grid grid-cols-7 gap-1.5">
           {WEEKDAY_LABELS.map((label, day) => (
-            <CheckboxField key={label} name="workDays" value={String(day)} label={label} defaultChecked={days.includes(day)} />
+            <CheckboxField key={label} name="workDays" value={String(day)} label={label} defaultChecked={days.includes(day)} variant="chip" />
           ))}
         </div>
         <FieldError name="workDays" />

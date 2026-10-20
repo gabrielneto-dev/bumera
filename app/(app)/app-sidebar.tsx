@@ -28,6 +28,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
+import { ThemeToggle } from "./theme-toggle";
 
 export type NavIcon = "agenda" | "pacientes" | "pendentes" | "dentistas" | "procedimentos" | "equipe";
 export type NavGroup = "Rotina" | "Cadastros" | "Clínica";
@@ -142,6 +143,9 @@ export function AppSidebar({ items, clinicName, userName, userEmail }: AppSideba
                 <p className="truncate text-xs text-sidebar-foreground/70">{userEmail}</p>
               </div>
             </div>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <ThemeToggle />
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Sair" onClick={signOut} disabled={isSigningOut}>

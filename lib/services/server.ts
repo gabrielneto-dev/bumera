@@ -47,7 +47,7 @@ export async function getServiceContext(): Promise<ServiceContext> {
   return (await getSignedInContext()).ctx;
 }
 
-/** Page guard: sends users without the permission back to the agenda instead of showing an error. */
+/** Page guard: sends users without the permission back to the agenda, which explains why. */
 export function requirePageAccess(ctx: ServiceContext, resource: string, action: string): void {
-  if (!can(ctx.role, resource, action)) redirect("/agenda");
+  if (!can(ctx.role, resource, action)) redirect("/agenda?aviso=sem-permissao");
 }

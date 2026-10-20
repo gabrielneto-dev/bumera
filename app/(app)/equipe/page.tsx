@@ -1,6 +1,9 @@
+import { MailOpen } from "lucide-react";
+import { AvatarInitials } from "@/components/avatar-initials";
+import { Stagger, StaggerItem } from "@/components/motion";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmButton } from "@/components/form/confirm-button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { can } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { listTeam } from "@/lib/services/team";
@@ -29,59 +32,47 @@ export default async function EquipePage() {
 
   return (
     <section className="space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="font-heading text-3xl tracking-tight">Equipe</h1>
-          <p className="text-sm text-muted-foreground">Quem tem acesso ao sistema da clínica e com qual perfil.</p>
-        </div>
-        <InviteDialog action={inviteMemberAction} />
-      </header>
+      <PageHeader
+        title="Equipe"
+        description="Quem tem acesso ao sistema da clínica e com qual perfil."
+        actions={<InviteDialog action={inviteMemberAction} />}
+      />
 
-      <div className="overflow-x-auto rounded-xl border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead>E-mail</TableHead>
-              <TableHead>Perfil</TableHead>
-              <TableHead className="w-px" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {members.map((member) => {
-              const isAdmin = member.role.split(",").includes("admin");
-              return (
-                <TableRow key={member.id}>
-                  <TableCell className="font-medium">{member.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{member.email}</TableCell>
-                  <TableCell>
-                    <Badge variant={isAdmin ? "default" : "secondary"}>{roleLabel(member.role)}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {canRemove && !isAdmin && (
-                      <ConfirmButton
-                        label="Remover"
-                        variant="ghost"
-                        confirmMessage={`Remover ${member.name} da clínica?`}
-                        action={removeMemberAction.bind(null, member.id)}
-                      />
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+      <Stagger className="divide-y overflow-hidden rounded-2xl border bg-card">
+        {members.map((member) => {
+          const isAdmin = member.role.split(",").includes("admin");
+          return (
+            <StaggerItem key={member.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+              <AvatarInitials name={member.name} />
+              <div className="min-w-0 flex-1 basis-48">
+                <p className="truncate font-medium">{member.name}</p>
+                <p className="text-sm text-muted-foreground break-all">{member.email}</p>
+              </div>
+              <Badge variant={isAdmin ? "default" : "secondary"}>{roleLabel(member.role)}</Badge>
+              {canRemove && !isAdmin && (
+                <ConfirmButton
+                  label="Remover"
+                  variant="ghost"
+                  confirmMessage={`Remover ${member.name} da clínica?`}
+                  action={removeMemberAction.bind(null, member.id)}
+                />
+              )}
+            </StaggerItem>
+          );
+        })}
+      </Stagger>
 
       {invitations.length > 0 && (
         <div className="space-y-3">
-          <h2 className="font-heading text-xl tracking-tight">Convites pendentes</h2>
+          <h2 className="flex items-center gap-2 text-sm font-medium tracking-wide text-muted-foreground uppercase">
+            <MailOpen className="size-4" aria-hidden />
+            Convites pendentes
+          </h2>
           <ul className="space-y-2">
             {invitations.map((invitation) => (
-              <li key={invitation.id} className="flex flex-wrap items-center gap-4 rounded-xl border bg-card p-4">
+              <li key={invitation.id} className="flex flex-wrap items-center gap-4 rounded-2xl border border-dashed bg-card/60 p-4">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{invitation.email}</p>
+                  <p className="font-medium break-all">{invitation.email}</p>
                   <p className="text-sm text-muted-foreground">
                     {roleLabel(invitation.role)} · vale até {dateFormat.format(new Date(invitation.expiresAt))}
                   </p>
