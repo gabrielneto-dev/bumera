@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
+import { type FormEvent, useState, useTransition } from "react";
+import { AuthError, AuthSubmit } from "@/components/auth/submit-button";
 import type { ActionState } from "@/lib/action-state";
 
 export function AcceptButton({ action }: { action: () => Promise<ActionState> }) {
@@ -10,7 +10,8 @@ export function AcceptButton({ action }: { action: () => Promise<ActionState> })
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  function onClick() {
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setError(null);
     startTransition(async () => {
       const result = await action();
@@ -24,15 +25,11 @@ export function AcceptButton({ action }: { action: () => Promise<ActionState> })
   }
 
   return (
-    <div className="space-y-2">
-      <Button type="button" className="w-full" disabled={isPending} onClick={onClick}>
-        {isPending ? "Entrando…" : "Aceitar convite"}
-      </Button>
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
+    <form onSubmit={onSubmit} className="space-y-3">
+      <AuthSubmit isPending={isPending} pendingLabel="Entrando…">
+        Aceitar convite
+      </AuthSubmit>
+      <AuthError message={error} />
+    </form>
   );
 }

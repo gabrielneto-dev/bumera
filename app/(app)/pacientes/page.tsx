@@ -1,3 +1,5 @@
+import { Users } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
 import { ActionDialog } from "@/components/form/action-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,14 +55,11 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
       </form>
 
       {items.length === 0 ? (
-        <div className="rounded-xl border border-dashed bg-card px-6 py-14 text-center">
-          <p className="font-heading text-xl">{search ? "Ninguém encontrado" : "Nenhum paciente ainda"}</p>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground text-pretty">
-            {search ? "Confira a grafia ou busque pelo telefone." : "Cadastre o primeiro paciente para começar a agendar."}
-          </p>
-        </div>
+        <EmptyState icon={Users} title={search ? "Ninguém encontrado" : "Nenhum paciente ainda"}>
+{search ? "Confira a grafia ou busque pelo telefone." : "Cadastre o primeiro paciente para começar a agendar."}
+</EmptyState>
       ) : (
-        <div className="overflow-x-auto rounded-xl border bg-card">
+        <div className="overflow-x-auto rounded-2xl border bg-card">
           <Table>
             <TableHeader>
               <TableRow>

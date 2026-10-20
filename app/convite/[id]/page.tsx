@@ -1,7 +1,10 @@
 import { headers } from "next/headers";
+import { MailOpen, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import { CenteredCard } from "@/components/auth/centered-card";
 import { buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { auth } from "@/lib/auth";
 import { acceptInvitationAction } from "./actions";
 import { AcceptButton } from "./accept-button";
@@ -14,14 +17,11 @@ const ROLE_LABEL: Record<string, string> = { secretary: "secretária", dentist: 
 
 export default function InvitePage({ params }: PageProps<"/convite/[id]">) {
   return (
-    <main className="flex min-h-dvh items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md space-y-6">
-        <h1 className="font-heading text-3xl tracking-tight">Convite para a clínica</h1>
-        <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-muted" />}>
-          <InviteContent params={params} />
-        </Suspense>
-      </div>
-    </main>
+    <CenteredCard icon={MailOpen} eyebrow="Você foi convidado" title="Convite para a clínica">
+      <Suspense fallback={<Skeleton className="h-32 w-full" />}>
+        <InviteContent params={params} />
+      </Suspense>
+    </CenteredCard>
   );
 }
 
@@ -33,15 +33,15 @@ async function InviteContent({ params }: { params: PageProps<"/convite/[id]">["p
   if (!session) {
     const next = encodeURIComponent(`/convite/${id}`);
     return (
-      <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Para aceitar, entre ou crie a sua conta usando <strong>o mesmo e-mail em que o convite foi feito</strong>.
+      <div className="space-y-5">
+        <p className="text-sm text-muted-foreground text-pretty">
+          Para aceitar, entre ou crie a sua conta usando <strong className="text-foreground">o mesmo e-mail em que o convite foi feito</strong>.
         </p>
-        <div className="flex gap-2">
-          <Link href={`/sign-up?next=${next}`} className={buttonVariants()}>
+        <div className="flex flex-col gap-2">
+          <Link href={`/sign-up?next=${next}`} className={buttonVariants({ size: "lg", className: "h-10 w-full text-sm" })}>
             Criar conta
           </Link>
-          <Link href={`/sign-in?next=${next}`} className={buttonVariants({ variant: "outline" })}>
+          <Link href={`/sign-in?next=${next}`} className={buttonVariants({ variant: "outline", size: "lg", className: "h-10 w-full text-sm" })}>
             Já tenho conta
           </Link>
         </div>
@@ -52,19 +52,31 @@ async function InviteContent({ params }: { params: PageProps<"/convite/[id]">["p
   const invitation = await auth.api.getInvitation({ query: { id }, headers: requestHeaders }).catch(() => null);
   if (!invitation || invitation.status !== "pending") {
     return (
-      <p className="rounded-xl border border-dashed bg-card px-5 py-6 text-sm text-muted-foreground">
-        Este convite não está disponível: ele pode ter expirado, ter sido cancelado, já ter sido usado ou ter sido feito
-        para outro e-mail. Peça um novo convite ao administrador da clínica (você está entrando como {session.user.email}).
-      </p>
+      <div className="space-y-3 rounded-xl bg-warning/10 px-4 py-4 text-sm text-pretty">
+        <p className="flex items-center gap-2 font-medium">
+          <TriangleAlert className="size-4 text-warning" aria-hidden />
+          Este convite não está disponível
+        </p>
+        <p className="text-muted-foreground">
+          Ele pode ter expirado, ter sido cancelado, já ter sido usado ou ter sido feito para outro e-mail. Peça um novo
+          convite ao administrador da clínica (você está entrando como {session.user.email}).
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-5 rounded-xl border bg-card p-6">
-      <p className="text-sm text-muted-foreground">
-        Você foi convidado para a clínica <strong className="text-foreground">{invitation.organizationName}</strong> como{" "}
-        <strong className="text-foreground">{ROLE_LABEL[invitation.role] ?? invitation.role}</strong>.
-      </p>
+    <div className="space-y-5">
+      <dl className="divide-y rounded-xl border bg-background text-sm">
+        <div className="flex items-center justify-between gap-4 px-4 py-3">
+          <dt className="text-muted-foreground">Clínica</dt>
+          <dd className="font-medium">{invitation.organizationName}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-4 px-4 py-3">
+          <dt className="text-muted-foreground">Seu papel</dt>
+          <dd className="font-medium capitalize">{ROLE_LABEL[invitation.role] ?? invitation.role}</dd>
+        </div>
+      </dl>
       <AcceptButton action={acceptInvitationAction.bind(null, id)} />
     </div>
   );

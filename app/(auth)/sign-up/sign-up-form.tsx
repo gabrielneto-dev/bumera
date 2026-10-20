@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { AuthError, AuthSubmit } from "@/components/auth/submit-button";
+import { PasswordInput } from "@/components/auth/password-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
@@ -42,7 +43,7 @@ export function SignUpForm({ next }: { next?: string }) {
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h2 className="font-heading text-3xl tracking-tight">Criar conta</h2>
+        <h2 className="font-heading text-4xl tracking-tight">Criar conta</h2>
         <p className="text-sm text-muted-foreground">
           {isInvited
             ? "Use o mesmo e-mail em que você recebeu o convite."
@@ -52,18 +53,17 @@ export function SignUpForm({ next }: { next?: string }) {
       <form onSubmit={onSubmit} className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="name">Seu nome</Label>
-          <Input id="name" name="name" autoComplete="name" required />
+          <Input id="name" name="name" autoComplete="name" required className="h-10" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="email">E-mail</Label>
-          <Input id="email" name="email" type="email" autoComplete="email" required />
+          <Input id="email" name="email" type="email" autoComplete="email" required className="h-10" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="password">Senha</Label>
-          <Input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             autoComplete="new-password"
             minLength={MIN_PASSWORD_LENGTH}
             required
@@ -73,14 +73,8 @@ export function SignUpForm({ next }: { next?: string }) {
             Mínimo de {MIN_PASSWORD_LENGTH} caracteres.
           </p>
         </div>
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        <Button type="submit" className="w-full" disabled={isPending}>
-          {isPending ? "Criando…" : "Criar conta"}
-        </Button>
+        <AuthError message={error} />
+        <AuthSubmit isPending={isPending} pendingLabel="Criando…">Criar conta</AuthSubmit>
       </form>
       <p className="text-sm text-muted-foreground">
         Já tem conta?{" "}

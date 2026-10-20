@@ -1,5 +1,8 @@
+import { Building2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { CenteredCard } from "@/components/auth/centered-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { requireSession } from "@/lib/session";
 import { ClinicForm } from "./clinic-form";
 
@@ -9,14 +12,11 @@ export const instant = false;
 
 export default function OnboardingPage() {
   return (
-    <main className="flex min-h-dvh items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md space-y-8">
-        <h1 className="font-heading text-3xl tracking-tight">Cadastre a sua clínica</h1>
-        <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-muted" />}>
-          <OnboardingContent />
-        </Suspense>
-      </div>
-    </main>
+    <CenteredCard icon={Building2} eyebrow="Último passo" title="Cadastre a sua clínica">
+      <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+        <OnboardingContent />
+      </Suspense>
+    </CenteredCard>
   );
 }
 
@@ -25,10 +25,9 @@ async function OnboardingContent() {
   if (session.session.activeOrganizationId) redirect("/agenda");
 
   return (
-    <div className="space-y-8">
-      <p className="text-sm text-muted-foreground">
-        Olá, {session.user.name}. Você será o administrador e poderá convidar a secretária e os
-        dentistas.
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground text-pretty">
+        Olá, {session.user.name}. Você será o administrador e poderá convidar a secretária e os dentistas.
       </p>
       <ClinicForm />
     </div>

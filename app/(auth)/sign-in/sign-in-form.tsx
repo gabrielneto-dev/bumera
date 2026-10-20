@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { AuthError, AuthSubmit } from "@/components/auth/submit-button";
+import { PasswordInput } from "@/components/auth/password-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
@@ -34,32 +35,25 @@ export function SignInForm({ next }: { next?: string }) {
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h2 className="font-heading text-3xl tracking-tight">Entrar</h2>
+        <h2 className="font-heading text-4xl tracking-tight">Entrar</h2>
         <p className="text-sm text-muted-foreground">Acesse a agenda da sua clínica.</p>
       </header>
       <form onSubmit={onSubmit} className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="email">E-mail</Label>
-          <Input id="email" name="email" type="email" autoComplete="email" required />
+          <Input id="email" name="email" type="email" autoComplete="email" required className="h-10" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="password">Senha</Label>
-          <Input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             autoComplete="current-password"
             required
           />
         </div>
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        <Button type="submit" className="w-full" disabled={isPending}>
-          {isPending ? "Entrando…" : "Entrar"}
-        </Button>
+        <AuthError message={error} />
+        <AuthSubmit isPending={isPending} pendingLabel="Entrando…">Entrar</AuthSubmit>
       </form>
       <p className="text-sm text-muted-foreground">
         Ainda não tem conta?{" "}

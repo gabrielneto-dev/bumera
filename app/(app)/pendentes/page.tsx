@@ -1,3 +1,5 @@
+import { ClipboardList } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
 import { formatDayLong, formatTime } from "@/lib/dates";
 import { formatBrPhone } from "@/lib/phone";
 import { listPending } from "@/lib/services/appointments";
@@ -28,12 +30,9 @@ export default async function PendentesPage() {
       </header>
 
       {isEmpty && (
-        <div className="rounded-xl border border-dashed bg-card px-6 py-14 text-center">
-          <p className="font-heading text-xl">Tudo em dia</p>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground text-pretty">
-            Quando um paciente se cadastrar ou marcar horário pelo WhatsApp, aparece aqui.
-          </p>
-        </div>
+        <EmptyState icon={ClipboardList} title="Tudo em dia">
+Quando um paciente se cadastrar ou marcar horário pelo WhatsApp, aparece aqui.
+</EmptyState>
       )}
 
       {patients.items.length > 0 && (
@@ -41,7 +40,7 @@ export default async function PendentesPage() {
           <h2 className="font-heading text-xl tracking-tight">Pacientes novos</h2>
           <ul className="space-y-2">
             {patients.items.map((patient) => (
-              <li key={patient.id} className="flex flex-wrap items-center gap-4 rounded-xl border bg-card p-4">
+              <li key={patient.id} className="flex flex-wrap items-center gap-4 rounded-2xl border bg-card p-4">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{patient.name}</p>
                   <p className="text-sm text-muted-foreground">{formatBrPhone(patient.phoneE164)}</p>
@@ -58,7 +57,7 @@ export default async function PendentesPage() {
           <h2 className="font-heading text-xl tracking-tight">Consultas</h2>
           <ul className="space-y-2">
             {appointments.map((appointment) => (
-              <li key={appointment.id} className="flex flex-wrap items-center gap-4 rounded-xl border bg-card p-4">
+              <li key={appointment.id} className="flex flex-wrap items-center gap-4 rounded-2xl border bg-card p-4">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{appointment.patient.name}</p>
                   <p className="text-sm text-muted-foreground first-letter:uppercase">

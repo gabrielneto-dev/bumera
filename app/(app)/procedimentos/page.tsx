@@ -1,3 +1,5 @@
+import { Stethoscope } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
 import { ActionDialog } from "@/components/form/action-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -31,14 +33,11 @@ export default async function ProcedimentosPage() {
       </header>
 
       {procedures.length === 0 ? (
-        <div className="rounded-xl border border-dashed bg-card px-6 py-14 text-center">
-          <p className="font-heading text-xl">Nenhum procedimento cadastrado</p>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground text-pretty">
-            Cadastre ao menos um (por exemplo, “Avaliação”) para poder agendar consultas.
-          </p>
-        </div>
+        <EmptyState icon={Stethoscope} title="Nenhum procedimento cadastrado">
+Cadastre ao menos um (por exemplo, “Avaliação”) para poder agendar consultas.
+</EmptyState>
       ) : (
-        <div className="overflow-x-auto rounded-xl border bg-card">
+        <div className="overflow-x-auto rounded-2xl border bg-card">
           <Table>
             <TableHeader>
               <TableRow>

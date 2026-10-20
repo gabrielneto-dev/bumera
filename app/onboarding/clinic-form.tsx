@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { AuthError, AuthSubmit } from "@/components/auth/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
@@ -35,16 +35,10 @@ export function ClinicForm() {
     <form onSubmit={onSubmit} className="space-y-5">
       <div className="space-y-2">
         <Label htmlFor="name">Nome da clínica</Label>
-        <Input id="name" name="name" autoComplete="organization" required minLength={2} />
+        <Input id="name" name="name" autoComplete="organization" required minLength={2} className="h-10" />
       </div>
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-      <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? "Cadastrando…" : "Cadastrar clínica"}
-      </Button>
+      <AuthError message={error} />
+      <AuthSubmit isPending={isPending} pendingLabel="Cadastrando…">Cadastrar clínica</AuthSubmit>
     </form>
   );
 }

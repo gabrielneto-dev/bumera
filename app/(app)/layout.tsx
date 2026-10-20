@@ -1,10 +1,12 @@
+import { cookies } from "next/headers";
 import { type ReactNode, Suspense } from "react";
+import { PageTransition } from "@/components/motion";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { can } from "@/lib/authz";
 import { getSignedInContext } from "@/lib/services/server";
 import { EmailVerificationBanner } from "./email-verification";
-import { AppNav, type NavItem } from "./nav";
-import { SignOutButton } from "./sign-out-button";
+import { AppSidebar, type NavItem } from "./app-sidebar";
 import { requestVerificationCodeAction, verifyEmailCodeAction } from "./verification-actions";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -18,44 +20,38 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
 function navItemsFor(role: string): NavItem[] {
   const candidates: Array<NavItem & { allowed: boolean }> = [
-    { href: "/agenda", label: "Agenda", allowed: can(role, "appointment", "read") },
-    { href: "/pacientes", label: "Pacientes", allowed: can(role, "patient", "read") },
-    { href: "/pendentes", label: "Pendentes", allowed: can(role, "patient", "update") },
-    { href: "/dentistas", label: "Dentistas", allowed: can(role, "dentist", "create") },
-    { href: "/procedimentos", label: "Procedimentos", allowed: can(role, "procedure", "create") },
-    { href: "/equipe", label: "Equipe", allowed: can(role, "invitation", "create") },
+    { href: "/agenda", label: "Agenda", icon: "agenda", group: "Rotina", allowed: can(role, "appointment", "read") },
+    { href: "/pendentes", label: "Pendentes", icon: "pendentes", group: "Rotina", allowed: can(role, "patient", "update") },
+    { href: "/pacientes", label: "Pacientes", icon: "pacientes", group: "Cadastros", allowed: can(role, "patient", "read") },
+    { href: "/dentistas", label: "Dentistas", icon: "dentistas", group: "Cadastros", allowed: can(role, "dentist", "create") },
+    { href: "/procedimentos", label: "Procedimentos", icon: "procedimentos", group: "Cadastros", allowed: can(role, "procedure", "create") },
+    { href: "/equipe", label: "Equipe", icon: "equipe", group: "Clínica", allowed: can(role, "invitation", "create") },
   ];
-  return candidates.filter((item) => item.allowed).map(({ href, label }) => ({ href, label }));
+  return candidates.filter((item) => item.allowed).map(({ href, label, icon, group }) => ({ href, label, icon, group }));
 }
 
 async function SignedInShell({ children }: { children: ReactNode }) {
   const { ctx, userName, userEmail, emailVerified, clinicName } = await getSignedInContext();
+  const sidebarCookie = (await cookies()).get("sidebar_state")?.value;
 
   return (
-    <div className="min-h-dvh">
-      <header className="border-b bg-card">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 pt-2 sm:px-6">
-          <div className="flex items-baseline gap-3 pb-2">
-            <span className="font-heading text-lg tracking-tight">Bumera</span>
-            <span className="text-sm text-muted-foreground">{clinicName}</span>
-          </div>
-          <div className="flex items-center gap-3 pb-2">
-            <span className="hidden text-sm text-muted-foreground sm:inline">{userName}</span>
-            <SignOutButton />
-          </div>
-        </div>
-        <div className="mx-auto max-w-5xl px-4 sm:px-6">
-          <AppNav items={navItemsFor(ctx.role)} />
-        </div>
-      </header>
-      {!emailVerified && (
-        <EmailVerificationBanner
-          email={userEmail}
-          requestCode={requestVerificationCodeAction}
-          verify={verifyEmailCodeAction}
-        />
-      )}
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</main>
-    </div>
+    <SidebarProvider defaultOpen={sidebarCookie !== "false"}>
+      <AppSidebar items={navItemsFor(ctx.role)} clinicName={clinicName} userName={userName} userEmail={userEmail} />
+      <SidebarInset>
+        <header className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur">
+          <SidebarTrigger aria-label="Alternar menu lateral" />
+        </header>
+        {!emailVerified && (
+          <EmailVerificationBanner
+            email={userEmail}
+            requestCode={requestVerificationCodeAction}
+            verify={verifyEmailCodeAction}
+          />
+        )}
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-8">
+          <PageTransition>{children}</PageTransition>
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

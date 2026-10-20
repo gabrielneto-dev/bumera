@@ -29,7 +29,7 @@ export function EmailVerificationBanner(props: EmailVerificationProps) {
 
   return (
     <div className="border-b bg-secondary/60">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm sm:px-8">
         <p className="text-secondary-foreground">Seu e-mail ainda não foi verificado.</p>
         <Dialog
           open={open}

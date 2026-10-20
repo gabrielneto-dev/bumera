@@ -1,5 +1,9 @@
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { ActionDialog } from "@/components/form/action-dialog";
+import { EmptyState } from "@/components/empty-state";
+import { Stagger, StaggerItem } from "@/components/motion";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import type { AppointmentStatus } from "@/generated/prisma/client";
@@ -31,6 +35,18 @@ const BADGE_VARIANT: Record<AppointmentStatus, "default" | "secondary" | "outlin
   CANCELLED: "destructive",
   NO_SHOW: "destructive",
 };
+
+// Left rail colour: reads the day's state at a glance without extra text.
+const STATUS_RAIL: Record<AppointmentStatus, string> = {
+  PENDING: "bg-warning",
+  SCHEDULED: "bg-muted-foreground/40",
+  CONFIRMED: "bg-success",
+  COMPLETED: "bg-primary/40",
+  CANCELLED: "bg-destructive/60",
+  NO_SHOW: "bg-destructive/60",
+};
+
+const INACTIVE_STATUSES: AppointmentStatus[] = ["CANCELLED", "NO_SHOW"];
 
 function groupByDentist(appointments: AppointmentDto[]) {
   const groups = new Map<string, { name: string; items: AppointmentDto[] }>();
@@ -64,42 +80,58 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const canCancel = can(ctx.role, "appointment", "cancel");
   const ready = dentists.length > 0 && procedures.length > 0;
 
+  const activeCount = appointments.filter((a) => !INACTIVE_STATUSES.includes(a.status)).length;
+  const confirmedCount = appointments.filter((a) => a.status === "CONFIRMED").length;
+
   return (
     <section className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="font-heading text-3xl tracking-tight">Agenda</h1>
-          <p className="text-sm text-muted-foreground first-letter:uppercase">{formatDayLong(day)}</p>
-        </div>
-        {canBook && ready && (
-          <ActionDialog
-            triggerLabel="Nova consulta"
-            title="Nova consulta"
-            description="Só aparecem horários livres dentro do expediente do dentista."
-            submitLabel="Agendar"
-            action={bookAppointmentAction}
-          >
-            <BookingFields
-              patients={patients.items.map((p) => ({ value: p.id, label: `${p.name} · ${formatBrPhone(p.phoneE164)}` }))}
-              dentists={dentists.map((d) => ({ value: d.id, label: d.name }))}
-              procedures={procedures.map((p) => ({ value: p.id, label: `${p.name} (${p.defaultDurationMin} min)` }))}
-              defaultDay={day}
-              loadSlots={loadSlotsAction}
-            />
-          </ActionDialog>
-        )}
-      </header>
+      <PageHeader
+        title="Agenda"
+        description={
+          <>
+            <span className="first-letter:uppercase">{formatDayLong(day)}</span>
+            {appointments.length > 0 && (
+              <>
+                {" · "}
+                {activeCount} {activeCount === 1 ? "consulta" : "consultas"}, {confirmedCount}{" "}
+                {confirmedCount === 1 ? "confirmada" : "confirmadas"}
+              </>
+            )}
+          </>
+        }
+        actions={
+          canBook && ready ? (
+            <ActionDialog
+              triggerLabel="Nova consulta"
+              title="Nova consulta"
+              description="Só aparecem horários livres dentro do expediente do dentista."
+              submitLabel="Agendar"
+              action={bookAppointmentAction}
+            >
+              <BookingFields
+                patients={patients.items.map((p) => ({ value: p.id, label: `${p.name} · ${formatBrPhone(p.phoneE164)}` }))}
+                dentists={dentists.map((d) => ({ value: d.id, label: d.name }))}
+                procedures={procedures.map((p) => ({ value: p.id, label: `${p.name} (${p.defaultDurationMin} min)` }))}
+                defaultDay={day}
+                loadSlots={loadSlotsAction}
+              />
+            </ActionDialog>
+          ) : null
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Link href={dayHref(shiftDay(day, -1))} className={buttonVariants({ variant: "outline", size: "sm" })} aria-label="Dia anterior">
-          ←
-        </Link>
-        <Link href={dayHref(today)} className={buttonVariants({ variant: day === today ? "secondary" : "outline", size: "sm" })}>
-          Hoje
-        </Link>
-        <Link href={dayHref(shiftDay(day, 1))} className={buttonVariants({ variant: "outline", size: "sm" })} aria-label="Próximo dia">
-          →
-        </Link>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2">
+        <div className="flex items-center gap-1">
+          <Link href={dayHref(shiftDay(day, -1))} className={buttonVariants({ variant: "ghost", size: "icon" })} aria-label="Dia anterior">
+            <ChevronLeft />
+          </Link>
+          <Link href={dayHref(today)} className={buttonVariants({ variant: day === today ? "secondary" : "outline" })}>
+            Hoje
+          </Link>
+          <Link href={dayHref(shiftDay(day, 1))} className={buttonVariants({ variant: "ghost", size: "icon" })} aria-label="Próximo dia">
+            <ChevronRight />
+          </Link>
+        </div>
         <form method="get" className="ml-auto flex items-center gap-2">
           {dentistId && <input type="hidden" name="dentista" value={dentistId} />}
           <label className="sr-only" htmlFor="dia">
@@ -110,9 +142,9 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
             name="dia"
             type="date"
             defaultValue={day}
-            className="h-7 rounded-lg border border-input bg-transparent px-2 text-sm"
+            className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
           />
-          <button type="submit" className={buttonVariants({ variant: "outline", size: "sm" })}>
+          <button type="submit" className={buttonVariants({ variant: "outline" })}>
             Ir
           </button>
         </form>
@@ -120,14 +152,14 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
 
       {dentists.length > 1 && (
         <nav aria-label="Filtrar por dentista" className="flex flex-wrap gap-2">
-          <Link href={`/agenda?dia=${day}`} className={buttonVariants({ variant: dentistId ? "outline" : "secondary", size: "xs" })}>
+          <Link href={`/agenda?dia=${day}`} className={buttonVariants({ variant: dentistId ? "outline" : "default", size: "sm" })}>
             Todos
           </Link>
           {dentists.map((dentist) => (
             <Link
               key={dentist.id}
               href={`/agenda?dia=${day}&dentista=${dentist.id}`}
-              className={buttonVariants({ variant: dentistId === dentist.id ? "secondary" : "outline", size: "xs" })}
+              className={buttonVariants({ variant: dentistId === dentist.id ? "default" : "outline", size: "sm" })}
             >
               {dentist.name}
             </Link>
@@ -142,22 +174,24 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
       )}
 
       {groups.length === 0 ? (
-        <div className="rounded-xl border border-dashed bg-card px-6 py-14 text-center">
-          <p className="font-heading text-xl">Nenhuma consulta neste dia</p>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground text-pretty">
-            Use “Nova consulta” para agendar. Os lembretes por WhatsApp saem sozinhos depois.
-          </p>
-        </div>
+        <EmptyState icon={CalendarDays} title="Nenhuma consulta neste dia">
+          Use “Nova consulta” para agendar. Os lembretes por WhatsApp saem sozinhos depois.
+        </EmptyState>
       ) : (
         groups.map((group) => (
           <div key={group.name} className="space-y-3">
-            <h2 className="font-heading text-xl tracking-tight">{group.name}</h2>
-            <ul className="space-y-2">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{group.name}</h2>
+            <Stagger className="space-y-2">
               {group.items.map((appointment) => (
-                <li key={appointment.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-card p-4">
-                  <p className="w-32 font-heading text-lg tabular-nums">
-                    {formatTime(appointment.startsAt)}–{formatTime(appointment.endsAt)}
-                  </p>
+                <StaggerItem
+                  key={appointment.id}
+                  className="relative flex flex-wrap items-center gap-x-5 gap-y-2 overflow-hidden rounded-xl border bg-card py-3.5 pr-4 pl-5 transition-shadow hover:shadow-sm"
+                >
+                  <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${STATUS_RAIL[appointment.status]}`} />
+                  <div className="w-28 shrink-0 tabular-nums">
+                    <p className="font-heading text-xl leading-none">{formatTime(appointment.startsAt)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">até {formatTime(appointment.endsAt)}</p>
+                  </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{appointment.patient.name}</p>
                     <p className="truncate text-sm text-muted-foreground">
@@ -172,9 +206,9 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
                     canCancel={canCancel}
                     changeStatus={changeStatusAction}
                   />
-                </li>
+                </StaggerItem>
               ))}
-            </ul>
+            </Stagger>
           </div>
         ))
       )}
