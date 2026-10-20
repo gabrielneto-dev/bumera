@@ -41,3 +41,6 @@ Gaps / to do: no e-mail verification or password reset (needs e-mail provider: `
 - Prisma 7 + adapter error shapes: overlap = P2039 with Postgres code 23P01; unique = P2002 (see `lib/db-errors.ts`).
 - The browser tool shows a 0x0 viewport when the pane is hidden: set a size with resize_window first.
 - `prisma migrate dev` refuses non-interactive shells: generate SQL with `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`, add hand-written SQL, then `prisma migrate deploy`.
+
+## M1 outcome (2026-10-20)
+M1 delivered: registry (patients with encrypted CPF, dentists, procedures), appointments with database-enforced no-overlap, day agenda, pending queue, team invitations and on-screen e-mail. See `CTX-PLN-20261020-m1-registry-and-agenda` for details and follow-ups. Browser test: `npm run test:e2e`.

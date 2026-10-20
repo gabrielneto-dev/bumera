@@ -32,3 +32,6 @@
 
 ## 2026-10-20
 - M1 plan and invitation-code decision recorded.
+
+## 2026-10-20
+- M1 completed; plan marked completed; follow-ups recorded.

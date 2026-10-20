@@ -10,7 +10,7 @@ Define the architecture details and start building the app engine (dental schedu
 `CTX-DEC-20261017-mvp-simplified`, `CTX-PLN-20261017-mvp-milestones` (drafts `CTX-NTE-20261017-*-draft` are the reference, adjusted by the decision)
 
 ## Working
-M0 built locally (Next.js + Prisma + Better Auth + tenant isolation), running against the Bumera dev Postgres on the server through an SSH tunnel. Committed through M1e; M1a being committed; not deployed.
+M0 built locally (Next.js + Prisma + Better Auth + tenant isolation), running against the Bumera dev Postgres on the server through an SSH tunnel. M1 committed; not deployed.
 
 ## In progress
 Questionnaire sessions to close open questions.
@@ -18,8 +18,8 @@ Questionnaire sessions to close open questions.
 ## Blockers
 None hard. Data model needs multi-tenancy, calendar and trigger answers.
 
-## Plan in progress (authorized)
-`CTX-PLN-20261020-m1-registry-and-agenda`: M1a-M1e done (schema, libs, services, pages, team + on-screen e-mail); left M1f (Playwright e2e)
+## Last completed plan
+`CTX-PLN-20261020-m1-registry-and-agenda`: M1 complete (schema, libs, services, pages, team, on-screen e-mail, Playwright e2e)
 
 ## Active decisions
 - No e-mail provider for now; e-mail content is shown on screen via an `EmailTransport` — `CTX-DEC-20261020-email-on-screen`
@@ -44,7 +44,7 @@ None hard. Data model needs multi-tenancy, calendar and trigger answers.
 - Pilot: 1–3 clinics at ~R$50/month, feedback-based (assumption/plan, not final)
 
 ## Open critical questions
-Backlog: all `CTX-QUE-20261016-*` (see branch indexes). Most urgent: `CTX-QUE-20261018-email-provider`, `CTX-QUE-20261018-app-deployment`, `llm-usage-in-pilot`, pilot clinics.
+Backlog: all `CTX-QUE-20261016-*` (see branch indexes). Most urgent: M2 reminders for n8n polling, `CTX-QUE-20261018-app-deployment`, CPF key backup before real data, `llm-usage-in-pilot`, pilot clinics.
 
 ## Next likely steps
-M1 (registry, appointments, agenda, pending queue) test-first per `CTX-PLN-20261017-mvp-milestones`; decide e-mail provider and deployment.
+M2: reminders (`reminders` table recomputed with appointment changes, `due`/`result` endpoints), then M3 first n8n flow; decide deployment before M3.

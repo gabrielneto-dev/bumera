@@ -10,6 +10,8 @@ Project-wide operating instructions shared by all AI agents. Detailed knowledge 
 - Never run tests or destructive scripts against the production database.
 - Use `npm` (the host `pnpm` is broken). Checks before finishing work: `npm run typecheck`, `npm run lint`, `npm run test:coverage` (80% minimum; tests need the SSH tunnel below).
 - Dev database lives on the server (container `bumera-postgres`, bound to the server's 127.0.0.1:5432). Open the tunnel with `ssh -fN -L 5433:127.0.0.1:5432 my-server`; `.env.local` (git-ignored) points at port 5433. Tests refuse any database whose name does not end in `_test`.
+- `npm run test:e2e` drives a real browser (Playwright, Chromium) against a separate Next server on port 3100 and the `bumera_test` database (needs the tunnel; it empties that database first and refuses any name not ending in `_test`).
+- Services live in `lib/services/*` (permissions via `lib/authz.ts`, input via `lib/schemas.ts`, failures as `AppError`); pages and server actions only call them. Everything the system would e-mail goes through `lib/email.ts` (shown on screen for now).
 - Business data is accessed only through `scopedPrisma` (`lib/tenant-scope.ts`); register every new tenant table in its `TENANT_MODELS` and give it an `organizationId`. Do not use raw SQL for tenant data.
 - `npx auth@latest generate` overwrites `prisma/schema.prisma`; keep the Bumera models section (below the marker) when regenerating.
 - Prisma is pinned to 7.x on purpose (npm `latest` for `prisma` is an 8.0 release candidate).

@@ -4,7 +4,7 @@ type: plan
 title: M1: cadastros, agenda do dia, pendentes e acesso da equipe
 branch: product
 tags: [roadmap, calendar, patient, scheduling, auth]
-status: in-progress
+status: completed
 created_at: 2026-10-20
 updated_at: 2026-10-20
 related: [CTX-PLN-20261017-mvp-milestones, CTX-DEC-20261020-invite-codes-no-email, CTX-DEC-20261017-patient-duplicate-rules, CTX-DEC-20261017-roles]
@@ -68,3 +68,16 @@ User authorized M1 on 2026-10-20 (including the Playwright install for M1f).
 - Verified in the browser: verification (wrong then right code), invite a secretary, sign up through the link, accept, role-restricted navigation, redirect from /equipe for the secretary.
 - Totals: 146 tests (~94% statements), typecheck, lint and production build pass.
 - Left in M1: M1f Playwright e2e. Password reset remains deferred (not delivered on screen).
+
+## Completed 2026-10-20 (M1f done)
+Playwright end-to-end test (`e2e/clinic-flow.spec.ts`, `npm run test:e2e`, ~20 s): sign-up, clinic, dentist, procedure, patient (wrong then right CPF, duplicate refused), booking from free slots (booked slot no longer offered), confirmation, e-mail verification with the on-screen code, invitation, secretary joins by link with a restricted role.
+Final M1 state: 146 unit/integration tests (~94% statements) + 1 e2e; typecheck, lint and production build pass; 6 commits (4016758 M0, bc596aa M1b/c, acd3aff M1d, ac6fce3 M1e, 6f7a40c M1a, plus the e2e commit).
+
+## Follow-ups noted during M1
+- Patient picker in the booking form is a native select limited to 300 patients: replace with a searchable picker.
+- A dentist should see/act only on their own appointments (Dentist has no user link yet).
+- Password reset is not available (deferred; never on screen). Operator-assisted reset for now.
+- E-mail verification via on-screen code proves nothing about ownership (placeholder).
+- Back up the CPF encryption/hash keys outside the repo before real patient data (losing the encryption key makes stored CPFs unrecoverable; changing the hash key breaks duplicate detection).
+- App container/deploy on the server is still open (`CTX-QUE-20261018-app-deployment`).
+- Next: M2 (reminders table, `reminders/due` and `result` endpoints for n8n polling).
