@@ -24,3 +24,9 @@ Managed API providers with a free tier vs SMTP via the user's domain. Needs a do
 
 ## How to resolve
 User choice; agent can compare current prices and free tiers.
+
+## Partial answer (2026-10-20)
+Postponed: invitation codes on screen for now (`CTX-DEC-20261020-invite-codes-no-email`). Revisit when e-mail verification or automatic password recovery is needed.
+
+## Correction 2026-10-20
+The earlier partial answer pointing to invitation codes was wrong. Current decision: `CTX-DEC-20261020-email-on-screen`.

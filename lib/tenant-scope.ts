@@ -13,7 +13,12 @@ const TENANT_FIELD = "organizationId";
 const TENANT_RELATION = "organization";
 
 /** Register every tenant-owned model here (Prisma model name, PascalCase). */
-const TENANT_MODELS: ReadonlySet<string> = new Set(["Dentist"]);
+const TENANT_MODELS: ReadonlySet<string> = new Set([
+  "Dentist",
+  "Procedure",
+  "Patient",
+  "Appointment",
+]);
 
 const FILTER_OPERATIONS: ReadonlySet<string> = new Set([
   "findFirst",

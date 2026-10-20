@@ -29,3 +29,6 @@
 
 ## 2026-10-18
 - M0 implementation note, two new architecture questions, milestones plan in-progress.
+
+## 2026-10-20
+- M1 plan and invitation-code decision recorded.

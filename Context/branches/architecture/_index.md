@@ -12,6 +12,7 @@ Scope: engines, stack, hosting, data, security. Status: active — direction dec
 - Auth e-mail/password + invites — `CTX-DEC-20261017-auth-email-password-invites`
 - Backups deferred — `CTX-DEC-20261017-defer-backups`; phased network exposure — `CTX-DEC-20261017-network-exposure-phased`
 - No Proxmox, clean server — `CTX-DEC-20261018-no-proxmox-clean-server`
+- E-mail delivered on screen for now — `CTX-DEC-20261020-email-on-screen`
 - Home-server hosting — `CTX-DEC-20261016-self-hosted-home-server`
 
 ## Plan and drafts

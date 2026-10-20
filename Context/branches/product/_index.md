@@ -13,6 +13,9 @@ Scope: modules, pricing, pilots, scheduling app features. Status: active.
 - Pilots (1–3 clinics, feedback-based): `CTX-PLN-20261014-pilots`; clinic-profile research on demand: `CTX-PLN-20261017-pilot-clinic-research`
 - Scheduling UI (part of app engine): `CTX-PLN-20261014-simple-scheduling-interface`
 
+## Next
+M1 plan: `CTX-PLN-20261020-m1-registry-and-agenda`
+
 ## Open questions
 `trigger-catalog`, `pilot-first-module-and-clinics`, `llm-usage-in-pilot` (`CTX-QUE-20261016-<slug>`)
 

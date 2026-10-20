@@ -78,15 +78,18 @@ model Verification {
 }
 
 model Organization {
-  id          String       @id
-  name        String
-  slug        String
-  logo        String?
-  createdAt   DateTime
-  metadata    String?
-  members     Member[]
-  invitations Invitation[]
-  dentists    Dentist[]
+  id           String        @id
+  name         String
+  slug         String
+  logo         String?
+  createdAt    DateTime
+  metadata     String?
+  members      Member[]
+  invitations  Invitation[]
+  dentists     Dentist[]
+  procedures   Procedure[]
+  patients     Patient[]
+  appointments Appointment[]
 
   @@unique([slug])
   @@map("organization")
@@ -128,14 +131,109 @@ model Invitation {
 // accessed only through lib/tenant-scope.ts.
 // ---------------------------------------------------------------------------
 
-model Dentist {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name           String
-  active         Boolean      @default(true)
-  createdAt      DateTime     @default(now())
+enum PatientStatus {
+  PENDING
+  CONFIRMED
+}
 
+enum RecordSource {
+  SECRETARY
+  WHATSAPP
+}
+
+enum AppointmentStatus {
+  PENDING
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+// Composite (id, organizationId) keys + composite foreign keys make it impossible at the
+// database level for a row to reference data of another clinic. Relations use NoAction so
+// deleting a clinic can cascade through every table.
+
+model Dentist {
+  id             String        @id @default(uuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  active         Boolean       @default(true)
+  /// Simple working window in the clinic's local time ("HH:MM") and weekdays (0 = Sunday).
+  workStart      String        @default("08:00")
+  workEnd        String        @default("18:00")
+  workDays       Int[]         @default([1, 2, 3, 4, 5, 6])
+  createdAt      DateTime      @default(now())
+  appointments   Appointment[]
+
+  @@unique([id, organizationId])
   @@index([organizationId])
   @@map("dentist")
+}
+
+model Procedure {
+  id                 String        @id @default(uuid())
+  organizationId     String
+  organization       Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name               String
+  defaultDurationMin Int           @default(30)
+  active             Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  appointments       Appointment[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@map("procedure")
+}
+
+model Patient {
+  id             String        @id @default(uuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  /// AES-256-GCM payload (lib/crypto.ts); null for patients without CPF.
+  cpfEncrypted   String?
+  /// Keyed hash of the CPF digits, used for the per-clinic uniqueness rule.
+  cpfHash        String?
+  phoneE164      String
+  birthDate      DateTime?     @db.Date
+  status         PatientStatus @default(CONFIRMED)
+  source         RecordSource  @default(SECRETARY)
+  consentAt      DateTime?
+  consentSource  String?
+  doNotContact   Boolean       @default(false)
+  optedOutAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  appointments   Appointment[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, cpfHash])
+  @@index([organizationId, name])
+  @@index([organizationId, phoneE164])
+  @@map("patient")
+}
+
+model Appointment {
+  id             String            @id @default(uuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  patientId      String
+  dentistId      String
+  procedureId    String
+  patient        Patient           @relation(fields: [patientId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  dentist        Dentist           @relation(fields: [dentistId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  procedure      Procedure         @relation(fields: [procedureId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  startsAt       DateTime
+  endsAt         DateTime
+  status         AppointmentStatus @default(SCHEDULED)
+  source         RecordSource      @default(SECRETARY)
+  createdById    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([organizationId, startsAt])
+  @@index([dentistId, startsAt])
+  @@map("appointment")
 }

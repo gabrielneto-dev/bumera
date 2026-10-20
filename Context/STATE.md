@@ -10,7 +10,7 @@ Define the architecture details and start building the app engine (dental schedu
 `CTX-DEC-20261017-mvp-simplified`, `CTX-PLN-20261017-mvp-milestones` (drafts `CTX-NTE-20261017-*-draft` are the reference, adjusted by the decision)
 
 ## Working
-M0 built locally (Next.js + Prisma + Better Auth + tenant isolation), running against the Bumera dev Postgres on the server through an SSH tunnel. Not committed, not deployed.
+M0 built locally (Next.js + Prisma + Better Auth + tenant isolation), running against the Bumera dev Postgres on the server through an SSH tunnel. Committed (4016758), not deployed.
 
 ## In progress
 Questionnaire sessions to close open questions.
@@ -18,7 +18,11 @@ Questionnaire sessions to close open questions.
 ## Blockers
 None hard. Data model needs multi-tenancy, calendar and trigger answers.
 
+## Plan in progress (authorized)
+`CTX-PLN-20261020-m1-registry-and-agenda`: M1b (schema) and M1c (pure libs) done; next M1d (services/permissions)
+
 ## Active decisions
+- No e-mail provider for now; e-mail content is shown on screen via an `EmailTransport` — `CTX-DEC-20261020-email-on-screen`
 - M0 implementation facts and gotchas — `CTX-NTE-20261018-m0-implementation`
 - No Proxmox; server wiped of old workloads, own n8n/Postgres for Bumera — `CTX-DEC-20261018-no-proxmox-clean-server`
 - MVP simplified (polling reminders, Better Auth, Prisma, Compose) — `CTX-DEC-20261017-mvp-simplified`

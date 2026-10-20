@@ -12,15 +12,18 @@
     "test:coverage": "vitest run --coverage",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "db:tunnel": "ssh -fN -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -L 5433:127.0.0.1:5432 my-server"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "@date-fns/tz": "^1.5.0",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "better-auth": "^1.7.10",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.0",
+    "date-fns": "^4.4.0",
     "lucide-react": "^1.59.0",
     "next": "16.4.2",
     "pg": "^8.23.1",
