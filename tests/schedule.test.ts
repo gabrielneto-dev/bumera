@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listFreeSlots, zonedDayRange } from "@/lib/schedule";
+import { isWithinWorkingHours, listFreeSlots, zonedDayRange } from "@/lib/schedule";
 
 const TZ = "America/Sao_Paulo";
 const iso = (dates: Date[]) => dates.map((d) => d.toISOString());
@@ -64,5 +64,49 @@ describe("listFreeSlots", () => {
 
   it("returns nothing when the procedure is longer than the working window", () => {
     expect(listFreeSlots({ ...base, durationMin: 300 })).toEqual([]);
+  });
+});
+
+describe("isWithinWorkingHours", () => {
+  const hours = { timeZone: TZ, workStart: "08:00", workEnd: "12:00", workDays: [1, 2, 3, 4, 5, 6] };
+
+  it("accepts an appointment fully inside the window", () => {
+    expect(
+      isWithinWorkingHours({
+        ...hours,
+        startsAt: new Date("2026-10-20T13:00:00.000Z"), // 10:00 local
+        endsAt: new Date("2026-10-20T13:30:00.000Z"),
+      }),
+    ).toBe(true);
+  });
+
+  it("accepts one that ends exactly at closing time", () => {
+    expect(
+      isWithinWorkingHours({
+        ...hours,
+        startsAt: new Date("2026-10-20T14:30:00.000Z"), // 11:30 local
+        endsAt: new Date("2026-10-20T15:00:00.000Z"), // 12:00 local
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects ones that start early, end late or fall on a closed day", () => {
+    const early = { startsAt: new Date("2026-10-20T10:30:00.000Z"), endsAt: new Date("2026-10-20T11:30:00.000Z") };
+    const late = { startsAt: new Date("2026-10-20T14:45:00.000Z"), endsAt: new Date("2026-10-20T15:15:00.000Z") };
+    const sunday = { startsAt: new Date("2026-10-18T13:00:00.000Z"), endsAt: new Date("2026-10-18T13:30:00.000Z") };
+    expect(isWithinWorkingHours({ ...hours, ...early })).toBe(false);
+    expect(isWithinWorkingHours({ ...hours, ...late })).toBe(false);
+    expect(isWithinWorkingHours({ ...hours, ...sunday })).toBe(false);
+  });
+
+  it("rejects an appointment that crosses midnight", () => {
+    expect(
+      isWithinWorkingHours({
+        ...hours,
+        workEnd: "23:59",
+        startsAt: new Date("2026-10-21T02:30:00.000Z"), // 23:30 local
+        endsAt: new Date("2026-10-21T03:30:00.000Z"), // 00:30 next day
+      }),
+    ).toBe(false);
   });
 });

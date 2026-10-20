@@ -76,3 +76,36 @@ export function listFreeSlots(options: FreeSlotOptions): Date[] {
   }
   return slots;
 }
+
+export interface WorkingHours {
+  timeZone: string;
+  workStart: string;
+  workEnd: string;
+  workDays: readonly number[];
+}
+
+const MINUTES_PER_HOUR = 60;
+
+function minutesOfDay(date: Date): number {
+  return date.getHours() * MINUTES_PER_HOUR + date.getMinutes();
+}
+
+/** True when the whole appointment fits inside one working day window of the clinic. */
+export function isWithinWorkingHours(
+  options: WorkingHours & { startsAt: Date; endsAt: Date },
+): boolean {
+  const start = new TZDate(options.startsAt.getTime(), options.timeZone);
+  const end = new TZDate(options.endsAt.getTime(), options.timeZone);
+  const sameDay =
+    start.getFullYear() === end.getFullYear() &&
+    start.getMonth() === end.getMonth() &&
+    start.getDate() === end.getDate();
+  if (!sameDay || !options.workDays.includes(start.getDay())) return false;
+
+  const [startHour, startMinute] = parseTime(options.workStart);
+  const [endHour, endMinute] = parseTime(options.workEnd);
+  return (
+    minutesOfDay(start) >= startHour * MINUTES_PER_HOUR + startMinute &&
+    minutesOfDay(end) <= endHour * MINUTES_PER_HOUR + endMinute
+  );
+}

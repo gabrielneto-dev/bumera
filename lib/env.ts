@@ -1,6 +1,19 @@
 import { z } from "zod";
+import { parseKey } from "@/lib/crypto";
 
 const MIN_SECRET_LENGTH = 32;
+
+const base64Key32 = z.string().refine(
+  (value) => {
+    try {
+      parseKey(value);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  "must be base64 of exactly 32 random bytes",
+);
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
@@ -8,6 +21,8 @@ const envSchema = z.object({
     .string()
     .min(MIN_SECRET_LENGTH, `BETTER_AUTH_SECRET must have at least ${MIN_SECRET_LENGTH} characters`),
   BETTER_AUTH_URL: z.url("BETTER_AUTH_URL must be a valid URL"),
+  CPF_ENCRYPTION_KEY: base64Key32,
+  CPF_HASH_KEY: base64Key32,
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
