@@ -16,7 +16,15 @@ export default defineConfig({
       provider: "v8",
       include: ["lib/**/*.ts"],
       // Framework glue without testable logic of its own (covered by e2e instead).
-      exclude: ["lib/auth.ts", "lib/auth-client.ts", "lib/prisma.ts", "lib/session.ts", "lib/utils.ts"],
+      exclude: [
+        "lib/auth.ts",
+        "lib/auth-client.ts",
+        "lib/prisma.ts",
+        "lib/session.ts",
+        "lib/utils.ts",
+        "lib/action-state.ts",
+        "lib/services/server.ts",
+      ],
       thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
     },
   },

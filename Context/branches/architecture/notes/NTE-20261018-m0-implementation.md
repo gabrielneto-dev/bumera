@@ -34,3 +34,10 @@ Gaps / to do: no e-mail verification or password reset (needs e-mail provider: `
 - `npx auth@latest generate` overwrites `prisma/schema.prisma`.
 - Turbopack served stale CSS after the theme change until `.next` was deleted.
 - Do not use `pkill -f "next dev"` from the shell tool (kills the shell); use `fuser -k 3000/tcp`.
+
+## Gotchas learned in M1 (2026-10-20)
+- React 19 resets uncontrolled forms after a server action; to keep what the user typed on errors, `ActionForm` returns the submitted values and fields use them as `defaultValue` (components/form).
+- With Cache Components, signed-in pages are per-user and cannot be instant: pages export `instant = false` and `app/(app)/loading.tsx` gives immediate feedback; the dev warning disappears. Read the clock (`new Date()`) only after request-time data.
+- Prisma 7 + adapter error shapes: overlap = P2039 with Postgres code 23P01; unique = P2002 (see `lib/db-errors.ts`).
+- The browser tool shows a 0x0 viewport when the pane is hidden: set a size with resize_window first.
+- `prisma migrate dev` refuses non-interactive shells: generate SQL with `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`, add hand-written SQL, then `prisma migrate deploy`.

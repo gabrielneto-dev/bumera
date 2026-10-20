@@ -54,3 +54,10 @@ User authorized M1 on 2026-10-20 (including the Playwright install for M1f).
 - M1c done: `lib/cpf.ts`, `lib/phone.ts`, `lib/crypto.ts` (AES-256-GCM + HMAC hash), `lib/schedule.ts` (free slots, clinic timezone via date-fns/@date-fns/tz). 26 tests.
 - Totals: 67 tests, ~94% statements. Next: M1d services + permissions, then M1a, M1e, M1f.
 - Not yet done: `CPF_ENCRYPTION_KEY` and `CPF_HASH_KEY` env vars (to create with M1d; names only in Context; back up the key before real data).
+
+## Progress 2026-10-20 (later)
+- M1d done: role-based services for patients, dentists, procedures and appointments (`lib/services/*`, `lib/authz.ts`, `lib/schemas.ts`, `lib/errors.ts`), CPF keys in env (`CPF_ENCRYPTION_KEY`, `CPF_HASH_KEY`, names only).
+- M1e done (without the team page): pages Agenda (day view, dentist filter, booking with free slots, status actions), Pacientes (search, create/edit), Pendentes, Dentistas, Procedimentos; role-based navigation; `loading.tsx` for the signed-in area. Verified by hand in the browser (sign-up, clinic, dentist, procedure, patient with invalid then valid CPF, booking, confirmation).
+- Totals: 131 tests (~94% statements), typecheck, lint and production build pass.
+- Left: M1a (on-screen e-mail transport, e-mail verification step, team invitations page) and M1f (Playwright e2e).
+- Known limits: the booking form lists up to 300 patients in a native select (a searchable picker is a later improvement); dentist cannot be limited to "own" appointments yet (Dentist has no user link); clinic timezone is fixed to America/Sao_Paulo.

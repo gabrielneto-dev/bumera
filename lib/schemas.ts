@@ -37,7 +37,11 @@ const phone = z
   .transform((value) => normalizeBrPhone(value))
   .pipe(z.string({ error: "Telefone inválido" }));
 const birthDate = z.iso.date({ error: "Data de nascimento inválida" });
-const duration = z.number().int().min(MIN_DURATION_MIN).max(MAX_DURATION_MIN);
+const duration = z
+  .number({ error: "Informe a duração em minutos" })
+  .int("Use minutos inteiros")
+  .min(MIN_DURATION_MIN, `Mínimo de ${MIN_DURATION_MIN} minutos`)
+  .max(MAX_DURATION_MIN, `Máximo de ${MAX_DURATION_MIN} minutos`);
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido (use HH:MM)");
 const workDays = z
   .array(z.number().int().min(0).max(6))

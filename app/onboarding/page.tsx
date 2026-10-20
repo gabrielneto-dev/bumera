@@ -4,6 +4,8 @@ import { requireSession } from "@/lib/session";
 import { ClinicForm } from "./clinic-form";
 
 export const metadata = { title: "Sua clínica" };
+// Per-user page: it depends on the session cookie, so navigating here may block (loading.tsx covers the wait).
+export const instant = false;
 
 export default function OnboardingPage() {
   return (

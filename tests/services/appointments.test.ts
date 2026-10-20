@@ -5,6 +5,7 @@ import {
   changeAppointmentStatus,
   freeSlots,
   listDay,
+  listPending,
 } from "@/lib/services/appointments";
 import { createClinic, createDentist, createPatient, createProcedure } from "../helpers/factories";
 import { ctxFor } from "../helpers/service-context";
@@ -161,5 +162,22 @@ describe("appointments service", () => {
     const dentist = ctxFor(prisma, clinicA, "dentist");
     await expectCode(changeAppointmentStatus(dentist, appointment.id, "CANCELLED"), "FORBIDDEN");
     expect((await changeAppointmentStatus(dentist, appointment.id, "COMPLETED")).status).toBe("COMPLETED");
+  });
+
+  it("lists only pending appointments, oldest first, for this clinic", async () => {
+    await book({ startsAt: "2026-10-20T15:00:00.000Z" }); // scheduled: not listed
+    const pending = (startsAt: string) =>
+      prisma.appointment.create({
+        data: {
+          organizationId: clinicA, patientId, dentistId, procedureId, status: "PENDING", source: "WHATSAPP",
+          startsAt: new Date(startsAt), endsAt: new Date(new Date(startsAt).getTime() + 1_800_000),
+        },
+      });
+    await pending("2026-10-22T13:00:00.000Z");
+    await pending("2026-10-21T13:00:00.000Z");
+
+    const list = await listPending(ctxFor(prisma, clinicA));
+    expect(list.map((a) => a.startsAt)).toEqual(["2026-10-21T13:00:00.000Z", "2026-10-22T13:00:00.000Z"]);
+    expect(await listPending(ctxFor(prisma, clinicB))).toEqual([]);
   });
 });

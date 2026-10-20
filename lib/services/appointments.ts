@@ -155,6 +155,17 @@ export async function listDay(ctx: ServiceContext, options: ListDayOptions): Pro
   return rows.map(toDto);
 }
 
+/** Appointments waiting for the secretary's confirmation (e.g. requested over WhatsApp). */
+export async function listPending(ctx: ServiceContext): Promise<AppointmentDto[]> {
+  assertCan(ctx.role, "appointment", "read");
+  const rows = await ctx.db.appointment.findMany({
+    where: { status: "PENDING" },
+    include,
+    orderBy: { startsAt: "asc" },
+  });
+  return rows.map(toDto);
+}
+
 export interface FreeSlotsOptions {
   dentistId: string;
   procedureId: string;
