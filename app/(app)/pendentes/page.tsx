@@ -4,7 +4,7 @@ import { listPending } from "@/lib/services/appointments";
 import { listPatients } from "@/lib/services/patients";
 import { getServiceContext } from "@/lib/services/server";
 import { approveAppointmentAction, approvePatientAction, rejectAppointmentAction } from "./actions";
-import { ConfirmButton } from "./confirm-button";
+import { ConfirmButton } from "@/components/form/confirm-button";
 
 export const metadata = { title: "Pendentes" };
 // Per-user page: it depends on the session cookie, so navigating here may block (loading.tsx covers the wait).

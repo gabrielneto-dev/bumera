@@ -2,6 +2,8 @@
 export interface ActionState {
   status: "idle" | "success" | "error";
   message?: string;
+  /** Something to show the user after success (e.g. an invitation link or a code). */
+  output?: string;
   code?: string;
   /** Field name -> message, for validation errors. */
   fieldErrors?: Record<string, string>;

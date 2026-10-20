@@ -2,8 +2,10 @@ import { type ReactNode, Suspense } from "react";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { can } from "@/lib/authz";
 import { getSignedInContext } from "@/lib/services/server";
+import { EmailVerificationBanner } from "./email-verification";
 import { AppNav, type NavItem } from "./nav";
 import { SignOutButton } from "./sign-out-button";
+import { requestVerificationCodeAction, verifyEmailCodeAction } from "./verification-actions";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   // The session is request-time data, so the whole signed-in area streams behind one boundary.
@@ -21,12 +23,13 @@ function navItemsFor(role: string): NavItem[] {
     { href: "/pendentes", label: "Pendentes", allowed: can(role, "patient", "update") },
     { href: "/dentistas", label: "Dentistas", allowed: can(role, "dentist", "create") },
     { href: "/procedimentos", label: "Procedimentos", allowed: can(role, "procedure", "create") },
+    { href: "/equipe", label: "Equipe", allowed: can(role, "invitation", "create") },
   ];
   return candidates.filter((item) => item.allowed).map(({ href, label }) => ({ href, label }));
 }
 
 async function SignedInShell({ children }: { children: ReactNode }) {
-  const { ctx, userName, clinicName } = await getSignedInContext();
+  const { ctx, userName, userEmail, emailVerified, clinicName } = await getSignedInContext();
 
   return (
     <div className="min-h-dvh">
@@ -45,6 +48,13 @@ async function SignedInShell({ children }: { children: ReactNode }) {
           <AppNav items={navItemsFor(ctx.role)} />
         </div>
       </header>
+      {!emailVerified && (
+        <EmailVerificationBanner
+          email={userEmail}
+          requestCode={requestVerificationCodeAction}
+          verify={verifyEmailCodeAction}
+        />
+      )}
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</main>
     </div>
   );

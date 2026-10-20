@@ -23,6 +23,16 @@ describe("can", () => {
     expect(can("secretary", "dentist", "create")).toBe(false);
   });
 
+  it("lets only the admin manage the team", () => {
+    expect(can("admin", "invitation", "create")).toBe(true);
+    expect(can("admin", "invitation", "cancel")).toBe(true);
+    expect(can("admin", "member", "delete")).toBe(true);
+    for (const role of ["secretary", "dentist"]) {
+      expect(can(role, "invitation", "create")).toBe(false);
+      expect(can(role, "member", "delete")).toBe(false);
+    }
+  });
+
   it("keeps the dentist read-mostly", () => {
     expect(can("dentist", "patient", "read")).toBe(true);
     expect(can("dentist", "patient", "create")).toBe(false);

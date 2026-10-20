@@ -10,7 +10,7 @@ Define the architecture details and start building the app engine (dental schedu
 `CTX-DEC-20261017-mvp-simplified`, `CTX-PLN-20261017-mvp-milestones` (drafts `CTX-NTE-20261017-*-draft` are the reference, adjusted by the decision)
 
 ## Working
-M0 built locally (Next.js + Prisma + Better Auth + tenant isolation), running against the Bumera dev Postgres on the server through an SSH tunnel. Committed through M1d; M1e pages being committed; not deployed.
+M0 built locally (Next.js + Prisma + Better Auth + tenant isolation), running against the Bumera dev Postgres on the server through an SSH tunnel. Committed through M1e; M1a being committed; not deployed.
 
 ## In progress
 Questionnaire sessions to close open questions.
@@ -19,7 +19,7 @@ Questionnaire sessions to close open questions.
 None hard. Data model needs multi-tenancy, calendar and trigger answers.
 
 ## Plan in progress (authorized)
-`CTX-PLN-20261020-m1-registry-and-agenda`: M1b-M1e done (schema, libs, services, pages); left M1a (e-mail on screen + team invitations) and M1f (Playwright e2e)
+`CTX-PLN-20261020-m1-registry-and-agenda`: M1a-M1e done (schema, libs, services, pages, team + on-screen e-mail); left M1f (Playwright e2e)
 
 ## Active decisions
 - No e-mail provider for now; e-mail content is shown on screen via an `EmailTransport` — `CTX-DEC-20261020-email-on-screen`

@@ -19,6 +19,11 @@ describe("runAction", () => {
   it("returns a success state with the message", async () => {
     expect(await runAction(async () => "Feito.")).toEqual({ status: "success", message: "Feito." });
     expect(await runAction(async () => undefined)).toEqual({ status: "success", message: undefined });
+    expect(await runAction(async () => ({ message: "Convite criado.", output: "https://x/convite/1" }))).toEqual({
+      status: "success",
+      message: "Convite criado.",
+      output: "https://x/convite/1",
+    });
   });
 
   it("turns validation errors into field errors and a short summary", async () => {

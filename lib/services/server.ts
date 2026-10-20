@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
+import { can } from "@/lib/authz";
 import { getEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { requireClinicSession } from "@/lib/session";
@@ -9,6 +10,8 @@ import { makeServiceContext, type ServiceContext } from "@/lib/services/context"
 export interface SignedInContext {
   ctx: ServiceContext;
   userName: string;
+  userEmail: string;
+  emailVerified: boolean;
   clinicName: string;
 }
 
@@ -34,10 +37,17 @@ export const getSignedInContext = cache(async (): Promise<SignedInContext> => {
       keys: { encryption: env.CPF_ENCRYPTION_KEY, hash: env.CPF_HASH_KEY },
     }),
     userName: user.name,
+    userEmail: user.email,
+    emailVerified: user.emailVerified,
     clinicName: clinic.name,
   };
 });
 
 export async function getServiceContext(): Promise<ServiceContext> {
   return (await getSignedInContext()).ctx;
+}
+
+/** Page guard: sends users without the permission back to the agenda instead of showing an error. */
+export function requirePageAccess(ctx: ServiceContext, resource: string, action: string): void {
+  if (!can(ctx.role, resource, action)) redirect("/agenda");
 }

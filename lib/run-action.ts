@@ -18,14 +18,20 @@ function fieldErrorsFrom(details: Record<string, unknown> | undefined): Record<s
   return Object.keys(errors).length > 0 ? errors : undefined;
 }
 
+/** What a mutation hands back on success: a message, or a message plus something to display. */
+export type ActionOutcome = string | { message?: string; output?: string } | void;
+
 /**
  * Runs a mutation and converts expected failures (AppError) into a form-friendly state.
  * Unexpected errors are logged on the server and shown as a generic message.
  */
-export async function runAction(fn: () => Promise<string | void>): Promise<ActionState> {
+export async function runAction(fn: () => Promise<ActionOutcome>): Promise<ActionState> {
   try {
-    const message = await fn();
-    return { status: "success", message: message ?? undefined };
+    const outcome = await fn();
+    if (typeof outcome === "object" && outcome !== null) {
+      return { status: "success", message: outcome.message, output: outcome.output };
+    }
+    return { status: "success", message: outcome ?? undefined };
   } catch (error) {
     unstable_rethrow(error); // redirects / not-found thrown by Next must pass through
     if (error instanceof AppError) {

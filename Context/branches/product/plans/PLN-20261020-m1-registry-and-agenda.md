@@ -61,3 +61,10 @@ User authorized M1 on 2026-10-20 (including the Playwright install for M1f).
 - Totals: 131 tests (~94% statements), typecheck, lint and production build pass.
 - Left: M1a (on-screen e-mail transport, e-mail verification step, team invitations page) and M1f (Playwright e2e).
 - Known limits: the booking form lists up to 300 patients in a native select (a searchable picker is a later improvement); dentist cannot be limited to "own" appointments yet (Dentist has no user link); clinic timezone is fixed to America/Sao_Paulo.
+
+## Progress 2026-10-20 (M1a done)
+- E-mail on screen (`CTX-DEC-20261020-email-on-screen`): `lib/email.ts` (`EmailTransport`, on-screen implementation, capture per request via AsyncLocalStorage; outside a capture it refuses to send, so public Better Auth endpoints cannot leak codes). Better Auth `emailOTP` (6 digits, 10 min, 3 attempts; only the `email-verification` type is enabled) and organization invitations both use it.
+- Pages: Equipe (members, pending invitations, invite dialog that shows the link to copy, remove member, cancel invitation), `/convite/[id]` (accept; works with `?next=` through sign-up/sign-in; `safeNextPath` blocks open redirects), e-mail verification banner/dialog with the code shown on screen. Admin-only pages redirect others to the agenda.
+- Verified in the browser: verification (wrong then right code), invite a secretary, sign up through the link, accept, role-restricted navigation, redirect from /equipe for the secretary.
+- Totals: 146 tests (~94% statements), typecheck, lint and production build pass.
+- Left in M1: M1f Playwright e2e. Password reset remains deferred (not delivered on screen).
