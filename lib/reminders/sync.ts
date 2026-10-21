@@ -1,5 +1,5 @@
 import type { AppointmentStatus, ReminderKind } from "@/generated/prisma/client";
-import { planReminders } from "@/lib/reminders/plan";
+import { planQuoteReminders, planReminders } from "@/lib/reminders/plan";
 import type { ScopedPrisma } from "@/lib/tenant-scope";
 
 type ReminderDb = Pick<ScopedPrisma, "reminder">;
@@ -56,6 +56,34 @@ export async function syncReminders(db: ReminderDb, appointment: SyncedAppointme
     await db.reminder.updateMany({
       where: { id: row.id, status: { in: [...OPEN_STATUSES] } },
       data: { status: "CANCELLED", note: `appointment is ${appointment.status}` },
+    });
+  }
+}
+
+export interface SyncedQuote {
+  id: string;
+  organizationId: string;
+  status: "OPEN" | "ACCEPTED" | "DECLINED";
+  createdAt: Date;
+}
+
+/**
+ * Creates the follow-ups of a new quote, or stops the unsent ones when the quote was closed.
+ * Called when a quote is created or closed; follow-ups already sent are history and never touched.
+ */
+export async function syncQuoteReminders(db: ReminderDb, quote: SyncedQuote, now: Date): Promise<void> {
+  if (quote.status !== "OPEN") {
+    await db.reminder.updateMany({
+      where: { quoteId: quote.id, status: { in: [...OPEN_STATUSES] } },
+      data: { status: "CANCELLED", note: `quote is ${quote.status}` },
+    });
+    return;
+  }
+  for (const item of planQuoteReminders({ status: quote.status, createdAt: quote.createdAt, now })) {
+    await db.reminder.upsert({
+      where: { quoteId_kind: { quoteId: quote.id, kind: item.kind } },
+      update: {},
+      create: { organizationId: quote.organizationId, quoteId: quote.id, kind: item.kind, dueAt: item.dueAt },
     });
   }
 }

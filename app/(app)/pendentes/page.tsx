@@ -58,16 +58,20 @@ export default async function PendentesPage() {
       )}
 
       {interested.length > 0 && (
-        <Section icon={HeartHandshake} title="Querem agendar o retorno" count={interested.length}>
+        <Section icon={HeartHandshake} title="Querem falar com a equipe" count={interested.length}>
           <Stagger className="space-y-2">
             {interested.map((item) => (
               <StaggerItem key={item.id} className="relative flex flex-wrap items-center gap-4 overflow-hidden rounded-2xl border bg-card py-4 pr-4 pl-5">
                 <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-success" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{item.patient.name}</p>
-                  <p className="text-sm text-muted-foreground">Respondeu ao convite de retorno ({item.procedureName})</p>
+                  <p className="text-sm text-muted-foreground">
+                    {item.quoteDescription
+                      ? `Quer falar sobre o orçamento: ${item.quoteDescription}`
+                      : `Respondeu ao convite de retorno (${item.procedureName ?? "consulta"})`}
+                  </p>
                   <p className="text-sm text-muted-foreground tabular-nums">
-                    Ligue para marcar: {formatBrPhone(item.patient.phoneE164)}
+                    Ligue para combinar: {formatBrPhone(item.patient.phoneE164)}
                   </p>
                 </div>
                 <ConfirmButton label="Marcar como atendido" action={markInterestHandledAction.bind(null, item.id)} />
@@ -108,8 +112,10 @@ export default async function PendentesPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{reminder.patient.name}</p>
                   <p className="text-sm text-muted-foreground first-letter:uppercase">
-                    {REMINDER_KIND_LABEL[reminder.kind]} · consulta {formatDayLong(reminder.appointment.startsAt.slice(0, 10))}{" "}
-                    {formatTime(reminder.appointment.startsAt)}
+                    {REMINDER_KIND_LABEL[reminder.kind]} ·{" "}
+                    {reminder.appointment
+                      ? `consulta ${formatDayLong(reminder.appointment.startsAt.slice(0, 10))} ${formatTime(reminder.appointment.startsAt)}`
+                      : `orçamento ${reminder.quote?.description ?? ""}`}
                   </p>
                   <p className="text-sm text-muted-foreground tabular-nums">
                     Avise por telefone: {formatBrPhone(reminder.patient.phoneE164)}

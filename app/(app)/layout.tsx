@@ -22,6 +22,7 @@ function navItemsFor(role: string): NavItem[] {
   const candidates: Array<NavItem & { allowed: boolean }> = [
     { href: "/agenda", label: "Agenda", icon: "agenda", group: "Rotina", allowed: can(role, "appointment", "read") },
     { href: "/pendentes", label: "Pendentes", icon: "pendentes", group: "Rotina", allowed: can(role, "patient", "update") },
+    { href: "/orcamentos", label: "Orçamentos", icon: "orcamentos", group: "Rotina", allowed: can(role, "quote", "read") },
     { href: "/pacientes", label: "Pacientes", icon: "pacientes", group: "Cadastros", allowed: can(role, "patient", "read") },
     { href: "/dentistas", label: "Dentistas", icon: "dentistas", group: "Cadastros", allowed: can(role, "dentist", "create") },
     { href: "/procedimentos", label: "Procedimentos", icon: "procedimentos", group: "Cadastros", allowed: can(role, "procedure", "create") },

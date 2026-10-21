@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { AppError } from "@/lib/errors";
-import { evaluateGuard, isReplyKind, MAX_ATTEMPTS, retryDelayMs } from "@/lib/reminders/guard";
+import { evaluateGuard, evaluateQuoteGuard, isReplyKind, MAX_ATTEMPTS, QUOTE_VALID_DAYS, retryDelayMs } from "@/lib/reminders/guard";
 import { firstName, renderReminderMessage } from "@/lib/reminders/messages";
 
 /**
@@ -26,6 +26,11 @@ const detailInclude = {
       procedure: { select: { name: true } },
     },
   },
+  quote: {
+    include: {
+      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true } },
+    },
+  },
 } satisfies Prisma.ReminderInclude;
 
 type ReminderDetail = Prisma.ReminderGetPayload<{ include: typeof detailInclude }>;
@@ -38,7 +43,9 @@ export interface DueReminder {
   message: string;
   clinic: { id: string; name: string };
   patient: { id: string; firstName: string; phone: string };
-  appointment: { id: string; startsAt: string; endsAt: string; dentistName: string; procedureName: string };
+  /** Null for quote follow-ups and their replies. */
+  appointment: { id: string; startsAt: string; endsAt: string; dentistName: string; procedureName: string } | null;
+  quote: { id: string; description: string } | null;
 }
 
 export interface ClaimOptions {
@@ -46,8 +53,16 @@ export interface ClaimOptions {
   limit?: number;
 }
 
+/** Who the reminder is about: the patient of its appointment or of its quote. */
+function patientOf(row: ReminderDetail) {
+  const patient = row.appointment?.patient ?? row.quote?.patient;
+  if (!patient) throw new AppError("VALIDATION", "Lembrete sem consulta nem orçamento", { id: row.id });
+  return patient;
+}
+
 function toDue(row: ReminderDetail, attempt: number): DueReminder {
-  const { appointment } = row;
+  const { appointment, quote } = row;
+  const patient = patientOf(row);
   return {
     id: row.id,
     kind: row.kind,
@@ -55,24 +70,24 @@ function toDue(row: ReminderDetail, attempt: number): DueReminder {
     message: renderReminderMessage({
       kind: row.kind,
       clinicName: row.organization.name,
-      patientName: appointment.patient.name,
-      startsAt: appointment.startsAt.toISOString(),
-      dentistName: appointment.dentist.name,
-      procedureName: appointment.procedure.name,
+      patientName: patient.name,
+      startsAt: (appointment?.startsAt ?? quote?.createdAt ?? new Date(0)).toISOString(),
+      dentistName: appointment?.dentist.name ?? "",
+      procedureName: appointment?.procedure.name ?? "",
+      quoteDescription: quote?.description,
     }),
     clinic: row.organization,
-    patient: {
-      id: appointment.patient.id,
-      firstName: firstName(appointment.patient.name),
-      phone: appointment.patient.phoneE164,
-    },
-    appointment: {
-      id: appointment.id,
-      startsAt: appointment.startsAt.toISOString(),
-      endsAt: appointment.endsAt.toISOString(),
-      dentistName: appointment.dentist.name,
-      procedureName: appointment.procedure.name,
-    },
+    patient: { id: patient.id, firstName: firstName(patient.name), phone: patient.phoneE164 },
+    appointment: appointment
+      ? {
+          id: appointment.id,
+          startsAt: appointment.startsAt.toISOString(),
+          endsAt: appointment.endsAt.toISOString(),
+          dentistName: appointment.dentist.name,
+          procedureName: appointment.procedure.name,
+        }
+      : null,
+    quote: quote ? { id: quote.id, description: quote.description } : null,
   };
 }
 
@@ -106,16 +121,17 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
 
     const due: DueReminder[] = [];
     for (const row of rows) {
+      const patient = patientOf(row);
       const patientHasUpcomingAppointment =
         row.kind === "REACTIVATION"
           ? (await tx.appointment.count({
-              where: { patientId: row.appointment.patient.id, status: { in: ["SCHEDULED", "CONFIRMED"] }, startsAt: { gt: now } },
+              where: { patientId: patient.id, status: { in: ["SCHEDULED", "CONFIRMED"] }, startsAt: { gt: now } },
             })) > 0
           : undefined;
-      const guard = evaluateGuard(
-        { kind: row.kind, appointment: row.appointment, patient: row.appointment.patient, patientHasUpcomingAppointment },
-        now,
-      );
+      const guard =
+        row.quote && !isReplyKind(row.kind)
+          ? evaluateQuoteGuard({ quote: row.quote, patient }, now)
+          : evaluateGuard({ kind: row.kind, appointment: row.appointment ?? undefined, patient, patientHasUpcomingAppointment }, now);
       if (!guard.ok) {
         await tx.reminder.update({ where: { id: row.id }, data: { status: guard.status, note: guard.reason } });
         continue;
@@ -131,6 +147,13 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
     }
     return due;
   }, { timeout: TRANSACTION_TIMEOUT_MS });
+}
+
+/** Retrying after this moment is pointless: the appointment started, or the quote expired. */
+function retryDeadline(row: { appointment: { startsAt: Date } | null; quote: { createdAt: Date } | null }): Date {
+  if (row.appointment) return row.appointment.startsAt;
+  const created = row.quote?.createdAt ?? new Date(0);
+  return new Date(created.getTime() + QUOTE_VALID_DAYS * 86_400_000);
 }
 
 /** `attempt` is the number received in the due payload: a report about an older try is ignored. */
@@ -161,7 +184,7 @@ export async function recordReminderResult(
 
     const row = await tx.reminder.findUniqueOrThrow({
       where: { id },
-      include: { appointment: { select: { startsAt: true } } },
+      include: { appointment: { select: { startsAt: true } }, quote: { select: { createdAt: true } } },
     });
     if (row.status !== "CLAIMED" || row.attempts !== result.attempt) return { id, status: row.status };
 
@@ -172,7 +195,7 @@ export async function recordReminderResult(
 
     const delay = retryDelayMs(row.attempts);
     const retryAt = delay === null ? null : new Date(now.getTime() + delay);
-    const beforeStart = row.kind === "NO_SHOW_FOLLOWUP" || isReplyKind(row.kind) || (retryAt !== null && retryAt < row.appointment.startsAt);
+    const beforeStart = row.kind === "NO_SHOW_FOLLOWUP" || isReplyKind(row.kind) || (retryAt !== null && retryAt < retryDeadline(row));
     const note = truncate(result.error) ?? "delivery failed";
     if (retryAt && beforeStart) {
       await tx.reminder.update({ where: { id }, data: { status: "PENDING", dueAt: retryAt, claimedAt: null, note } });

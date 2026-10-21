@@ -91,6 +91,7 @@ model Organization {
   patients     Patient[]
   appointments Appointment[]
   reminders    Reminder[]
+  quotes       Quote[]
 
   @@unique([slug])
   @@map("organization")
@@ -210,6 +211,7 @@ model Patient {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   appointments   Appointment[]
+  quotes         Quote[]
 
   @@unique([id, organizationId])
   @@unique([organizationId, cpfHash])
@@ -264,6 +266,9 @@ enum ReminderKind {
   REACTIVATION
   REPLY_INTERESTED
   REPLY_DECLINED
+  /// Module 2: follow-ups after a quote was given (day 2 and day 7).
+  QUOTE_FOLLOWUP_1
+  QUOTE_FOLLOWUP_2
 }
 
 /// What the patient answered to a campaign message (reactivation).
@@ -290,8 +295,11 @@ model Reminder {
   id             String          @id @default(uuid())
   organizationId String
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  appointmentId  String
-  appointment    Appointment     @relation(fields: [appointmentId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  /// Exactly one of appointmentId / quoteId is set (CHECK constraint in the migration).
+  appointmentId  String?
+  appointment    Appointment?    @relation(fields: [appointmentId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  quoteId        String?
+  quote          Quote?          @relation(fields: [quoteId, organizationId], references: [id, organizationId], onDelete: NoAction)
   kind           ReminderKind
   status         ReminderStatus  @default(PENDING)
   /// Earliest moment n8n may pick it up; moved forward on retries.
@@ -309,7 +317,39 @@ model Reminder {
   updatedAt      DateTime        @updatedAt
 
   @@unique([appointmentId, kind])
+  @@unique([quoteId, kind])
   @@index([status, dueAt])
   @@index([organizationId, status])
   @@map("reminder")
+}
+
+// ---------------------------------------------------------------------------
+// Module 2: quotes. The secretary records a quote; the app schedules follow-up reminders
+// (lib/reminders/plan.ts) delivered through the same n8n flow as appointment reminders.
+// ---------------------------------------------------------------------------
+
+enum QuoteStatus {
+  OPEN
+  ACCEPTED
+  DECLINED
+}
+
+model Quote {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  patientId      String
+  patient        Patient      @relation(fields: [patientId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  /// What was quoted ("Implante dente 36"); shown in the follow-up message.
+  description    String
+  valueCents     Int?
+  status         QuoteStatus  @default(OPEN)
+  closedAt       DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  reminders      Reminder[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, status])
+  @@map("quote")
 }

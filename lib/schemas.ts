@@ -101,6 +101,19 @@ export const procedureUpdateSchema = z
   .partial()
   .extend({ active: z.boolean().optional() });
 
+const quoteValueReais = z
+  .number({ error: "Informe o valor em reais" })
+  .min(0, "O valor não pode ser negativo")
+  .max(99_999.99, "Valor acima do permitido");
+
+export const quoteInputSchema = z.object({
+  patientId: z.uuid(),
+  description: z.string().trim().min(1, "Descreva o orçamento").max(200, "Use até 200 caracteres"),
+  value: quoteValueReais.optional(),
+});
+
+export const quoteCloseSchema = z.enum(["ACCEPTED", "DECLINED"], { error: "Situação inválida" });
+
 export const appointmentInputSchema = z.object({
   patientId: z.uuid(),
   dentistId: z.uuid(),

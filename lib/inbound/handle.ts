@@ -1,11 +1,11 @@
 import type { PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { phoneCandidates, type InboundMessage } from "@/lib/inbound/evolution";
 import { parseIntent } from "@/lib/inbound/intent";
-import { syncReminders } from "@/lib/reminders/sync";
+import { syncQuoteReminders, syncReminders } from "@/lib/reminders/sync";
 import { scopedPrisma, type ScopedPrisma } from "@/lib/tenant-scope";
 
 export type InboundOutcome =
-  | { outcome: "CONFIRMED" | "RESCHEDULE_REQUESTED" | "INTERESTED" | "DECLINED"; appointmentId: string }
+  | { outcome: "CONFIRMED" | "RESCHEDULE_REQUESTED" | "INTERESTED" | "DECLINED"; appointmentId?: string; quoteId?: string }
   | { outcome: "OPTED_OUT"; patients: number }
   | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "IGNORED" };
 
@@ -54,7 +54,7 @@ export async function handleInboundMessage(
         const row = await tx.appointment.update({ where: { id: appointment.id }, data: { status: "CONFIRMED" } });
         await syncReminders(tx, row, now);
       }
-      await queueReply(tx, appointment, "REPLY_CONFIRMED", now);
+      await queueReply(tx, { organizationId: appointment.organizationId, appointmentId: appointment.id }, "REPLY_CONFIRMED", now);
     });
     return { outcome: "CONFIRMED", appointmentId: appointment.id };
   }
@@ -65,12 +65,12 @@ export async function handleInboundMessage(
       where: { appointmentId: appointment.id, status: "PENDING", kind: { in: [...PLANNED_REMINDER_KINDS] } },
       data: { status: "CANCELLED", note: "patient asked to reschedule" },
     });
-    await queueReply(tx, appointment, "REPLY_RESCHEDULE", now);
+    await queueReply(tx, { organizationId: appointment.organizationId, appointmentId: appointment.id }, "REPLY_RESCHEDULE", now);
   });
   return { outcome: "RESCHEDULE_REQUESTED", appointmentId: appointment.id };
 }
 
-const CAMPAIGN_KINDS: readonly ReminderKind[] = ["REACTIVATION"];
+const CAMPAIGN_KINDS: readonly ReminderKind[] = ["REACTIVATION", "QUOTE_FOLLOWUP_1", "QUOTE_FOLLOWUP_2"];
 /** A campaign message keeps meaning "1 / 2" for this long; after that the replies are read as usual. */
 const CAMPAIGN_WINDOW_MS = 14 * 24 * 3_600_000;
 
@@ -83,7 +83,7 @@ async function openCampaignMessage(prisma: PrismaClient, patientIds: string[], n
     where: {
       status: "SENT",
       sentAt: { not: null },
-      appointment: { patientId: { in: patientIds } },
+      OR: [{ appointment: { patientId: { in: patientIds } } }, { quote: { patientId: { in: patientIds } } }],
       kind: { notIn: ["REPLY_CONFIRMED", "REPLY_RESCHEDULE", "REPLY_OPTED_OUT", "REPLY_INTERESTED", "REPLY_DECLINED"] },
     },
     orderBy: { sentAt: "desc" },
@@ -95,36 +95,55 @@ async function openCampaignMessage(prisma: PrismaClient, patientIds: string[], n
 
 async function answerCampaign(
   prisma: PrismaClient,
-  campaign: { id: string; organizationId: string; appointmentId: string },
+  campaign: { id: string; organizationId: string; appointmentId: string | null; quoteId: string | null },
   answer: "INTERESTED" | "DECLINED",
   now: Date,
 ): Promise<InboundOutcome> {
-  await scopedPrisma(prisma, campaign.organizationId).$transaction(async (tx) => {
+  const replyKind: ReplyKind = answer === "INTERESTED" ? "REPLY_INTERESTED" : "REPLY_DECLINED";
+  const { appointmentId, quoteId, organizationId } = campaign;
+  await scopedPrisma(prisma, organizationId).$transaction(async (tx) => {
     await tx.reminder.update({ where: { id: campaign.id }, data: { answer, answeredAt: now } });
-    await queueReply(tx, { id: campaign.appointmentId, organizationId: campaign.organizationId }, answer === "INTERESTED" ? "REPLY_INTERESTED" : "REPLY_DECLINED", now);
+    if (quoteId) {
+      if (answer === "DECLINED") {
+        // "Not now" closes the quote: no more follow-ups.
+        const quote = await tx.quote.update({ where: { id: quoteId }, data: { status: "DECLINED", closedAt: now } });
+        await syncQuoteReminders(tx, quote, now);
+      }
+      await queueReply(tx, { organizationId, quoteId }, replyKind, now);
+    } else if (appointmentId) {
+      await queueReply(tx, { organizationId, appointmentId }, replyKind, now);
+    }
   });
-  return { outcome: answer, appointmentId: campaign.appointmentId };
+  return quoteId ? { outcome: answer, quoteId } : { outcome: answer, appointmentId: appointmentId ?? undefined };
 }
 
 const PLANNED_REMINDER_KINDS = ["CONFIRMATION", "REMINDER_24H", "REMINDER_2H", "NO_SHOW_FOLLOWUP"] as const;
 
 type ReplyKind = "REPLY_CONFIRMED" | "REPLY_RESCHEDULE" | "REPLY_OPTED_OUT" | "REPLY_INTERESTED" | "REPLY_DECLINED";
 type ReplyDb = Pick<ScopedPrisma, "reminder">;
+/** What a reply is about: an appointment or a quote, inside one clinic. */
+type ReplySubject = { organizationId: string } & ({ appointmentId: string } | { quoteId: string });
 
 /**
  * Queues the automatic answer, due immediately, for n8n to pick up through /due. One per
- * (appointment, kind): a patient answering twice, or a webhook delivered twice, gets one reply.
+ * (subject, kind): a patient answering twice, or a webhook delivered twice, gets one reply.
  */
-async function queueReply(
-  db: ReplyDb,
-  appointment: { id: string; organizationId: string },
-  kind: ReplyKind,
-  now: Date,
-): Promise<void> {
+async function queueReply(db: ReplyDb, subject: ReplySubject, kind: ReplyKind, now: Date): Promise<void> {
+  const { organizationId } = subject;
+  if ("appointmentId" in subject) {
+    const { appointmentId } = subject;
+    await db.reminder.upsert({
+      where: { appointmentId_kind: { appointmentId, kind } },
+      update: {},
+      create: { organizationId, appointmentId, kind, dueAt: now },
+    });
+    return;
+  }
+  const { quoteId } = subject;
   await db.reminder.upsert({
-    where: { appointmentId_kind: { appointmentId: appointment.id, kind } },
+    where: { quoteId_kind: { quoteId, kind } },
     update: {},
-    create: { organizationId: appointment.organizationId, appointmentId: appointment.id, kind, dueAt: now },
+    create: { organizationId, quoteId, kind, dueAt: now },
   });
 }
 
@@ -135,17 +154,33 @@ async function optOut(prisma: PrismaClient, patientIds: string[], now: Date): Pr
       data: { doNotContact: true, optedOutAt: now },
     }),
     prisma.reminder.updateMany({
-      where: { status: "PENDING", appointment: { patientId: { in: patientIds } } },
+      where: {
+        status: "PENDING",
+        OR: [{ appointment: { patientId: { in: patientIds } } }, { quote: { patientId: { in: patientIds } } }],
+      },
       data: { status: "SKIPPED", note: "patient opted out" },
     }),
   ]);
-  // One acknowledgement, attached to the patient's latest appointment; without any there is nothing to attach it to.
-  // A separate step is fine: if it fails, the webhook is retried and every step above is safe to repeat.
-  const latest = await prisma.appointment.findFirst({
+  // One acknowledgement, attached to the patient's latest appointment or, failing that, latest quote;
+  // without either there is nothing to attach it to. A separate step is fine: if it fails, the webhook
+  // is retried and every step above is safe to repeat.
+  const appointment = await prisma.appointment.findFirst({
     where: { patientId: { in: patientIds } },
     orderBy: { startsAt: "desc" },
     select: { id: true, organizationId: true },
   });
-  if (latest) await queueReply(scopedPrisma(prisma, latest.organizationId), latest, "REPLY_OPTED_OUT", now);
+  if (appointment) {
+    const db = scopedPrisma(prisma, appointment.organizationId);
+    await queueReply(db, { organizationId: appointment.organizationId, appointmentId: appointment.id }, "REPLY_OPTED_OUT", now);
+  } else {
+    const quote = await prisma.quote.findFirst({
+      where: { patientId: { in: patientIds } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, organizationId: true },
+    });
+    if (quote) {
+      await queueReply(scopedPrisma(prisma, quote.organizationId), { organizationId: quote.organizationId, quoteId: quote.id }, "REPLY_OPTED_OUT", now);
+    }
+  }
   return { outcome: "OPTED_OUT", patients: patientIds.length };
 }

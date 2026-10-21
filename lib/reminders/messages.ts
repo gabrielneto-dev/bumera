@@ -10,15 +10,18 @@ export interface MessageInput {
   startsAt: string;
   dentistName: string;
   procedureName: string;
+  /** What was quoted (quote follow-ups only). */
+  quoteDescription?: string;
 }
 
 const MAX_NAME_LENGTH = 60;
+const MAX_QUOTE_LENGTH = 120;
 
 /**
  * Names are typed by people (or arrive from WhatsApp) and end up inside a message sent from the
  * clinic's number, so they must not be able to add links, formatting or extra lines.
  */
-export function sanitizeName(raw: string): string {
+export function sanitizeName(raw: string, maxLength = MAX_NAME_LENGTH): string {
   return raw
     .replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ")
     .replace(/(https?:\/\/|www\.)\S*/gi, "")
@@ -26,13 +29,14 @@ export function sanitizeName(raw: string): string {
     .replace(/[*_~`]/g, "")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, MAX_NAME_LENGTH)
+    .slice(0, maxLength)
     .trim();
 }
 
 /** Blank line between paragraphs; WhatsApp renders *text* in bold. */
 const PARAGRAPH = "\n\n";
 const OPT_OUT_LINE = "Para não receber mais mensagens, responda *SAIR*.";
+const QUOTE_ANSWER_BLOCK = ["Responda:", "*1* para falar com a equipe", "*2* para agora não"].join("\n");
 const ANSWER_BLOCK = ["Responda:", "*1* para confirmar", "*2* para remarcar"].join("\n");
 
 function when(iso: string): { day: string; time: string } {
@@ -70,6 +74,7 @@ export function renderReminderMessage(raw: MessageInput): string {
     clinicName: sanitizeName(raw.clinicName),
     dentistName: sanitizeName(raw.dentistName),
     procedureName: sanitizeName(raw.procedureName),
+    quoteDescription: sanitizeName(raw.quoteDescription ?? "", MAX_QUOTE_LENGTH),
   };
   const { day, time } = when(input.startsAt);
   const hello = greeting(input.patientName);
@@ -105,8 +110,22 @@ export function renderReminderMessage(raw: MessageInput): string {
         ["Responda:", "*1* para agendar", "*2* para agora não"].join("\n"),
         OPT_OUT_LINE,
       );
+    case "QUOTE_FOLLOWUP_1":
+      return join(
+        hello,
+        `Passando para saber se ficou alguma dúvida sobre o orçamento *${input.quoteDescription}* na ${clinic}.`,
+        QUOTE_ANSWER_BLOCK,
+        OPT_OUT_LINE,
+      );
+    case "QUOTE_FOLLOWUP_2":
+      return join(
+        hello,
+        `O seu orçamento *${input.quoteDescription}* na ${clinic} continua disponível. Quer conversar sobre as condições?`,
+        QUOTE_ANSWER_BLOCK,
+        OPT_OUT_LINE,
+      );
     case "REPLY_INTERESTED":
-      return join(hello, "Ótimo! 😊", `A equipe da ${clinic} entra em contato em breve para combinar o melhor horário.`);
+      return join(hello, "Ótimo! 😊", `A equipe da ${clinic} entra em contato em breve.`);
     case "REPLY_DECLINED":
       return join(hello, "Tudo bem!", "Quando precisar, é só chamar. Cuide bem do seu sorriso! 🦷");
     case "NO_SHOW_FOLLOWUP":

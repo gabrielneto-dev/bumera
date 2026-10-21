@@ -27,4 +27,6 @@ export const REMINDER_KIND_LABEL: Record<ReminderKind, string> = {
   REACTIVATION: "Convite para voltar",
   REPLY_INTERESTED: "Resposta: quer agendar",
   REPLY_DECLINED: "Resposta: agora não",
+  QUOTE_FOLLOWUP_1: "Orçamento: 1º contato",
+  QUOTE_FOLLOWUP_2: "Orçamento: 2º contato",
 };
