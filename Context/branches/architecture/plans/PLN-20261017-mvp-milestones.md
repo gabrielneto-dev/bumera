@@ -6,7 +6,7 @@ branch: architecture
 tags: [roadmap, pilot]
 status: in-progress
 created_at: 2026-10-17
-updated_at: 2026-10-18
+updated_at: 2026-10-21
 related: [CTX-DEC-20261017-mvp-simplified]
 supersedes: CTX-PLN-20261017-build-milestones
 ---
@@ -25,3 +25,6 @@ M0 mostly done (see `CTX-NTE-20261018-m0-implementation`). Remaining in M0: brow
 
 ## Progress 2026-10-20
 M0 and M1 done (the originally planned M1 was split into M1a-M1f and completed). Next: M2 reminders, M3 first n8n flow, M4 inbound and hardening. App deployment decision needed before M3 (`CTX-QUE-20261018-app-deployment`).
+
+## Progress 2026-10-21
+M2 done (commit 79bd0e6). M3 done: app, Evolution and Redis deployed in `~/bumera-app`, workflow `n8n/workflows/reminders-whatsapp.json` published and verified end to end with a real WhatsApp message; `message_log` dropped (the `reminder` table is the log). Next: M4 inbound and hardening (see `CTX-NTE-20261021-m2-m3-implementation`).

@@ -6,7 +6,7 @@ branch: architecture
 tags: [security, webhook, integration]
 status: open
 created_at: 2026-10-16
-updated_at: 2026-10-16
+updated_at: 2026-10-21
 ---
 
 ## Question
@@ -26,3 +26,6 @@ Answer in the questionnaire (user), then record a DEC and mark this answered.
 
 ## Partial answer (2026-10-17)
 n8n is temporarily exposed (`CTX-DEC-20261017-network-exposure-phased`); service-to-service authentication (API keys, signed webhooks) is still to be defined.
+
+## Partial answer (2026-10-21)
+n8n -> app: Bearer `SERVICE_API_KEY` (env var; app answers 503 if unset, 401 if wrong). n8n -> Evolution: `apikey` header with `EVOLUTION_API_KEY`. Both calls stay on the internal docker network. Still open: signed (HMAC) inbound webhooks from Evolution to the app and the app -> n8n forwarder (M4); protection of the public n8n/Evolution hostnames (`CTX-RSK-20261021-evolution-publicly-exposed`).

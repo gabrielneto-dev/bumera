@@ -38,3 +38,6 @@
 
 ## 2026-10-20 (full save)
 - Added M1 code-map note and checkpoint; rewrote STATE; fixed MAP and branch indexes; taxonomy tag `infrastructure`; scheduling-interface plan completed.
+
+## 2026-10-21 (full save)
+- M2/M3 note, deployment decision (answers app-deployment), Evolution exposure risk, service-auth partial answer, plan progress, server inventory update, checkpoint, STATE.
