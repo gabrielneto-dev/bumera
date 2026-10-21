@@ -59,6 +59,11 @@ export default async function ProcedimentosPage() {
                 <span className="font-heading text-3xl leading-none">{procedure.defaultDurationMin}</span>
                 <span className="text-sm text-muted-foreground">min</span>
               </p>
+              {procedure.reactivateAfterMonths ? (
+                <p className="text-sm text-muted-foreground">
+                  Convida para voltar após {procedure.reactivateAfterMonths} {procedure.reactivateAfterMonths === 1 ? "mês" : "meses"}
+                </p>
+              ) : null}
               {canManage && (
                 <div className="-mb-1 mt-auto flex justify-end border-t pt-3">
                   <ActionDialog

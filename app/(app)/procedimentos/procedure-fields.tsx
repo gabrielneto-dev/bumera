@@ -16,6 +16,15 @@ export function ProcedureFields({ procedure }: { procedure?: ProcedureDto }) {
         required
         hint="Usada para calcular o fim da consulta e os horários livres."
       />
+      <TextField
+        name="reactivateAfterMonths"
+        label="Convidar para voltar após (meses, opcional)"
+        type="number"
+        min={1}
+        max={60}
+        defaultValue={procedure?.reactivateAfterMonths ?? undefined}
+        hint="Depois de concluir uma consulta deste procedimento, o paciente recebe um convite de retorno. Deixe vazio para não convidar."
+      />
       {procedure && <CheckboxField name="active" label="Disponível para agendamento" defaultChecked={procedure.active} />}
     </>
   );

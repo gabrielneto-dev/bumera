@@ -1,11 +1,11 @@
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { phoneCandidates, type InboundMessage } from "@/lib/inbound/evolution";
 import { parseIntent } from "@/lib/inbound/intent";
 import { syncReminders } from "@/lib/reminders/sync";
 import { scopedPrisma, type ScopedPrisma } from "@/lib/tenant-scope";
 
 export type InboundOutcome =
-  | { outcome: "CONFIRMED" | "RESCHEDULE_REQUESTED"; appointmentId: string }
+  | { outcome: "CONFIRMED" | "RESCHEDULE_REQUESTED" | "INTERESTED" | "DECLINED"; appointmentId: string }
   | { outcome: "OPTED_OUT"; patients: number }
   | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "IGNORED" };
 
@@ -32,6 +32,9 @@ export async function handleInboundMessage(
   const patientIds = patients.map((patient) => patient.id);
 
   if (intent === "OPT_OUT") return optOut(prisma, patientIds, now);
+
+  const campaign = await openCampaignMessage(prisma, patientIds, now);
+  if (campaign) return answerCampaign(prisma, campaign, intent === "CONFIRM" ? "INTERESTED" : "DECLINED", now);
 
   const appointment = await prisma.appointment.findFirst({
     where: {
@@ -67,9 +70,45 @@ export async function handleInboundMessage(
   return { outcome: "RESCHEDULE_REQUESTED", appointmentId: appointment.id };
 }
 
+const CAMPAIGN_KINDS: readonly ReminderKind[] = ["REACTIVATION"];
+/** A campaign message keeps meaning "1 / 2" for this long; after that the replies are read as usual. */
+const CAMPAIGN_WINDOW_MS = 14 * 24 * 3_600_000;
+
+/**
+ * The campaign message the patient is most likely answering: the latest message sent to them,
+ * when it was a campaign one, is still unanswered and recent. Appointment reminders sent after it win.
+ */
+async function openCampaignMessage(prisma: PrismaClient, patientIds: string[], now: Date) {
+  const latest = await prisma.reminder.findFirst({
+    where: {
+      status: "SENT",
+      sentAt: { not: null },
+      appointment: { patientId: { in: patientIds } },
+      kind: { notIn: ["REPLY_CONFIRMED", "REPLY_RESCHEDULE", "REPLY_OPTED_OUT", "REPLY_INTERESTED", "REPLY_DECLINED"] },
+    },
+    orderBy: { sentAt: "desc" },
+  });
+  if (!latest?.sentAt || latest.answer !== null) return null;
+  if (!CAMPAIGN_KINDS.includes(latest.kind) || now.getTime() - latest.sentAt.getTime() > CAMPAIGN_WINDOW_MS) return null;
+  return latest;
+}
+
+async function answerCampaign(
+  prisma: PrismaClient,
+  campaign: { id: string; organizationId: string; appointmentId: string },
+  answer: "INTERESTED" | "DECLINED",
+  now: Date,
+): Promise<InboundOutcome> {
+  await scopedPrisma(prisma, campaign.organizationId).$transaction(async (tx) => {
+    await tx.reminder.update({ where: { id: campaign.id }, data: { answer, answeredAt: now } });
+    await queueReply(tx, { id: campaign.appointmentId, organizationId: campaign.organizationId }, answer === "INTERESTED" ? "REPLY_INTERESTED" : "REPLY_DECLINED", now);
+  });
+  return { outcome: answer, appointmentId: campaign.appointmentId };
+}
+
 const PLANNED_REMINDER_KINDS = ["CONFIRMATION", "REMINDER_24H", "REMINDER_2H", "NO_SHOW_FOLLOWUP"] as const;
 
-type ReplyKind = "REPLY_CONFIRMED" | "REPLY_RESCHEDULE" | "REPLY_OPTED_OUT";
+type ReplyKind = "REPLY_CONFIRMED" | "REPLY_RESCHEDULE" | "REPLY_OPTED_OUT" | "REPLY_INTERESTED" | "REPLY_DECLINED";
 type ReplyDb = Pick<ScopedPrisma, "reminder">;
 
 /**

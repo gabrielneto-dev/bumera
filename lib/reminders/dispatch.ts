@@ -106,8 +106,14 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
 
     const due: DueReminder[] = [];
     for (const row of rows) {
+      const patientHasUpcomingAppointment =
+        row.kind === "REACTIVATION"
+          ? (await tx.appointment.count({
+              where: { patientId: row.appointment.patient.id, status: { in: ["SCHEDULED", "CONFIRMED"] }, startsAt: { gt: now } },
+            })) > 0
+          : undefined;
       const guard = evaluateGuard(
-        { kind: row.kind, appointment: row.appointment, patient: row.appointment.patient },
+        { kind: row.kind, appointment: row.appointment, patient: row.appointment.patient, patientHasUpcomingAppointment },
         now,
       );
       if (!guard.ok) {

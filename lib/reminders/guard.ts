@@ -14,9 +14,11 @@ export interface GuardInput {
   kind: ReminderKind;
   appointment: { status: AppointmentStatus; startsAt: Date; endsAt: Date };
   patient: { consentAt: Date | null; doNotContact: boolean; status: "PENDING" | "CONFIRMED" };
+  /** For reactivation: the patient already has a live appointment ahead, so the invitation is moot. */
+  patientHasUpcomingAppointment?: boolean;
 }
 
-const REPLY_KINDS: readonly ReminderKind[] = ["REPLY_CONFIRMED", "REPLY_RESCHEDULE", "REPLY_OPTED_OUT"];
+const REPLY_KINDS: readonly ReminderKind[] = ["REPLY_CONFIRMED", "REPLY_RESCHEDULE", "REPLY_OPTED_OUT", "REPLY_INTERESTED", "REPLY_DECLINED"];
 
 /** Answers to a patient's own WhatsApp message (as opposed to reminders the clinic starts). */
 export function isReplyKind(kind: ReminderKind): boolean {
@@ -34,14 +36,21 @@ const LIVE_STATUSES: readonly AppointmentStatus[] = ["SCHEDULED", "CONFIRMED"];
  * Last check before handing a reminder to n8n: never send a stale reminder
  * (appointment cancelled, done or already started) or one the patient did not allow.
  */
-export function evaluateGuard({ kind, appointment, patient }: GuardInput, now: Date): GuardResult {
+export function evaluateGuard({ kind, appointment, patient, patientHasUpcomingAppointment }: GuardInput, now: Date): GuardResult {
   if (isReplyKind(kind)) {
     // The patient just wrote to us: no schedule or consent checks. The opt-out acknowledgement is
     // the one message still allowed after the opt-out; every other reply stops once they opted out.
     if (kind !== "REPLY_OPTED_OUT" && patient.doNotContact) return { ok: false, status: "SKIPPED", reason: "patient opted out" };
     return { ok: true };
   }
-  if (kind === "NO_SHOW_FOLLOWUP") {
+  if (kind === "REACTIVATION") {
+    if (appointment.status !== "COMPLETED") {
+      return { ok: false, status: "CANCELLED", reason: "appointment is no longer completed" };
+    }
+    if (patientHasUpcomingAppointment) {
+      return { ok: false, status: "CANCELLED", reason: "patient already has an upcoming appointment" };
+    }
+  } else if (kind === "NO_SHOW_FOLLOWUP") {
     if (appointment.status !== "NO_SHOW") {
       return { ok: false, status: "CANCELLED", reason: "appointment is no longer a no-show" };
     }

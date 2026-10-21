@@ -7,6 +7,7 @@ export interface ProcedureDto {
   id: string;
   name: string;
   defaultDurationMin: number;
+  reactivateAfterMonths: number | null;
   active: boolean;
 }
 
@@ -14,6 +15,7 @@ const toDto = (row: ProcedureDto): ProcedureDto => ({
   id: row.id,
   name: row.name,
   defaultDurationMin: row.defaultDurationMin,
+  reactivateAfterMonths: row.reactivateAfterMonths,
   active: row.active,
 });
 

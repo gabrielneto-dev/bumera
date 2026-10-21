@@ -98,6 +98,17 @@ export function renderReminderMessage(raw: MessageInput): string {
         `Tudo certo: você não vai mais receber mensagens da ${clinic}.`,
         "Se mudar de ideia, é só falar com a clínica.",
       );
+    case "REACTIVATION":
+      return join(
+        hello,
+        `Faz um tempo desde o seu atendimento na ${clinic} (${input.procedureName}). Que tal agendar o seu retorno?`,
+        ["Responda:", "*1* para agendar", "*2* para agora não"].join("\n"),
+        OPT_OUT_LINE,
+      );
+    case "REPLY_INTERESTED":
+      return join(hello, "Ótimo! 😊", `A equipe da ${clinic} entra em contato em breve para combinar o melhor horário.`);
+    case "REPLY_DECLINED":
+      return join(hello, "Tudo bem!", "Quando precisar, é só chamar. Cuide bem do seu sorriso! 🦷");
     case "NO_SHOW_FOLLOWUP":
       return join(
         hello,

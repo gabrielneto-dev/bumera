@@ -84,10 +84,20 @@ export const dentistUpdateSchema = z
   .partial()
   .extend({ active: z.boolean().optional() });
 
-export const procedureInputSchema = z.object({ name, defaultDurationMin: duration });
+const reactivateAfterMonths = z
+  .number({ error: "Informe os meses" })
+  .int("Use meses inteiros")
+  .min(1, "Mínimo de 1 mês")
+  .max(60, "Máximo de 60 meses");
+
+export const procedureInputSchema = z.object({
+  name,
+  defaultDurationMin: duration,
+  reactivateAfterMonths: reactivateAfterMonths.nullable().optional(),
+});
 
 export const procedureUpdateSchema = z
-  .object({ name, defaultDurationMin: duration })
+  .object({ name, defaultDurationMin: duration, reactivateAfterMonths: reactivateAfterMonths.nullable() })
   .partial()
   .extend({ active: z.boolean().optional() });
 

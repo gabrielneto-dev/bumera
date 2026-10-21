@@ -24,4 +24,7 @@ export const REMINDER_KIND_LABEL: Record<ReminderKind, string> = {
   REPLY_CONFIRMED: "Resposta: consulta confirmada",
   REPLY_RESCHEDULE: "Resposta: pedido de remarcação",
   REPLY_OPTED_OUT: "Resposta: descadastro",
+  REACTIVATION: "Convite para voltar",
+  REPLY_INTERESTED: "Resposta: quer agendar",
+  REPLY_DECLINED: "Resposta: agora não",
 };

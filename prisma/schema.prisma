@@ -174,14 +174,16 @@ model Dentist {
 }
 
 model Procedure {
-  id                 String        @id @default(uuid())
-  organizationId     String
-  organization       Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name               String
-  defaultDurationMin Int           @default(30)
-  active             Boolean       @default(true)
-  createdAt          DateTime      @default(now())
-  appointments       Appointment[]
+  id                    String        @id @default(uuid())
+  organizationId        String
+  organization          Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                  String
+  defaultDurationMin    Int           @default(30)
+  /// Months after a completed appointment to invite the patient back (module 1); null = never.
+  reactivateAfterMonths Int?
+  active                Boolean       @default(true)
+  createdAt             DateTime      @default(now())
+  appointments          Appointment[]
 
   @@unique([id, organizationId])
   @@index([organizationId])
@@ -258,6 +260,16 @@ enum ReminderKind {
   REPLY_CONFIRMED
   REPLY_RESCHEDULE
   REPLY_OPTED_OUT
+  /// Module 1: invite the patient back N months after a completed appointment.
+  REACTIVATION
+  REPLY_INTERESTED
+  REPLY_DECLINED
+}
+
+/// What the patient answered to a campaign message (reactivation).
+enum ReminderAnswer {
+  INTERESTED
+  DECLINED
 }
 
 enum ReminderStatus {
@@ -275,22 +287,26 @@ enum ReminderStatus {
 }
 
 model Reminder {
-  id             String         @id @default(uuid())
+  id             String          @id @default(uuid())
   organizationId String
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   appointmentId  String
-  appointment    Appointment    @relation(fields: [appointmentId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  appointment    Appointment     @relation(fields: [appointmentId, organizationId], references: [id, organizationId], onDelete: NoAction)
   kind           ReminderKind
-  status         ReminderStatus @default(PENDING)
+  status         ReminderStatus  @default(PENDING)
   /// Earliest moment n8n may pick it up; moved forward on retries.
   dueAt          DateTime
-  attempts       Int            @default(0)
+  attempts       Int             @default(0)
   claimedAt      DateTime?
   sentAt         DateTime?
+  /// Patient's answer to a campaign message, when it was given, and when the secretary dealt with it.
+  answer         ReminderAnswer?
+  answeredAt     DateTime?
+  handledAt      DateTime?
   /// Why it was cancelled/skipped, or the last delivery error. Never holds message text or PII.
   note           String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@unique([appointmentId, kind])
   @@index([status, dueAt])

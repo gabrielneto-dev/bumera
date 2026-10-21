@@ -1,4 +1,5 @@
 import type { AppointmentStatus, ReminderKind } from "@/generated/prisma/client";
+import { addMonths } from "date-fns";
 import { NO_SHOW_MAX_AGE_MS } from "@/lib/reminders/guard";
 
 const HOUR_MS = 3_600_000;
@@ -17,10 +18,15 @@ export interface PlanInput {
   startsAt: Date;
   endsAt: Date;
   now: Date;
+  /** Months after completion to invite the patient back; null/undefined = no invitation. */
+  reactivateAfterMonths?: number | null;
 }
 
 /** Reminders that should exist (unsent) for an appointment right now. */
-export function planReminders({ status, startsAt, endsAt, now }: PlanInput): PlannedReminder[] {
+export function planReminders({ status, startsAt, endsAt, now, reactivateAfterMonths }: PlanInput): PlannedReminder[] {
+  if (status === "COMPLETED") {
+    return reactivateAfterMonths ? [{ kind: "REACTIVATION", dueAt: addMonths(endsAt, reactivateAfterMonths) }] : [];
+  }
   if (status === "NO_SHOW") {
     const dueAt = new Date(Math.max(endsAt.getTime() + NO_SHOW_AFTER_END_MS, now.getTime()));
     const tooOld = now.getTime() - endsAt.getTime() > NO_SHOW_MAX_AGE_MS;

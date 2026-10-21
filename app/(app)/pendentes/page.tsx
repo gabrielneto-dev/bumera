@@ -1,4 +1,4 @@
-import { CalendarClock, CalendarSync, ClipboardList, MessageCircleWarning, UserPlus } from "lucide-react";
+import { CalendarClock, CalendarSync, ClipboardList, HeartHandshake, MessageCircleWarning, UserPlus } from "lucide-react";
 import type { ReactNode } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { AvatarInitials } from "@/components/avatar-initials";
@@ -11,9 +11,9 @@ import { REMINDER_KIND_LABEL } from "@/lib/labels";
 import { formatBrPhone } from "@/lib/phone";
 import { listPending, listRescheduleRequests } from "@/lib/services/appointments";
 import { listPatients } from "@/lib/services/patients";
-import { listFailedReminders } from "@/lib/services/reminders";
+import { listFailedReminders, listInterestedPatients } from "@/lib/services/reminders";
 import { getServiceContext } from "@/lib/services/server";
-import { approveAppointmentAction, approvePatientAction, rejectAppointmentAction } from "./actions";
+import { approveAppointmentAction, approvePatientAction, markInterestHandledAction, rejectAppointmentAction } from "./actions";
 
 export const metadata = { title: "Pendentes" };
 // Per-user page: it depends on the session cookie, so navigating here may block (loading.tsx covers the wait).
@@ -34,13 +34,14 @@ function Section({ icon: Icon, title, count, children }: { icon: typeof UserPlus
 
 export default async function PendentesPage() {
   const ctx = await getServiceContext();
-  const [patients, appointments, failedReminders, rescheduleRequests] = await Promise.all([
+  const [patients, appointments, failedReminders, rescheduleRequests, interested] = await Promise.all([
     listPatients(ctx, { status: "PENDING" }),
     listPending(ctx),
     listFailedReminders(ctx),
     listRescheduleRequests(ctx),
+    listInterestedPatients(ctx),
   ]);
-  const isEmpty = patients.items.length === 0 && appointments.length === 0 && failedReminders.length === 0 && rescheduleRequests.length === 0;
+  const isEmpty = patients.items.length === 0 && appointments.length === 0 && failedReminders.length === 0 && rescheduleRequests.length === 0 && interested.length === 0;
 
   return (
     <section className="space-y-8">
@@ -54,6 +55,26 @@ export default async function PendentesPage() {
         <EmptyState icon={ClipboardList} title="Tudo em dia">
           Quando um paciente se cadastrar ou marcar horário pelo WhatsApp, aparece aqui.
         </EmptyState>
+      )}
+
+      {interested.length > 0 && (
+        <Section icon={HeartHandshake} title="Querem agendar o retorno" count={interested.length}>
+          <Stagger className="space-y-2">
+            {interested.map((item) => (
+              <StaggerItem key={item.id} className="relative flex flex-wrap items-center gap-4 overflow-hidden rounded-2xl border bg-card py-4 pr-4 pl-5">
+                <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-success" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{item.patient.name}</p>
+                  <p className="text-sm text-muted-foreground">Respondeu ao convite de retorno ({item.procedureName})</p>
+                  <p className="text-sm text-muted-foreground tabular-nums">
+                    Ligue para marcar: {formatBrPhone(item.patient.phoneE164)}
+                  </p>
+                </div>
+                <ConfirmButton label="Marcar como atendido" action={markInterestHandledAction.bind(null, item.id)} />
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </Section>
       )}
 
       {rescheduleRequests.length > 0 && (

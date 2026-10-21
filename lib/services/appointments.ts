@@ -29,7 +29,7 @@ const TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]> = {
 const include = {
   patient: { select: { id: true, name: true, phoneE164: true } },
   dentist: { select: { id: true, name: true } },
-  procedure: { select: { id: true, name: true } },
+  procedure: { select: { id: true, name: true, reactivateAfterMonths: true } },
 } satisfies Prisma.AppointmentInclude;
 
 type AppointmentRow = Prisma.AppointmentGetPayload<{ include: typeof include }>;
@@ -54,7 +54,7 @@ function toDto(row: AppointmentRow): AppointmentDto {
     source: row.source,
     patient: row.patient,
     dentist: row.dentist,
-    procedure: row.procedure,
+    procedure: { id: row.procedure.id, name: row.procedure.name },
   };
 }
 
@@ -109,7 +109,7 @@ export async function bookAppointment(ctx: ServiceContext, rawInput: unknown): P
         },
         include,
       });
-      await syncReminders(tx, created, ctx.now());
+      await syncReminders(tx, { ...created, reactivateAfterMonths: created.procedure.reactivateAfterMonths }, ctx.now());
       return created;
     });
     return toDto(row);
@@ -137,7 +137,7 @@ export async function changeAppointmentStatus(
   }
   const updated = await ctx.db.$transaction(async (tx) => {
     const row = await tx.appointment.update({ where: { id }, data: { status: to }, include });
-    await syncReminders(tx, row, ctx.now());
+    await syncReminders(tx, { ...row, reactivateAfterMonths: row.procedure.reactivateAfterMonths }, ctx.now());
     return row;
   });
   return toDto(updated);
