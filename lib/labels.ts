@@ -18,8 +18,8 @@ export function describeWorkDays(days: readonly number[]): string {
 
 export const REMINDER_KIND_LABEL: Record<ReminderKind, string> = {
   CONFIRMATION: "Confirmação do agendamento",
-  REMINDER_24H: "Lembrete de 24h",
-  REMINDER_2H: "Lembrete de 2h",
+  REMINDER_24H: "1º lembrete antes da consulta",
+  REMINDER_2H: "2º lembrete antes da consulta",
   NO_SHOW_FOLLOWUP: "Convite para remarcar",
   REPLY_CONFIRMED: "Resposta: consulta confirmada",
   REPLY_RESCHEDULE: "Resposta: pedido de remarcação",

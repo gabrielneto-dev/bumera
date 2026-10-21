@@ -78,20 +78,21 @@ model Verification {
 }
 
 model Organization {
-  id           String        @id
-  name         String
-  slug         String
-  logo         String?
-  createdAt    DateTime
-  metadata     String?
-  members      Member[]
-  invitations  Invitation[]
-  dentists     Dentist[]
-  procedures   Procedure[]
-  patients     Patient[]
-  appointments Appointment[]
-  reminders    Reminder[]
-  quotes       Quote[]
+  id             String          @id
+  name           String
+  slug           String
+  logo           String?
+  createdAt      DateTime
+  metadata       String?
+  members        Member[]
+  invitations    Invitation[]
+  dentists       Dentist[]
+  procedures     Procedure[]
+  patients       Patient[]
+  appointments   Appointment[]
+  reminders      Reminder[]
+  quotes         Quote[]
+  clinicSettings ClinicSettings?
 
   @@unique([slug])
   @@map("organization")
@@ -352,4 +353,31 @@ model Quote {
   @@unique([id, organizationId])
   @@index([organizationId, status])
   @@map("quote")
+}
+
+// ---------------------------------------------------------------------------
+// Per-clinic message timings (decision CTX-DEC-20261017-clinic-defined-reminders). One row per
+// clinic, created on first save; a clinic without a row uses lib/reminders/settings.ts defaults.
+// ---------------------------------------------------------------------------
+
+model ClinicSettings {
+  organizationId       String       @id
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Message right after an appointment is booked.
+  confirmationEnabled  Boolean      @default(true)
+  /// First reminder (asks unconfirmed patients to confirm) and second reminder, in hours before the appointment.
+  reminder1Enabled     Boolean      @default(true)
+  reminder1HoursBefore Int          @default(24)
+  reminder2Enabled     Boolean      @default(true)
+  reminder2HoursBefore Int          @default(2)
+  /// Invitation to reschedule after a no-show, in hours after the appointment ended.
+  noShowEnabled        Boolean      @default(true)
+  noShowDelayHours     Int          @default(1)
+  /// Quote follow-ups (days after the quote) and how long a quote stays valid.
+  quoteFollowup1Days   Int          @default(2)
+  quoteFollowup2Days   Int          @default(7)
+  quoteValidDays       Int          @default(14)
+  updatedAt            DateTime     @updatedAt
+
+  @@map("clinic_settings")
 }

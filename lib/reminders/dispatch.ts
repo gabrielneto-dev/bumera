@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { AppError } from "@/lib/errors";
-import { evaluateGuard, evaluateQuoteGuard, isReplyKind, MAX_ATTEMPTS, QUOTE_VALID_DAYS, retryDelayMs } from "@/lib/reminders/guard";
+import { evaluateGuard, evaluateQuoteGuard, isReplyKind, MAX_ATTEMPTS, retryDelayMs } from "@/lib/reminders/guard";
+import { DEFAULT_CLINIC_SETTINGS } from "@/lib/reminders/settings";
 import { firstName, renderReminderMessage } from "@/lib/reminders/messages";
 
 /**
@@ -119,6 +120,14 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
       orderBy: [{ dueAt: "asc" }, { id: "asc" }],
     });
 
+    // Quote validity is a clinic setting: read it once per clinic for the quote follow-ups in this batch.
+    const quoteClinics = [...new Set(rows.filter((row) => row.quote).map((row) => row.organizationId))];
+    const clinicSettings = quoteClinics.length
+      ? await tx.clinicSettings.findMany({ where: { organizationId: { in: quoteClinics } }, select: { organizationId: true, quoteValidDays: true } })
+      : [];
+    const validDaysOf = (organizationId: string): number =>
+      clinicSettings.find((item) => item.organizationId === organizationId)?.quoteValidDays ?? DEFAULT_CLINIC_SETTINGS.quoteValidDays;
+
     const due: DueReminder[] = [];
     for (const row of rows) {
       const patient = patientOf(row);
@@ -130,7 +139,7 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
           : undefined;
       const guard =
         row.quote && !isReplyKind(row.kind)
-          ? evaluateQuoteGuard({ quote: row.quote, patient }, now)
+          ? evaluateQuoteGuard({ quote: row.quote, patient }, now, validDaysOf(row.organizationId))
           : evaluateGuard({ kind: row.kind, appointment: row.appointment ?? undefined, patient, patientHasUpcomingAppointment }, now);
       if (!guard.ok) {
         await tx.reminder.update({ where: { id: row.id }, data: { status: guard.status, note: guard.reason } });
@@ -150,10 +159,10 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
 }
 
 /** Retrying after this moment is pointless: the appointment started, or the quote expired. */
-function retryDeadline(row: { appointment: { startsAt: Date } | null; quote: { createdAt: Date } | null }): Date {
+function retryDeadline(row: { appointment: { startsAt: Date } | null; quote: { createdAt: Date } | null }, quoteValidDays: number): Date {
   if (row.appointment) return row.appointment.startsAt;
   const created = row.quote?.createdAt ?? new Date(0);
-  return new Date(created.getTime() + QUOTE_VALID_DAYS * 86_400_000);
+  return new Date(created.getTime() + quoteValidDays * 86_400_000);
 }
 
 /** `attempt` is the number received in the due payload: a report about an older try is ignored. */
@@ -187,6 +196,9 @@ export async function recordReminderResult(
       include: { appointment: { select: { startsAt: true } }, quote: { select: { createdAt: true } } },
     });
     if (row.status !== "CLAIMED" || row.attempts !== result.attempt) return { id, status: row.status };
+    const quoteValidDays = row.quote
+      ? ((await tx.clinicSettings.findUnique({ where: { organizationId: row.organizationId } }))?.quoteValidDays ?? DEFAULT_CLINIC_SETTINGS.quoteValidDays)
+      : DEFAULT_CLINIC_SETTINGS.quoteValidDays;
 
     if (result.outcome === "sent") {
       await tx.reminder.update({ where: { id }, data: { status: "SENT", sentAt: now, note: null } });
@@ -195,7 +207,7 @@ export async function recordReminderResult(
 
     const delay = retryDelayMs(row.attempts);
     const retryAt = delay === null ? null : new Date(now.getTime() + delay);
-    const beforeStart = row.kind === "NO_SHOW_FOLLOWUP" || isReplyKind(row.kind) || (retryAt !== null && retryAt < retryDeadline(row));
+    const beforeStart = row.kind === "NO_SHOW_FOLLOWUP" || isReplyKind(row.kind) || (retryAt !== null && retryAt < retryDeadline(row, quoteValidDays));
     const note = truncate(result.error) ?? "delivery failed";
     if (retryAt && beforeStart) {
       await tx.reminder.update({ where: { id }, data: { status: "PENDING", dueAt: retryAt, claimedAt: null, note } });

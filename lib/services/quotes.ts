@@ -1,10 +1,10 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { assertCan } from "@/lib/authz";
 import { AppError } from "@/lib/errors";
-import { QUOTE_VALID_DAYS } from "@/lib/reminders/guard";
 import { syncQuoteReminders } from "@/lib/reminders/sync";
 import { parseInput, quoteCloseSchema, quoteInputSchema } from "@/lib/schemas";
 import type { ServiceContext } from "@/lib/services/context";
+import { loadClinicSettings } from "@/lib/services/settings";
 
 const DAY_MS = 86_400_000;
 const CENTS = 100;
@@ -28,8 +28,8 @@ export interface QuoteDto {
   patient: { id: string; name: string; phoneE164: string };
 }
 
-function toDto(row: QuoteRow, now: Date): QuoteDto {
-  const expired = row.status === "OPEN" && now.getTime() - row.createdAt.getTime() > QUOTE_VALID_DAYS * DAY_MS;
+function toDto(row: QuoteRow, now: Date, validDays: number): QuoteDto {
+  const expired = row.status === "OPEN" && now.getTime() - row.createdAt.getTime() > validDays * DAY_MS;
   return {
     id: row.id,
     description: row.description,
@@ -50,6 +50,7 @@ export async function createQuote(ctx: ServiceContext, rawInput: unknown): Promi
   if (!patient) throw new AppError("NOT_FOUND", "Paciente não encontrado", { resource: "patient" });
 
   const now = ctx.now();
+  const settings = await loadClinicSettings(ctx);
   const row = await ctx.db.$transaction(async (tx) => {
     const created = await tx.quote.create({
       data: {
@@ -61,10 +62,10 @@ export async function createQuote(ctx: ServiceContext, rawInput: unknown): Promi
       },
       include,
     });
-    await syncQuoteReminders(tx, created, now);
+    await syncQuoteReminders(tx, created, now, settings);
     return created;
   });
-  return toDto(row, now);
+  return toDto(row, now, settings.quoteValidDays);
 }
 
 /** The secretary closes a quote as accepted or declined; the unsent follow-ups stop. */
@@ -77,17 +78,19 @@ export async function changeQuoteStatus(ctx: ServiceContext, id: string, rawStat
     throw new AppError("INVALID_TRANSITION", "Este orçamento já foi encerrado", { from: current.status, to });
   }
   const now = ctx.now();
+  const settings = await loadClinicSettings(ctx);
   const row = await ctx.db.$transaction(async (tx) => {
     const updated = await tx.quote.update({ where: { id }, data: { status: to, closedAt: now }, include });
-    await syncQuoteReminders(tx, updated, now);
+    await syncQuoteReminders(tx, updated, now, settings);
     return updated;
   });
-  return toDto(row, now);
+  return toDto(row, now, settings.quoteValidDays);
 }
 
 export async function listQuotes(ctx: ServiceContext): Promise<QuoteDto[]> {
   assertCan(ctx.role, "quote", "read");
   const now = ctx.now();
+  const { quoteValidDays } = await loadClinicSettings(ctx);
   const rows = await ctx.db.quote.findMany({ include, orderBy: { createdAt: "desc" }, take: LIST_LIMIT });
-  return rows.map((row) => toDto(row, now));
+  return rows.map((row) => toDto(row, now, quoteValidDays));
 }

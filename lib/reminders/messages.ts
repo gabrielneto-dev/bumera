@@ -86,9 +86,9 @@ export function renderReminderMessage(raw: MessageInput): string {
     case "CONFIRMATION":
       return join(hello, `Sua consulta na ${clinic} foi agendada.`, details, ANSWER_BLOCK, OPT_OUT_LINE);
     case "REMINDER_24H":
-      return join(hello, `Lembrete: você tem consulta na ${clinic} amanhã.`, details, ANSWER_BLOCK, OPT_OUT_LINE);
+      return join(hello, `Lembrete: você tem uma consulta na ${clinic}.`, details, ANSWER_BLOCK, OPT_OUT_LINE);
     case "REMINDER_2H":
-      return join(hello, `Sua consulta na ${clinic} é hoje.`, `⏰ ${time}\n👤 ${input.dentistName}`, "Até já!");
+      return join(hello, `Lembrete: sua consulta na ${clinic} está chegando.`, details, "Até já!");
     case "REPLY_CONFIRMED":
       return join(hello, "Consulta confirmada ✅", details, "Até lá!");
     case "REPLY_RESCHEDULE":

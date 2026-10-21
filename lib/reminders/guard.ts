@@ -82,9 +82,9 @@ export interface QuoteGuardInput {
 }
 
 /** Last check before handing a quote follow-up to n8n: the quote must still be open and valid. */
-export function evaluateQuoteGuard({ quote, patient }: QuoteGuardInput, now: Date): GuardResult {
+export function evaluateQuoteGuard({ quote, patient }: QuoteGuardInput, now: Date, validDays: number = QUOTE_VALID_DAYS): GuardResult {
   if (quote.status !== "OPEN") return { ok: false, status: "CANCELLED", reason: `quote is ${quote.status}` };
-  if (now.getTime() - quote.createdAt.getTime() > QUOTE_VALID_DAYS * 86_400_000) {
+  if (now.getTime() - quote.createdAt.getTime() > validDays * 86_400_000) {
     return { ok: false, status: "CANCELLED", reason: "quote expired" };
   }
   if (patient.status !== "CONFIRMED") return { ok: false, status: "SKIPPED", reason: "patient not confirmed yet" };

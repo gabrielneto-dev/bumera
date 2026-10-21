@@ -1,5 +1,6 @@
 import type { AppointmentStatus, ReminderKind } from "@/generated/prisma/client";
 import { planQuoteReminders, planReminders } from "@/lib/reminders/plan";
+import type { ClinicSettings } from "@/lib/reminders/settings";
 import type { ScopedPrisma } from "@/lib/tenant-scope";
 
 type ReminderDb = Pick<ScopedPrisma, "reminder">;
@@ -15,6 +16,7 @@ export interface SyncedAppointment {
 
 /** Kinds whose dueAt follows the appointment time; the others keep the moment they were created. */
 const TIMED_KINDS: readonly ReminderKind[] = ["REMINDER_24H", "REMINDER_2H"];
+const QUOTE_FOLLOWUP_KINDS: readonly ReminderKind[] = ["QUOTE_FOLLOWUP_1", "QUOTE_FOLLOWUP_2"];
 const OPEN_STATUSES = ["PENDING", "CLAIMED"] as const;
 /** Kinds the plan manages; automatic replies are queued by the inbound handler and never obsolete here. */
 const PLANNED_KINDS: readonly ReminderKind[] = ["CONFIRMATION", "REMINDER_24H", "REMINDER_2H", "NO_SHOW_FOLLOWUP", "REACTIVATION"];
@@ -24,8 +26,13 @@ const PLANNED_KINDS: readonly ReminderKind[] = ["CONFIRMATION", "REMINDER_24H", 
  * Call it inside the same transaction as every appointment change. Reminders that were
  * already sent, failed or skipped are history and are never touched.
  */
-export async function syncReminders(db: ReminderDb, appointment: SyncedAppointment, now: Date): Promise<void> {
-  const planned = planReminders({ ...appointment, now });
+export async function syncReminders(
+  db: ReminderDb,
+  appointment: SyncedAppointment,
+  now: Date,
+  settings?: ClinicSettings,
+): Promise<void> {
+  const planned = planReminders({ ...appointment, now, settings });
   const existing = await db.reminder.findMany({ where: { appointmentId: appointment.id } });
   const byKind = new Map(existing.map((row) => [row.kind, row]));
   const plannedKinds = new Set(planned.map((item) => item.kind));
@@ -71,7 +78,7 @@ export interface SyncedQuote {
  * Creates the follow-ups of a new quote, or stops the unsent ones when the quote was closed.
  * Called when a quote is created or closed; follow-ups already sent are history and never touched.
  */
-export async function syncQuoteReminders(db: ReminderDb, quote: SyncedQuote, now: Date): Promise<void> {
+export async function syncQuoteReminders(db: ReminderDb, quote: SyncedQuote, now: Date, settings?: ClinicSettings): Promise<void> {
   if (quote.status !== "OPEN") {
     await db.reminder.updateMany({
       where: { quoteId: quote.id, status: { in: [...OPEN_STATUSES] } },
@@ -79,11 +86,29 @@ export async function syncQuoteReminders(db: ReminderDb, quote: SyncedQuote, now
     });
     return;
   }
-  for (const item of planQuoteReminders({ status: quote.status, createdAt: quote.createdAt, now })) {
-    await db.reminder.upsert({
-      where: { quoteId_kind: { quoteId: quote.id, kind: item.kind } },
-      update: {},
-      create: { organizationId: quote.organizationId, quoteId: quote.id, kind: item.kind, dueAt: item.dueAt },
-    });
+  const planned = planQuoteReminders({ status: quote.status, createdAt: quote.createdAt, now, settings });
+  const existing = await db.reminder.findMany({ where: { quoteId: quote.id, kind: { in: [...QUOTE_FOLLOWUP_KINDS] } } });
+  const byKind = new Map(existing.map((row) => [row.kind, row]));
+
+  for (const item of planned) {
+    const current = byKind.get(item.kind);
+    if (!current) {
+      await db.reminder.upsert({
+        where: { quoteId_kind: { quoteId: quote.id, kind: item.kind } },
+        update: {},
+        create: { organizationId: quote.organizationId, quoteId: quote.id, kind: item.kind, dueAt: item.dueAt },
+      });
+    } else if (current.status === "PENDING" && current.dueAt.getTime() !== item.dueAt.getTime()) {
+      await db.reminder.updateMany({ where: { id: current.id, status: "PENDING" }, data: { dueAt: item.dueAt } });
+    }
+  }
+
+  // A follow-up still in the future that the plan no longer wants (switched off, quote shortened) is cancelled;
+  // one already due is left for n8n to deliver.
+  const plannedKinds = new Set(planned.map((item) => item.kind));
+  for (const row of existing) {
+    if (row.status === "PENDING" && !plannedKinds.has(row.kind) && row.dueAt > now) {
+      await db.reminder.updateMany({ where: { id: row.id, status: "PENDING" }, data: { status: "CANCELLED", note: "no longer planned" } });
+    }
   }
 }

@@ -10,6 +10,7 @@ import {
   zonedDayRange,
 } from "@/lib/schedule";
 import { syncReminders } from "@/lib/reminders/sync";
+import { loadClinicSettings } from "@/lib/services/settings";
 import type { ServiceContext } from "@/lib/services/context";
 
 const MS_PER_MINUTE = 60_000;
@@ -95,6 +96,7 @@ export async function bookAppointment(ctx: ServiceContext, rawInput: unknown): P
     throw new AppError("OUTSIDE_WORKING_HOURS", "Fora do horário de atendimento do dentista");
   }
 
+  const settings = await loadClinicSettings(ctx);
   try {
     const row = await ctx.db.$transaction(async (tx) => {
       const created = await tx.appointment.create({
@@ -109,7 +111,7 @@ export async function bookAppointment(ctx: ServiceContext, rawInput: unknown): P
         },
         include,
       });
-      await syncReminders(tx, { ...created, reactivateAfterMonths: created.procedure.reactivateAfterMonths }, ctx.now());
+      await syncReminders(tx, { ...created, reactivateAfterMonths: created.procedure.reactivateAfterMonths }, ctx.now(), settings);
       return created;
     });
     return toDto(row);
@@ -135,9 +137,10 @@ export async function changeAppointmentStatus(
       to,
     });
   }
+  const settings = await loadClinicSettings(ctx);
   const updated = await ctx.db.$transaction(async (tx) => {
     const row = await tx.appointment.update({ where: { id }, data: { status: to }, include });
-    await syncReminders(tx, { ...row, reactivateAfterMonths: row.procedure.reactivateAfterMonths }, ctx.now());
+    await syncReminders(tx, { ...row, reactivateAfterMonths: row.procedure.reactivateAfterMonths }, ctx.now(), settings);
     return row;
   });
   return toDto(updated);

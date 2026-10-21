@@ -1,6 +1,7 @@
 import type { PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { phoneCandidates, type InboundMessage } from "@/lib/inbound/evolution";
 import { parseIntent } from "@/lib/inbound/intent";
+import { toClinicSettings } from "@/lib/reminders/settings";
 import { syncQuoteReminders, syncReminders } from "@/lib/reminders/sync";
 import { scopedPrisma, type ScopedPrisma } from "@/lib/tenant-scope";
 
@@ -49,10 +50,11 @@ export async function handleInboundMessage(
 
   const db = scopedPrisma(prisma, appointment.organizationId);
   if (intent === "CONFIRM") {
+    const settings = toClinicSettings(await db.clinicSettings.findUnique({ where: { organizationId: appointment.organizationId } }));
     await db.$transaction(async (tx) => {
       if (appointment.status !== "CONFIRMED") {
         const row = await tx.appointment.update({ where: { id: appointment.id }, data: { status: "CONFIRMED" } });
-        await syncReminders(tx, row, now);
+        await syncReminders(tx, row, now, settings);
       }
       await queueReply(tx, { organizationId: appointment.organizationId, appointmentId: appointment.id }, "REPLY_CONFIRMED", now);
     });

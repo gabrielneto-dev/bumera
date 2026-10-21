@@ -114,6 +114,39 @@ export const quoteInputSchema = z.object({
 
 export const quoteCloseSchema = z.enum(["ACCEPTED", "DECLINED"], { error: "Situação inválida" });
 
+const wholeNumber = (label: string, min: number, max: number) =>
+  z
+    .number({ error: `${label}: informe um número` })
+    .int(`${label}: use números inteiros`)
+    .min(min, `${label}: mínimo de ${min}`)
+    .max(max, `${label}: máximo de ${max}`);
+
+/** Per-clinic message timings (lib/reminders/settings.ts has the defaults). */
+export const clinicSettingsSchema = z
+  .object({
+    confirmationEnabled: z.boolean(),
+    reminder1Enabled: z.boolean(),
+    reminder1HoursBefore: wholeNumber("Primeiro lembrete (horas antes)", 1, 168),
+    reminder2Enabled: z.boolean(),
+    reminder2HoursBefore: wholeNumber("Segundo lembrete (horas antes)", 1, 168),
+    noShowEnabled: z.boolean(),
+    noShowDelayHours: wholeNumber("Convite após falta (horas depois)", 1, 72),
+    quoteFollowup1Days: wholeNumber("1º contato do orçamento (dias)", 1, 30),
+    quoteFollowup2Days: wholeNumber("2º contato do orçamento (dias)", 1, 60),
+    quoteValidDays: wholeNumber("Validade do orçamento (dias)", 1, 90),
+  })
+  .superRefine((value, ctx) => {
+    if (value.reminder1Enabled && value.reminder2Enabled && value.reminder1HoursBefore <= value.reminder2HoursBefore) {
+      ctx.addIssue({ code: "custom", path: ["reminder1HoursBefore"], message: "O primeiro lembrete deve vir antes do segundo" });
+    }
+    if (value.quoteFollowup1Days >= value.quoteFollowup2Days) {
+      ctx.addIssue({ code: "custom", path: ["quoteFollowup2Days"], message: "O 2º contato deve vir depois do 1º" });
+    }
+    if (value.quoteFollowup2Days > value.quoteValidDays) {
+      ctx.addIssue({ code: "custom", path: ["quoteValidDays"], message: "A validade deve cobrir o 2º contato" });
+    }
+  });
+
 export const appointmentInputSchema = z.object({
   patientId: z.uuid(),
   dentistId: z.uuid(),

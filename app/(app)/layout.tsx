@@ -26,6 +26,7 @@ function navItemsFor(role: string): NavItem[] {
     { href: "/pacientes", label: "Pacientes", icon: "pacientes", group: "Cadastros", allowed: can(role, "patient", "read") },
     { href: "/dentistas", label: "Dentistas", icon: "dentistas", group: "Cadastros", allowed: can(role, "dentist", "create") },
     { href: "/procedimentos", label: "Procedimentos", icon: "procedimentos", group: "Cadastros", allowed: can(role, "procedure", "create") },
+    { href: "/mensagens", label: "Mensagens", icon: "mensagens", group: "Clínica", allowed: can(role, "triggerRule", "update") },
     { href: "/equipe", label: "Equipe", icon: "equipe", group: "Clínica", allowed: can(role, "invitation", "create") },
   ];
   return candidates.filter((item) => item.allowed).map(({ href, label, icon, group }) => ({ href, label, icon, group }));
