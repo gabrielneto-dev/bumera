@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { AppError } from "@/lib/errors";
-import { evaluateGuard, MAX_ATTEMPTS, retryDelayMs } from "@/lib/reminders/guard";
+import { evaluateGuard, isReplyKind, MAX_ATTEMPTS, retryDelayMs } from "@/lib/reminders/guard";
 import { firstName, renderReminderMessage } from "@/lib/reminders/messages";
 
 /**
@@ -166,7 +166,7 @@ export async function recordReminderResult(
 
     const delay = retryDelayMs(row.attempts);
     const retryAt = delay === null ? null : new Date(now.getTime() + delay);
-    const beforeStart = row.kind === "NO_SHOW_FOLLOWUP" || (retryAt !== null && retryAt < row.appointment.startsAt);
+    const beforeStart = row.kind === "NO_SHOW_FOLLOWUP" || isReplyKind(row.kind) || (retryAt !== null && retryAt < row.appointment.startsAt);
     const note = truncate(result.error) ?? "delivery failed";
     if (retryAt && beforeStart) {
       await tx.reminder.update({ where: { id }, data: { status: "PENDING", dueAt: retryAt, claimedAt: null, note } });

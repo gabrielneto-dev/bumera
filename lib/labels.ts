@@ -21,4 +21,7 @@ export const REMINDER_KIND_LABEL: Record<ReminderKind, string> = {
   REMINDER_24H: "Lembrete de 24h",
   REMINDER_2H: "Lembrete de 2h",
   NO_SHOW_FOLLOWUP: "Convite para remarcar",
+  REPLY_CONFIRMED: "Resposta: consulta confirmada",
+  REPLY_RESCHEDULE: "Resposta: pedido de remarcação",
+  REPLY_OPTED_OUT: "Resposta: descadastro",
 };

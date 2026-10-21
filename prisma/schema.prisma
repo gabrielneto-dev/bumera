@@ -254,6 +254,10 @@ enum ReminderKind {
   REMINDER_24H
   REMINDER_2H
   NO_SHOW_FOLLOWUP
+  /// Automatic answers to a patient's WhatsApp reply (1, 2, SAIR); sent through the same n8n flow.
+  REPLY_CONFIRMED
+  REPLY_RESCHEDULE
+  REPLY_OPTED_OUT
 }
 
 enum ReminderStatus {

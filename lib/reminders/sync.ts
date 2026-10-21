@@ -15,6 +15,8 @@ export interface SyncedAppointment {
 /** Kinds whose dueAt follows the appointment time; the others keep the moment they were created. */
 const TIMED_KINDS: readonly ReminderKind[] = ["REMINDER_24H", "REMINDER_2H"];
 const OPEN_STATUSES = ["PENDING", "CLAIMED"] as const;
+/** Kinds the plan manages; automatic replies are queued by the inbound handler and never obsolete here. */
+const PLANNED_KINDS: readonly ReminderKind[] = ["CONFIRMATION", "REMINDER_24H", "REMINDER_2H", "NO_SHOW_FOLLOWUP"];
 
 /**
  * Brings the appointment's unsent reminders in line with what the plan says should exist.
@@ -46,7 +48,7 @@ export async function syncReminders(db: ReminderDb, appointment: SyncedAppointme
   }
 
   const obsolete = existing.filter(
-    (row) => !plannedKinds.has(row.kind) && (OPEN_STATUSES as readonly string[]).includes(row.status),
+    (row) => PLANNED_KINDS.includes(row.kind) && !plannedKinds.has(row.kind) && (OPEN_STATUSES as readonly string[]).includes(row.status),
   );
   for (const row of obsolete) {
     // Conditional, so a reminder that was sent in the meantime is never rewritten.

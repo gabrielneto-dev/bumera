@@ -78,6 +78,12 @@ export function renderReminderMessage(raw: MessageInput): string {
       return `${hello} Lembrete: sua consulta na ${input.clinicName} é ${slot}, com ${input.dentistName}. ${ANSWER_LINE} ${OPT_OUT_LINE}`;
     case "REMINDER_2H":
       return `${hello} Sua consulta na ${input.clinicName} é hoje às ${time}, com ${input.dentistName}. Até já!`;
+    case "REPLY_CONFIRMED":
+      return `${hello} Consulta confirmada: ${slot}, com ${input.dentistName}. Até lá!`;
+    case "REPLY_RESCHEDULE":
+      return `${hello} Recebemos o seu pedido para remarcar. A equipe da ${input.clinicName} entra em contato em breve para combinar um novo horário.`;
+    case "REPLY_OPTED_OUT":
+      return `${hello} Tudo certo: você não vai mais receber mensagens da ${input.clinicName}. Se mudar de ideia, é só falar com a clínica.`;
     case "NO_SHOW_FOLLOWUP":
       return `${hello} Sentimos sua falta na consulta de ${slot} na ${input.clinicName}. Quer remarcar? Responda 2 para remarcar e nossa equipe entra em contato. ${OPT_OUT_LINE}`;
   }
