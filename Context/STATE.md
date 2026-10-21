@@ -1,12 +1,12 @@
 # Project State
 
 Last updated: 2026-10-21
-Latest checkpoint: Context/checkpoints/CP-20261021-1500-m4-inbound-replies.md
+Latest checkpoint: Context/checkpoints/CP-20261021-1530-modules-1-2.md
 
 ## Current objective
 Ship the pilot: confirmação/lembrete over WhatsApp for 1–3 dental clinics (modules 1–3, no AI), hosted on the user's server. M4 (inbound replies and hardening) in progress.
 
-## Working (built, tested, committed through c461acf)
+## Working (built, tested, committed through 3816981)
 - Next.js 16 app with Better Auth (multi-tenant clinics, roles, invitations, on-screen e-mail codes); registry and agenda (patients with encrypted CPF, dentists, procedures, appointments with no-overlap, pending queue).
 - M2: `reminder` table recomputed with appointment changes, `GET /api/v1/reminders/due` and `POST .../result` (Bearer service key), failed reminders on Pendentes.
 - M3: deployed on the server in `~/bumera-app` (app, Evolution v2.3.7, Redis) over the shared `~/infra` stack (Postgres, pgAdmin, n8n); app at `bumera.gnslab.com.br`; WhatsApp test instance `bumera-teste` paired; n8n workflow "Bumera - Lembretes por WhatsApp" published (every 5 min) and verified end to end with a real message.
@@ -16,8 +16,10 @@ Ship the pilot: confirmação/lembrete over WhatsApp for 1–3 dental clinics (m
 
 - Patient screen: "Permitir mensagens" (explicit consent recorded) reactivates an opted-out patient. Backups: daily `pg_dump` of `bumera_prod` and `evolution` on the server (`deploy/backup.sh`, cron 03:30 UTC, 14 days). LGPD checklist: `CTX-NTE-20261021-lgpd-checklist`.
 
+- Module 1 (reactivation: per-procedure return invitation) and module 2 (quotes: Orçamentos screen, follow-ups at day 2 and 7, expiry at 14 days), both with replies 1/2 and Pendentes follow-up; module 1 verified only by automated tests. Details: `CTX-NTE-20261021-modules-1-2-reactivation-quotes`, rules `CTX-DEC-20261021-reactivation-and-quotes-rules`. 379 tests.
+
 ## Not built yet
-Off-machine encrypted backup copy, webhook setup for new Evolution instances (manual today), audit log and patient data export/deletion, protection of public n8n/Evolution hostnames, LGPD checklist, e-mail provider, password reset, cleaning test data in `bumera_prod` (Gabriel Teste, Teste Falha).
+Per-clinic configurable timings (constants in code), module 4 (AI, last), real WhatsApp test of reactivation, off-machine encrypted backup copy, webhook setup for new Evolution instances (manual today), audit log and patient data export/deletion, protection of public n8n/Evolution hostnames, LGPD checklist, e-mail provider, password reset, cleaning test data in `bumera_prod` (Gabriel Teste, Teste Falha).
 
 ## Blockers
 None.
@@ -29,6 +31,7 @@ Three engines (app, n8n, Evolution) · app owns the DB (PostgreSQL) · Next.js +
 `CTX-QUE-20261016-service-auth` (partly answered) · `CTX-QUE-20261016-llm-usage-in-pilot` · `CTX-QUE-20261016-pilot-first-module-and-clinics` · `CTX-QUE-20261018-email-provider` (postponed). Risk: `CTX-RSK-20261021-evolution-publicly-exposed`.
 
 ## Next likely steps
+0. Real WhatsApp test of reactivation, then per-clinic configurable timings; e-mail, password reset and off-machine backup stay for the end (user's wish).
 1. Protect the Evolution hostname (Cloudflare Access) and keep the CPF key copies off the server (owner actions).
 2. Off-machine encrypted backup copy; audit log; real e-mail provider and password reset.
 3. Put the Evolution hostname behind Cloudflare Access; back up the CPF keys off the server.

@@ -47,3 +47,6 @@
 
 ## 2026-10-21 (pendencies)
 - Reactivation answered, LGPD checklist note, backup recorded in STATE.
+
+## 2026-10-21 (modules 1-2 save)
+- Notes and decision for reactivation and quotes, checkpoint, STATE, plan and indexes.

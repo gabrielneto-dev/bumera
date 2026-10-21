@@ -31,3 +31,6 @@ M2 done (commit 79bd0e6). M3 done: app, Evolution and Redis deployed in `~/bumer
 
 ## Progress 2026-10-21 (M4 slice 1)
 M4 started: inbound webhook, replies 1/2/SAIR, automatic replies, structured messages, auto-refresh (`CTX-NTE-20261021-m4-inbound-replies`). Still in M4: protect n8n/Evolution hostnames, backups (the user wants them last), LGPD checklist, RLS, reactivation of opted-out patients.
+
+## Progress 2026-10-21 (product modules)
+Beyond the original M0-M4, modules 1 (reactivation) and 2 (quotes) were built and deployed (`CTX-NTE-20261021-modules-1-2-reactivation-quotes`). Open: real WhatsApp test of reactivation, per-clinic timings, module 4 (AI, last), e-mail/password reset and off-machine backup (the user wants these at the end).
