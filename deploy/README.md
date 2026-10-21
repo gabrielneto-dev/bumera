@@ -1,37 +1,26 @@
 # Deploy and M3 runbook
 
-Prepared files: `Dockerfile`, `deploy/compose.app.yml`, `deploy/env.production.example`, `n8n/workflows/reminders-whatsapp.json`.
-Nothing here has been applied to the server yet. Never print `.env` contents; only variable names are listed.
+Applied on 2026-10-21. Server layout: shared stack `~/infra` (Postgres, pgAdmin, n8n; docker network `infra`) and the Bumera stack in `~/bumera-app` (`app`, `evolution`, `redis`). The old `~/bumera` stack is stopped and kept only as a backup.
+Files: `Dockerfile`, `deploy/compose.app.yml` (copied to `~/bumera-app/compose.yml`), `deploy/env.production.example`, `n8n/workflows/reminders-whatsapp.json`.
+Never print `.env` contents; only variable names are listed.
 
-## 1. Secrets (on the server, appended to `~/bumera/.env`, mode 600)
-Generate each value on the server and append without echoing it, e.g.
-`printf 'SERVICE_API_KEY=%s\n' "$(openssl rand -hex 32)" >> ~/bumera/.env`
-Needed: `BETTER_AUTH_SECRET` (hex 32), `SERVICE_API_KEY` (hex 32), `EVOLUTION_API_KEY` (hex 32),
-`CPF_ENCRYPTION_KEY` and `CPF_HASH_KEY` (`openssl rand -base64 32` each, different values).
-Back the two CPF keys up outside the repo and the server before any real patient data.
+## Update the app
+```
+rsync -a --delete --exclude node_modules --exclude .next --exclude .git --exclude '.env*' --exclude generated --exclude .claude --exclude Context ./ my-server:~/bumera-app/src/
+scp deploy/compose.app.yml my-server:~/bumera-app/compose.yml
+ssh my-server 'cd ~/bumera-app && docker compose build app && docker compose --profile tools run --rm migrate && docker compose up -d app'
+```
+Builds use `network: host` because BuildKit's default resolver fails on this server. Build one image at a time (RAM ~3.7 GB).
 
-## 2. Databases
-`docker exec bumera-postgres psql -U bumera -d bumera_dev -c 'CREATE DATABASE bumera_prod;'` and the same for `evolution`.
+## Databases and secrets
+`bumera_prod` belongs to the `bumera` role; `evolution` was created with `~/infra/scripts/new-db.sh evolution`. Secrets live in `~/bumera-app/.env` (mode 600) and in the owner's password vault; the two CPF keys must also be backed up off the server.
 
-## 3. Ship the code and build
-`rsync -a --exclude node_modules --exclude .next --exclude .git --exclude '.env*' ./ my-server:~/bumera/src/`
-`scp deploy/compose.app.yml my-server:~/bumera/compose.app.yml`
-On the server, one build at a time (RAM is ~3.7 GB; stop pgAdmin during the build if memory is short):
-`cd ~/bumera && docker compose -f compose.yml -f compose.app.yml build app`
-`docker compose -f compose.yml -f compose.app.yml --profile tools run --rm migrate`
-`docker compose -f compose.yml -f compose.app.yml up -d app evolution redis`
+## Hostnames (Cloudflare Tunnel)
+`bumera.gnslab.com.br` -> `http://localhost:3000`. Evolution and n8n are reached by n8n as `http://bumera-evolution:8080` and `http://bumera-app:3000`.
 
-## 4. Cloudflare
-Dashboard: add a public hostname `bumera.gnslab.com.br` -> `http://localhost:3000` on the existing tunnel.
-n8n and Evolution stay off the internet: n8n reaches them as `http://app:3000` and `http://evolution:8080`.
+## WhatsApp test number
+Instance `bumera-teste` (Baileys), paired by QR code through the Evolution API (`POST /instance/create`, header `apikey`). The API is unofficial (`CTX-RSK-20261014-whatsapp-unofficial-api`): use a spare number.
 
-## 5. WhatsApp test number
-Create the instance `bumera-teste` (Evolution API `POST /instance/create` with header `apikey`, via an SSH tunnel to 127.0.0.1:8080)
-and scan the QR code with the test phone. Use a spare number: the API is unofficial (`CTX-RSK-20261014-whatsapp-unofficial-api`).
-
-## 6. n8n
-Open the n8n UI through the SSH tunnel (`npm run ui:tunnel`) and create two *Header Auth* credentials:
-- `Bumera service key`: name `Authorization`, value `Bearer <SERVICE_API_KEY>`
-- `Evolution API key`: name `apikey`, value `<EVOLUTION_API_KEY>`
-Import `n8n/workflows/reminders-whatsapp.json`, link both credentials, test once manually, then activate.
-Message copy comes from the app (`message`), and failures show on the app's Pendentes screen.
+## n8n
+Create two *Header Auth* credentials: `Bumera service key` (name `Authorization`, value `Bearer <SERVICE_API_KEY>`) and `Evolution API key` (name `apikey`, value `<EVOLUTION_API_KEY>`).
+Import `n8n/workflows/reminders-whatsapp.json`, link both credentials, run it once manually, then activate.

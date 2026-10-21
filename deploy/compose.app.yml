@@ -17,6 +17,8 @@ services:
     profiles: ["tools"]
     build:
       context: ./src
+      # BuildKit's default resolver fails on this server; the host network resolves fine.
+      network: host
       target: migrate
     environment:
       DATABASE_URL: postgresql://bumera:${POSTGRES_PASSWORD}@postgres:5432/bumera_prod
@@ -26,6 +28,8 @@ services:
   app:
     build:
       context: ./src
+      # BuildKit's default resolver fails on this server; the host network resolves fine.
+      network: host
       target: runtime
     container_name: bumera-app
     restart: unless-stopped
@@ -67,6 +71,7 @@ services:
       - bumera_evolution_instances:/evolution/instances
     mem_limit: 640m
     networks: [infra]
+    depends_on:
       redis:
         condition: service_started
 

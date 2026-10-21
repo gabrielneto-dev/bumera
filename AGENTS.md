@@ -5,7 +5,8 @@ Project-wide operating instructions shared by all AI agents. Detailed knowledge 
 ## Project operating rules
 
 - Development and production run on the user's server, reachable with `ssh my-server` (inventory: `CTX-FCT-20261017-server-inventory`).
-- The server was wiped of all previous Docker workloads on 2026-10-18 (n8n, Evolution, Postgres, pgAdmin, flip-radar, DeskcommCRM). Archives are in `~/backup-pre-limpeza-20261018` on the server; do not delete them without the user's say. Bumera resources live in their own compose project under `~/bumera`. If other projects appear on the server later, never touch containers, volumes or files that do not belong to Bumera.
+- Server layout since 2026-10-21: shared stack in `~/infra` (Postgres, pgAdmin, n8n; docker network `infra`; never stop or modify it without the user's say) and the Bumera app stack in `~/bumera-app` (app, Evolution, Redis; runbook in `deploy/README.md`). `~/bumera` is the stopped old stack.
+- The server was wiped of all previous Docker workloads on 2026-10-18 (n8n, Evolution, Postgres, pgAdmin, flip-radar, DeskcommCRM). Archives are in `~/backup-pre-limpeza-20261018` on the server; do not delete them without the user's say. Bumera resources live in their own compose project under `~/bumera-app`. If other projects appear on the server later, never touch containers, volumes or files that do not belong to Bumera.
 - Never read or print `.env` files or tokens on the server; refer to variable names only.
 - Never run tests or destructive scripts against the production database.
 - Use `npm` (the host `pnpm` is broken). Checks before finishing work: `npm run typecheck`, `npm run lint`, `npm run test:coverage` (80% minimum; tests need the SSH tunnel below).
