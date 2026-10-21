@@ -217,23 +217,25 @@ model Patient {
 }
 
 model Appointment {
-  id             String            @id @default(uuid())
-  organizationId String
-  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  patientId      String
-  dentistId      String
-  procedureId    String
-  patient        Patient           @relation(fields: [patientId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  dentist        Dentist           @relation(fields: [dentistId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  procedure      Procedure         @relation(fields: [procedureId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  startsAt       DateTime
-  endsAt         DateTime
-  status         AppointmentStatus @default(SCHEDULED)
-  source         RecordSource      @default(SECRETARY)
-  createdById    String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  reminders      Reminder[]
+  id                    String            @id @default(uuid())
+  organizationId        String
+  organization          Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  patientId             String
+  dentistId             String
+  procedureId           String
+  patient               Patient           @relation(fields: [patientId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  dentist               Dentist           @relation(fields: [dentistId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  procedure             Procedure         @relation(fields: [procedureId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  startsAt              DateTime
+  endsAt                DateTime
+  status                AppointmentStatus @default(SCHEDULED)
+  source                RecordSource      @default(SECRETARY)
+  createdById           String?
+  /// Set when the patient answered "2" (reschedule) on WhatsApp; the secretary follows up.
+  rescheduleRequestedAt DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  reminders             Reminder[]
 
   @@unique([id, organizationId])
   @@index([organizationId, startsAt])

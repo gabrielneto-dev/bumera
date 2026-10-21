@@ -176,6 +176,17 @@ export async function listPending(ctx: ServiceContext): Promise<AppointmentDto[]
   return rows.map(toDto);
 }
 
+/** Upcoming appointments whose patient answered "2" (reschedule) on WhatsApp; the secretary calls them. */
+export async function listRescheduleRequests(ctx: ServiceContext): Promise<AppointmentDto[]> {
+  assertCan(ctx.role, "appointment", "read");
+  const rows = await ctx.db.appointment.findMany({
+    where: { rescheduleRequestedAt: { not: null }, status: { in: ["SCHEDULED", "CONFIRMED"] }, startsAt: { gt: ctx.now() } },
+    include,
+    orderBy: { startsAt: "asc" },
+  });
+  return rows.map(toDto);
+}
+
 export interface FreeSlotsOptions {
   dentistId: string;
   procedureId: string;
