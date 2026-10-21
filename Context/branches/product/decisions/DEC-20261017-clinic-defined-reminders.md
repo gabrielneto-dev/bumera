@@ -16,3 +16,6 @@ When to notify the patient is defined by each clinic. Initial set of reminder mo
 
 ## Consequences
 Trigger timings must be per-clinic data, not hard-coded. See `CTX-DEC-20261016-webhook-triggers`; still open in `CTX-QUE-20261016-trigger-catalog`: retry/idempotency and the configuration UI.
+
+## Update 2026-10-21
+Implemented as the admin-only Mensagens screen (`CTX-NTE-20261021-clinic-settings`): confirmation on/off, two reminders (hours before), no-show invite (delay), quote follow-up days and validity. Message texts stay fixed.

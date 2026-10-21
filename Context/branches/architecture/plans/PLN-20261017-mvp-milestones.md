@@ -34,3 +34,6 @@ M4 started: inbound webhook, replies 1/2/SAIR, automatic replies, structured mes
 
 ## Progress 2026-10-21 (product modules)
 Beyond the original M0-M4, modules 1 (reactivation) and 2 (quotes) were built and deployed (`CTX-NTE-20261021-modules-1-2-reactivation-quotes`). Open: real WhatsApp test of reactivation, per-clinic timings, module 4 (AI, last), e-mail/password reset and off-machine backup (the user wants these at the end).
+
+## Progress 2026-10-21 (clinic settings)
+Per-clinic message timings built and deployed (`CTX-NTE-20261021-clinic-settings`). Remaining: module 4 (AI), then e-mail provider, password reset and off-machine backup.

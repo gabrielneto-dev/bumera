@@ -50,3 +50,6 @@
 
 ## 2026-10-21 (modules 1-2 save)
 - Notes and decision for reactivation and quotes, checkpoint, STATE, plan and indexes.
+
+## 2026-10-21 (clinic settings save)
+- Clinic settings note, checkpoint, STATE, plan and index updates.

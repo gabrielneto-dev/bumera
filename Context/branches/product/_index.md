@@ -14,7 +14,7 @@ Scope: modules, pricing, pilots, scheduling app features. Status: active.
 - Scheduling UI (part of app engine): `CTX-PLN-20261014-simple-scheduling-interface` (completed by M1)
 
 ## Done / next
-Modules 1 (reactivation) and 2 (quotes) are built and deployed with the user's rules: `CTX-DEC-20261021-reactivation-and-quotes-rules`; code map `CTX-NTE-20261021-modules-1-2-reactivation-quotes`. Module 3 reminders and WhatsApp replies are in production. Remaining: per-clinic configurable timings, module 4 (AI).
+Modules 1 (reactivation) and 2 (quotes) are built and deployed with the user's rules: `CTX-DEC-20261021-reactivation-and-quotes-rules`; code map `CTX-NTE-20261021-modules-1-2-reactivation-quotes`. Module 3 reminders and WhatsApp replies are in production. Per-clinic timings are configurable (`CTX-NTE-20261021-clinic-settings`). Remaining: module 4 (AI).
 
 M1 delivered (registry, agenda, team, on-screen e-mail, e2e): `CTX-PLN-20261020-m1-registry-and-agenda` (completed; follow-ups listed there). Next: M2 reminders (`CTX-PLN-20261017-mvp-milestones`).
 
