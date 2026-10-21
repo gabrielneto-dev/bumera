@@ -44,3 +44,6 @@
 
 ## 2026-10-21 (M4 save)
 - M4 note, replies decision, opt-out reactivation question, checkpoint, STATE and plan progress.
+
+## 2026-10-21 (pendencies)
+- Reactivation answered, LGPD checklist note, backup recorded in STATE.
