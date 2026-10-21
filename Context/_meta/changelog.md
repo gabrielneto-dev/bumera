@@ -38,3 +38,6 @@
 
 ## 2026-10-20 (full save)
 - Added M1 code-map note and checkpoint; rewrote STATE; fixed MAP and branch indexes; taxonomy tag `infrastructure`; scheduling-interface plan completed.
+
+## 2026-10-21 (full save)
+- Added checkpoint, server-infra fact (supersedes the 2026-10-17 inventory), generic-infra decision, reminders consent/stale decision, M2 and UI-redesign notes, service-key risk, n8n-MCP question; updated service-auth question, integration-contracts note, milestones plan, STATE, branch indexes; taxonomy tag `reminders`.

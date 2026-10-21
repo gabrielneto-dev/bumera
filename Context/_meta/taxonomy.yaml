@@ -1,7 +1,7 @@
 version: 1
 canonical_tags:
   project-definition: [stack, bootstrap]
-  product: [product-modules, roadmap, pricing, pilot, scheduling, ui, ai-assistant, triggers, calendar, patient, llm, openrouter, roles, api, outbox]
+  product: [product-modules, roadmap, pricing, pilot, scheduling, ui, ai-assistant, triggers, reminders, calendar, patient, llm, openrouter, roles, api, outbox]
   architecture: [nodejs, nextjs, n8n, evolution-api, whatsapp, webhook, database, data, integration, hosting, multi-tenancy, auth, security, backups, architecture]
   compliance: [lgpd, privacy]
   platform: [infrastructure]

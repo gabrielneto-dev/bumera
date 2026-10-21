@@ -1,0 +1,85 @@
+# Infraestrutura generica do servidor: Postgres + pgAdmin + n8n, para qualquer projeto.
+# Cada projeto ganha o proprio banco/usuario (scripts/new-db.sh) e, se rodar em container,
+# entra na rede "infra" (networks: default: { name: infra, external: true }) e usa o host "postgres".
+name: infra
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: infra-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - infra_pgdata:/var/lib/postgresql/data
+    networks: [infra]
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4@sha256:c332c5f6dfba995d9ebc4af261d93506d6876085d712eaaa3defc8dd1a3f26de
+    container_name: infra-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@infra.dev
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - infra_pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin-servers.json:/pgadmin4/servers.json:ro
+    networks: [infra]
+    mem_limit: 384m
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  n8n:
+    image: n8nio/n8n:2.44.5
+    container_name: infra-n8n
+    restart: unless-stopped
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      # Dominio publico (Cloudflare Tunnel -> 127.0.0.1:5678): URLs de webhook e do editor usam https.
+      N8N_HOST: n8n.gnslab.com.br
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: https
+      N8N_WEBHOOK_URL: https://n8n.gnslab.com.br/
+      N8N_EDITOR_BASE_URL: https://n8n.gnslab.com.br
+      # Um proxy na frente (Cloudflare): confia no X-Forwarded-* para IP/protocolo reais.
+      N8N_PROXY_HOPS: "1"
+      N8N_SECURE_COOKIE: "true"
+      GENERIC_TIMEZONE: America/Sao_Paulo
+      TZ: America/Sao_Paulo
+      N8N_DIAGNOSTICS_ENABLED: "false"
+    ports:
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - infra_n8n_data:/home/node/.n8n
+    networks: [infra]
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+networks:
+  infra:
+    name: infra
+
+volumes:
+  infra_pgdata:
+  infra_pgadmin_data:
+  infra_n8n_data:

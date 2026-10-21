@@ -6,7 +6,7 @@ branch: architecture
 tags: [security, webhook, integration]
 status: open
 created_at: 2026-10-16
-updated_at: 2026-10-16
+updated_at: 2026-10-21
 ---
 
 ## Question
@@ -26,3 +26,6 @@ Answer in the questionnaire (user), then record a DEC and mark this answered.
 
 ## Partial answer (2026-10-17)
 n8n is temporarily exposed (`CTX-DEC-20261017-network-exposure-phased`); service-to-service authentication (API keys, signed webhooks) is still to be defined.
+
+## Partial answer (2026-10-21)
+App <- n8n: M2 implemented a Bearer `SERVICE_API_KEY` for `/api/v1/reminders/*` (constant-time check, uniform envelope, per-request env read); see `CTX-NTE-20261021-m2-implementation` and residual risks in `CTX-RSK-20261021-service-key-and-claim-races`. Still open: Evolution -> app inbound authentication (M4), signed app -> n8n webhooks (deferred), key rotation.

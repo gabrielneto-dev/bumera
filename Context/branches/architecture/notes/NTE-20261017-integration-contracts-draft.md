@@ -59,3 +59,6 @@ Trigger webhook → verify → build message from template → send via Evolutio
 
 ## Adjustment 2026-10-17
 `CTX-DEC-20261017-mvp-simplified`: section 1 (signed trigger webhook) is replaced by n8n polling `GET /api/v1/reminders/due` and `POST /api/v1/reminders/{id}/result`. Sections 2 and 3 (inbound routing and REST API) stand; HMAC signing between app and n8n is deferred.
+
+## Adjustment 2026-10-21
+M2 implemented the polling contract: see `CTX-NTE-20261021-m2-implementation` (due/result endpoints, required `attempt`, envelope, no CPF in payloads). Messages are rendered by the app, not by n8n templates.

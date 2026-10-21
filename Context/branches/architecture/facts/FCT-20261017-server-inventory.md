@@ -4,10 +4,11 @@ type: fact
 title: Inventário do servidor (ssh my-server) em 2026-10-17
 branch: architecture
 tags: [hosting, infrastructure]
-status: active
+status: superseded
 confidence: high
 created_at: 2026-10-17
-updated_at: 2026-10-17
+updated_at: 2026-10-21
+superseded_by: CTX-FCT-20261021-server-infra-state
 related: [CTX-DEC-20261016-self-hosted-home-server]
 ---
 
