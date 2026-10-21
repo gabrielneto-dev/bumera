@@ -2,6 +2,7 @@ import { Search, Users } from "lucide-react";
 import { AvatarInitials } from "@/components/avatar-initials";
 import { EmptyState } from "@/components/empty-state";
 import { ActionDialog } from "@/components/form/action-dialog";
+import { CheckboxField } from "@/components/form/form-state";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +12,7 @@ import { can } from "@/lib/authz";
 import { formatBrPhone } from "@/lib/phone";
 import { listPatients } from "@/lib/services/patients";
 import { getServiceContext } from "@/lib/services/server";
-import { createPatientAction, updatePatientAction } from "./actions";
+import { allowMessagesAgainAction, createPatientAction, updatePatientAction } from "./actions";
 import { PatientFields } from "./patient-fields";
 
 export const metadata = { title: "Pacientes" };
@@ -86,6 +87,22 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
               <div className="flex items-center gap-2">
                 {patient.status === "PENDING" ? <Badge variant="outline">Aguardando confirmação</Badge> : null}
                 {patient.doNotContact ? <Badge variant="secondary">Não contatar</Badge> : null}
+                {canUpdate && patient.doNotContact && (
+                  <ActionDialog
+                    triggerLabel="Permitir mensagens"
+                    triggerVariant="outline"
+                    triggerSize="sm"
+                    title="Permitir mensagens novamente"
+                    submitLabel="Permitir"
+                    action={allowMessagesAgainAction.bind(null, patient.id)}
+                  >
+                    <p className="text-sm text-muted-foreground">
+                      {patient.name} pediu para parar de receber mensagens. Só libere se o paciente aceitou voltar a
+                      receber lembretes por WhatsApp.
+                    </p>
+                    <CheckboxField name="consent" label="O paciente aceitou voltar a receber mensagens por WhatsApp" />
+                  </ActionDialog>
+                )}
                 {canUpdate && (
                   <ActionDialog
                     triggerLabel="Editar"

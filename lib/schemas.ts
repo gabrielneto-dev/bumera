@@ -60,6 +60,11 @@ export const patientUpdateSchema = z
   .object({ name, cpf: cpf.nullable(), phone, birthDate: birthDate.nullable() })
   .partial();
 
+/** Reactivating messages needs the secretary to confirm the patient agreed again (LGPD consent). */
+export const allowMessagesSchema = z.object({
+  consent: z.literal(true, { error: "Confirme que o paciente aceitou voltar a receber mensagens" }),
+});
+
 const dentistFields = { name, workStart: time, workEnd: time, workDays };
 
 export const dentistInputSchema = z

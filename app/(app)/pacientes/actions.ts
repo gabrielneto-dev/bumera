@@ -3,7 +3,7 @@
 import type { ActionState } from "@/lib/action-state";
 import { formBoolean, formOptional, formString } from "@/lib/form-data";
 import { runAction } from "@/lib/run-action";
-import { confirmPatient, createPatient, updatePatient } from "@/lib/services/patients";
+import { allowMessagesAgain, confirmPatient, createPatient, updatePatient } from "@/lib/services/patients";
 import { getServiceContext } from "@/lib/services/server";
 
 export async function createPatientAction(_previous: ActionState, formData: FormData): Promise<ActionState> {
@@ -44,5 +44,16 @@ export async function confirmPatientAction(id: string): Promise<ActionState> {
   return runAction(async () => {
     await confirmPatient(await getServiceContext(), id);
     return "Paciente confirmado.";
+  });
+}
+
+export async function allowMessagesAgainAction(
+  id: string,
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    await allowMessagesAgain(await getServiceContext(), id, { consent: formBoolean(formData, "consent") });
+    return "Mensagens liberadas novamente.";
   });
 }

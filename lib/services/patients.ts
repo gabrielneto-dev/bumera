@@ -4,7 +4,7 @@ import { isValidCpf, maskCpf } from "@/lib/cpf";
 import { decryptField, encryptField, hashField } from "@/lib/crypto";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { AppError } from "@/lib/errors";
-import { parseInput, patientInputSchema, patientUpdateSchema } from "@/lib/schemas";
+import { allowMessagesSchema, parseInput, patientInputSchema, patientUpdateSchema } from "@/lib/schemas";
 import type { ServiceContext } from "@/lib/services/context";
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -135,6 +135,25 @@ export async function confirmPatient(ctx: ServiceContext, id: string): Promise<P
     await ctx.db.patient.update({ where: { id }, data: { status: "CONFIRMED" } }),
     ctx,
   );
+}
+
+/**
+ * A secretary lifts a patient's opt-out after the patient agreed again. The new consent is recorded
+ * with its source and time. Reminders that were skipped while opted out are not resent; the plan
+ * applies to appointments changed from now on.
+ */
+export async function allowMessagesAgain(ctx: ServiceContext, id: string, rawInput: unknown): Promise<PatientDto> {
+  assertCan(ctx.role, "patient", "update");
+  parseInput(allowMessagesSchema, rawInput);
+  const patient = await requirePatient(ctx, id);
+  if (!patient.doNotContact) {
+    throw new AppError("NOT_OPTED_OUT", "Este paciente não pediu para parar de receber mensagens");
+  }
+  const row = await ctx.db.patient.update({
+    where: { id },
+    data: { doNotContact: false, optedOutAt: null, consentAt: ctx.now(), consentSource: "secretary_reactivation" },
+  });
+  return toDto(row, ctx);
 }
 
 export async function getPatient(ctx: ServiceContext, id: string): Promise<PatientDto> {
