@@ -1,0 +1,76 @@
+# Production services for the Bumera app and Evolution API.
+# Merge with the existing stack on the server:
+#   cd ~/bumera && docker compose -f compose.yml -f compose.app.yml up -d --build app evolution
+# Values come from ~/bumera/.env (names listed in deploy/env.production.example).
+# Nothing is published on the network: Cloudflare Tunnel -> 127.0.0.1:3000, and
+# n8n reaches app/evolution through the compose network (http://app:3000, http://evolution:8080).
+services:
+  migrate:
+    profiles: ["tools"]
+    build:
+      context: ./src
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://bumera:${POSTGRES_PASSWORD}@postgres:5432/bumera_prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 768m
+
+  app:
+    build:
+      context: ./src
+      target: runtime
+    container_name: bumera-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://bumera:${POSTGRES_PASSWORD}@postgres:5432/bumera_prod
+      BETTER_AUTH_URL: https://bumera.gnslab.com.br
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      CPF_ENCRYPTION_KEY: ${CPF_ENCRYPTION_KEY}
+      CPF_HASH_KEY: ${CPF_HASH_KEY}
+      SERVICE_API_KEY: ${SERVICE_API_KEY}
+    ports:
+      - "127.0.0.1:3000:3000"
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: bumera-evolution
+    restart: unless-stopped
+    environment:
+      SERVER_URL: http://evolution:8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://bumera:${POSTGRES_PASSWORD}@postgres:5432/evolution?schema=evolution_api
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_LOCAL_ENABLED: "false"
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - bumera_evolution_instances:/evolution/instances
+    mem_limit: 640m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  redis:
+    image: redis:7-alpine
+    container_name: bumera-redis
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    mem_limit: 96m
+
+volumes:
+  bumera_evolution_instances:
