@@ -21,6 +21,10 @@ export async function updateSettingsAction(_previous: ActionState, formData: For
       quoteFollowup1Days: number(formData, "quoteFollowup1Days"),
       quoteFollowup2Days: number(formData, "quoteFollowup2Days"),
       quoteValidDays: number(formData, "quoteValidDays"),
+      quietEnabled: formBoolean(formData, "quietEnabled"),
+      quietStartHour: number(formData, "quietStartHour"),
+      quietEndHour: number(formData, "quietEndHour"),
+      dailySendLimit: number(formData, "dailySendLimit"),
     });
     return "Configurações salvas. Os lembretes ainda não enviados já seguem os novos horários.";
   });

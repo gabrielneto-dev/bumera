@@ -58,9 +58,25 @@ describe("clinic settings", () => {
     [{ quoteFollowup1Days: 8, quoteFollowup2Days: 3 }],
     [{ quoteFollowup2Days: 20, quoteValidDays: 10 }],
     [{ confirmationEnabled: "yes" }],
+    [{ quietStartHour: 24 }],
+    [{ quietEndHour: -1 }],
+    [{ quietStartHour: 8, quietEndHour: 8 }],
+    [{ dailySendLimit: 5 }],
+    [{ dailySendLimit: 5000 }],
+    [{ dailySendLimit: 99.5 }],
   ])("rejects invalid settings %j", async (override) => {
     await expect(updateSettings(admin(clinicA), { ...DEFAULT_CLINIC_SETTINGS, ...override })).rejects.toMatchObject({ code: "VALIDATION" });
     expect(await getSettings(admin(clinicA))).toEqual(DEFAULT_CLINIC_SETTINGS);
+  });
+
+  it("keeps the quiet hours and the daily limit", async () => {
+    const saved = await updateSettings(admin(clinicA), { ...DEFAULT_CLINIC_SETTINGS, quietStartHour: 20, quietEndHour: 9, dailySendLimit: 80 });
+    expect(saved).toMatchObject({ quietEnabled: true, quietStartHour: 20, quietEndHour: 9, dailySendLimit: 80 });
+  });
+
+  it("accepts equal quiet hours when the quiet period is switched off", async () => {
+    const saved = await updateSettings(admin(clinicA), { ...DEFAULT_CLINIC_SETTINGS, quietEnabled: false, quietStartHour: 8, quietEndHour: 8 });
+    expect(saved.quietEnabled).toBe(false);
   });
 
   it("does not compare the two reminders when one of them is switched off", async () => {

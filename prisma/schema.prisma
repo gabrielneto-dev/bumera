@@ -377,6 +377,12 @@ model ClinicSettings {
   quoteFollowup1Days   Int          @default(2)
   quoteFollowup2Days   Int          @default(7)
   quoteValidDays       Int          @default(14)
+  /// No messages on the clinic's initiative during the quiet hours (local time); replies to a patient are exempt.
+  quietEnabled         Boolean      @default(true)
+  quietStartHour       Int          @default(21)
+  quietEndHour         Int          @default(8)
+  /// Messages handed to n8n per local day and clinic; replies are counted but never blocked.
+  dailySendLimit       Int          @default(150)
   updatedAt            DateTime     @updatedAt
 
   @@map("clinic_settings")

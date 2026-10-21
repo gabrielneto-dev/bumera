@@ -18,6 +18,12 @@ export interface ClinicSettings {
   quoteFollowup1Days: number;
   quoteFollowup2Days: number;
   quoteValidDays: number;
+  /** No messages on the clinic's initiative during these local hours; replies to a patient are exempt. */
+  quietEnabled: boolean;
+  quietStartHour: number;
+  quietEndHour: number;
+  /** Messages handed to n8n per local day; replies are counted but never blocked. */
+  dailySendLimit: number;
 }
 
 export const DEFAULT_CLINIC_SETTINGS: ClinicSettings = {
@@ -31,6 +37,10 @@ export const DEFAULT_CLINIC_SETTINGS: ClinicSettings = {
   quoteFollowup1Days: 2,
   quoteFollowup2Days: 7,
   quoteValidDays: 14,
+  quietEnabled: true,
+  quietStartHour: 21,
+  quietEndHour: 8,
+  dailySendLimit: 150,
 };
 
 /** Picks the settings fields out of a database row; no row means the defaults. */
@@ -47,5 +57,9 @@ export function toClinicSettings(row: ClinicSettings | null | undefined): Clinic
     quoteFollowup1Days: row.quoteFollowup1Days,
     quoteFollowup2Days: row.quoteFollowup2Days,
     quoteValidDays: row.quoteValidDays,
+    quietEnabled: row.quietEnabled,
+    quietStartHour: row.quietStartHour,
+    quietEndHour: row.quietEndHour,
+    dailySendLimit: row.dailySendLimit,
   };
 }

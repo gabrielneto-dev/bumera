@@ -134,6 +134,10 @@ export const clinicSettingsSchema = z
     quoteFollowup1Days: wholeNumber("1º contato do orçamento (dias)", 1, 30),
     quoteFollowup2Days: wholeNumber("2º contato do orçamento (dias)", 1, 60),
     quoteValidDays: wholeNumber("Validade do orçamento (dias)", 1, 90),
+    quietEnabled: z.boolean(),
+    quietStartHour: wholeNumber("Início do silêncio (hora)", 0, 23),
+    quietEndHour: wholeNumber("Fim do silêncio (hora)", 0, 23),
+    dailySendLimit: wholeNumber("Limite diário de mensagens", 10, 1000),
   })
   .superRefine((value, ctx) => {
     if (value.reminder1Enabled && value.reminder2Enabled && value.reminder1HoursBefore <= value.reminder2HoursBefore) {
@@ -141,6 +145,9 @@ export const clinicSettingsSchema = z
     }
     if (value.quoteFollowup1Days >= value.quoteFollowup2Days) {
       ctx.addIssue({ code: "custom", path: ["quoteFollowup2Days"], message: "O 2º contato deve vir depois do 1º" });
+    }
+    if (value.quietEnabled && value.quietStartHour === value.quietEndHour) {
+      ctx.addIssue({ code: "custom", path: ["quietEndHour"], message: "O fim do silêncio deve ser diferente do início" });
     }
     if (value.quoteFollowup2Days > value.quoteValidDays) {
       ctx.addIssue({ code: "custom", path: ["quoteValidDays"], message: "A validade deve cobrir o 2º contato" });

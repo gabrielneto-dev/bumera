@@ -73,6 +73,28 @@ export function SettingsForm({ settings, action }: { settings: ClinicSettings; a
           />
         </Group>
 
+        <Group
+          title="Horário de silêncio e limite diário"
+          description="Protege os pacientes e o número de WhatsApp da clínica. Respostas a quem acabou de escrever (1, 2, SAIR) saem sempre, a qualquer hora."
+        >
+          <CheckboxField name="quietEnabled" label="Não enviar mensagens durante o horário de silêncio" defaultChecked={settings.quietEnabled} />
+          <TextField name="quietStartHour" label="Silêncio começa às (hora, 0 a 23)" defaultValue={settings.quietStartHour} {...numberField(0, 23)} />
+          <TextField
+            name="quietEndHour"
+            label="Silêncio termina às (hora, 0 a 23)"
+            defaultValue={settings.quietEndHour}
+            hint="O que cai nesse período espera e sai quando ele termina."
+            {...numberField(0, 23)}
+          />
+          <TextField
+            name="dailySendLimit"
+            label="Máximo de mensagens por dia"
+            defaultValue={settings.dailySendLimit}
+            hint="Lembretes e convites além do limite ficam para o dia seguinte. Muitas mensagens de uma vez aumentam o risco de bloqueio do número."
+            {...numberField(10, 1000)}
+          />
+        </Group>
+
         <p className="text-sm text-muted-foreground">
           O convite para o paciente voltar após um procedimento é configurado em cada procedimento, na tela Procedimentos.
         </p>

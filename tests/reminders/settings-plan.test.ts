@@ -26,6 +26,10 @@ describe("defaults", () => {
       quoteFollowup1Days: 2,
       quoteFollowup2Days: 7,
       quoteValidDays: 14,
+      quietEnabled: true,
+      quietStartHour: 21,
+      quietEndHour: 8,
+      dailySendLimit: 150,
     });
   });
 

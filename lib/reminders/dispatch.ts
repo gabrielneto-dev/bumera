@@ -1,7 +1,8 @@
 import type { Prisma, PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { AppError } from "@/lib/errors";
 import { evaluateGuard, evaluateQuoteGuard, isReplyKind, MAX_ATTEMPTS, retryDelayMs } from "@/lib/reminders/guard";
-import { DEFAULT_CLINIC_SETTINGS } from "@/lib/reminders/settings";
+import { isQuietNow, nextDayWindowStart, nextQuietEnd, startOfLocalDay } from "@/lib/reminders/send-window";
+import { type ClinicSettings, toClinicSettings } from "@/lib/reminders/settings";
 import { firstName, renderReminderMessage } from "@/lib/reminders/messages";
 
 /**
@@ -108,29 +109,50 @@ async function lockClaimable(tx: Prisma.TransactionClient, now: Date, limit: num
   return rows.map((row) => row.id);
 }
 
+/** The clinics' timings for this batch, and how many messages each already handed over today. */
+async function loadSendPolicy(tx: Prisma.TransactionClient, rows: ReminderDetail[], now: Date) {
+  const organizationIds = [...new Set(rows.map((row) => row.organizationId))];
+  const settingRows = await tx.clinicSettings.findMany({ where: { organizationId: { in: organizationIds } } });
+  const settingsByClinic = new Map(settingRows.map((row) => [row.organizationId, toClinicSettings(row)]));
+  const dayStart = startOfLocalDay(now);
+  const counts = await tx.reminder.groupBy({
+    by: ["organizationId"],
+    where: {
+      organizationId: { in: organizationIds },
+      OR: [
+        { status: "SENT", sentAt: { gte: dayStart } },
+        { status: "CLAIMED", claimedAt: { gte: dayStart } },
+      ],
+    },
+    _count: { _all: true },
+  });
+  const handedOverToday = new Map(counts.map((item) => [item.organizationId, item._count._all]));
+  return {
+    settingsOf: (organizationId: string): ClinicSettings => settingsByClinic.get(organizationId) ?? toClinicSettings(null),
+    handedOverToday,
+  };
+}
+
+/** Replies to a patient's own message go first and are never held back (a person is waiting for them). */
+const byPriority = (a: ReminderDetail, b: ReminderDetail): number =>
+  Number(isReplyKind(b.kind)) - Number(isReplyKind(a.kind)) || a.dueAt.getTime() - b.dueAt.getTime() || a.id.localeCompare(b.id);
+
 /** Hands due reminders to n8n, marking them claimed. Stale or disallowed ones are closed instead of returned. */
 export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEFAULT_LIMIT }: ClaimOptions): Promise<DueReminder[]> {
   const capped = Math.min(Math.max(Math.trunc(limit), 1), MAX_LIMIT);
   return prisma.$transaction(async (tx) => {
     const ids = await lockClaimable(tx, now, capped);
     if (ids.length === 0) return [];
-    const rows = await tx.reminder.findMany({
-      where: { id: { in: ids } },
-      include: detailInclude,
-      orderBy: [{ dueAt: "asc" }, { id: "asc" }],
-    });
-
-    // Quote validity is a clinic setting: read it once per clinic for the quote follow-ups in this batch.
-    const quoteClinics = [...new Set(rows.filter((row) => row.quote).map((row) => row.organizationId))];
-    const clinicSettings = quoteClinics.length
-      ? await tx.clinicSettings.findMany({ where: { organizationId: { in: quoteClinics } }, select: { organizationId: true, quoteValidDays: true } })
-      : [];
-    const validDaysOf = (organizationId: string): number =>
-      clinicSettings.find((item) => item.organizationId === organizationId)?.quoteValidDays ?? DEFAULT_CLINIC_SETTINGS.quoteValidDays;
+    const rows = (await tx.reminder.findMany({ where: { id: { in: ids } }, include: detailInclude })).sort(byPriority);
+    const { settingsOf, handedOverToday } = await loadSendPolicy(tx, rows, now);
+    /** Not now: back to pending, due again when sending is allowed. */
+    const hold = (id: string, dueAt: Date) =>
+      tx.reminder.update({ where: { id }, data: { status: "PENDING", claimedAt: null, dueAt } });
 
     const due: DueReminder[] = [];
     for (const row of rows) {
       const patient = patientOf(row);
+      const settings = settingsOf(row.organizationId);
       const patientHasUpcomingAppointment =
         row.kind === "REACTIVATION"
           ? (await tx.appointment.count({
@@ -139,7 +161,7 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
           : undefined;
       const guard =
         row.quote && !isReplyKind(row.kind)
-          ? evaluateQuoteGuard({ quote: row.quote, patient }, now, validDaysOf(row.organizationId))
+          ? evaluateQuoteGuard({ quote: row.quote, patient }, now, settings.quoteValidDays)
           : evaluateGuard({ kind: row.kind, appointment: row.appointment ?? undefined, patient, patientHasUpcomingAppointment }, now);
       if (!guard.ok) {
         await tx.reminder.update({ where: { id: row.id }, data: { status: guard.status, note: guard.reason } });
@@ -150,8 +172,19 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
         await tx.reminder.update({ where: { id: row.id }, data: { status: "FAILED", note: "no delivery result after the last attempt" } });
         continue;
       }
+      if (!isReplyKind(row.kind)) {
+        if (isQuietNow(now, settings)) {
+          await hold(row.id, nextQuietEnd(now, settings));
+          continue;
+        }
+        if ((handedOverToday.get(row.organizationId) ?? 0) >= settings.dailySendLimit) {
+          await hold(row.id, nextDayWindowStart(now, settings));
+          continue;
+        }
+      }
       const attempt = row.attempts + 1;
       await tx.reminder.update({ where: { id: row.id }, data: { status: "CLAIMED", claimedAt: now, attempts: attempt } });
+      handedOverToday.set(row.organizationId, (handedOverToday.get(row.organizationId) ?? 0) + 1);
       due.push(toDue(row, attempt));
     }
     return due;
@@ -197,8 +230,8 @@ export async function recordReminderResult(
     });
     if (row.status !== "CLAIMED" || row.attempts !== result.attempt) return { id, status: row.status };
     const quoteValidDays = row.quote
-      ? ((await tx.clinicSettings.findUnique({ where: { organizationId: row.organizationId } }))?.quoteValidDays ?? DEFAULT_CLINIC_SETTINGS.quoteValidDays)
-      : DEFAULT_CLINIC_SETTINGS.quoteValidDays;
+      ? ((await tx.clinicSettings.findUnique({ where: { organizationId: row.organizationId } }))?.quoteValidDays ?? toClinicSettings(null).quoteValidDays)
+      : toClinicSettings(null).quoteValidDays;
 
     if (result.outcome === "sent") {
       await tx.reminder.update({ where: { id }, data: { status: "SENT", sentAt: now, note: null } });
