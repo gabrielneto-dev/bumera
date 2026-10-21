@@ -9,6 +9,7 @@ import {
   listFreeSlots,
   zonedDayRange,
 } from "@/lib/schedule";
+import { syncReminders } from "@/lib/reminders/sync";
 import type { ServiceContext } from "@/lib/services/context";
 
 const MS_PER_MINUTE = 60_000;
@@ -95,17 +96,21 @@ export async function bookAppointment(ctx: ServiceContext, rawInput: unknown): P
   }
 
   try {
-    const row = await ctx.db.appointment.create({
-      data: {
-        organizationId: ctx.organizationId,
-        patientId: input.patientId,
-        dentistId: input.dentistId,
-        procedureId: input.procedureId,
-        startsAt,
-        endsAt,
-        createdById: ctx.userId,
-      },
-      include,
+    const row = await ctx.db.$transaction(async (tx) => {
+      const created = await tx.appointment.create({
+        data: {
+          organizationId: ctx.organizationId,
+          patientId: input.patientId,
+          dentistId: input.dentistId,
+          procedureId: input.procedureId,
+          startsAt,
+          endsAt,
+          createdById: ctx.userId,
+        },
+        include,
+      });
+      await syncReminders(tx, created, ctx.now());
+      return created;
     });
     return toDto(row);
   } catch (error) {
@@ -130,7 +135,12 @@ export async function changeAppointmentStatus(
       to,
     });
   }
-  return toDto(await ctx.db.appointment.update({ where: { id }, data: { status: to }, include }));
+  const updated = await ctx.db.$transaction(async (tx) => {
+    const row = await tx.appointment.update({ where: { id }, data: { status: to }, include });
+    await syncReminders(tx, row, ctx.now());
+    return row;
+  });
+  return toDto(updated);
 }
 
 export interface ListDayOptions {

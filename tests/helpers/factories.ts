@@ -19,7 +19,13 @@ export function createProcedure(prisma: PrismaClient, organizationId: string, na
 export function createPatient(
   prisma: PrismaClient,
   organizationId: string,
-  overrides: { name?: string; cpfHash?: string | null; phoneE164?: string } = {},
+  overrides: {
+    name?: string;
+    cpfHash?: string | null;
+    phoneE164?: string;
+    consentAt?: Date | null;
+    doNotContact?: boolean;
+  } = {},
 ) {
   return prisma.patient.create({
     data: {
@@ -27,6 +33,8 @@ export function createPatient(
       name: overrides.name ?? "Paciente Teste",
       phoneE164: overrides.phoneE164 ?? "+5511987654321",
       cpfHash: overrides.cpfHash === undefined ? null : overrides.cpfHash,
+      consentAt: overrides.consentAt === undefined ? new Date("2026-10-01T00:00:00.000Z") : overrides.consentAt,
+      doNotContact: overrides.doNotContact ?? false,
     },
   });
 }

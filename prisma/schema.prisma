@@ -90,6 +90,7 @@ model Organization {
   procedures   Procedure[]
   patients     Patient[]
   appointments Appointment[]
+  reminders    Reminder[]
 
   @@unique([slug])
   @@map("organization")
@@ -232,8 +233,61 @@ model Appointment {
   createdById    String?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
+  reminders      Reminder[]
 
+  @@unique([id, organizationId])
   @@index([organizationId, startsAt])
   @@index([dentistId, startsAt])
   @@map("appointment")
+}
+
+// ---------------------------------------------------------------------------
+// M2: reminders. One row per (appointment, kind), recomputed in the same transaction
+// as appointment changes (lib/reminders/sync.ts) and handed to n8n by polling
+// (lib/reminders/dispatch.ts).
+// ---------------------------------------------------------------------------
+
+enum ReminderKind {
+  CONFIRMATION
+  REMINDER_24H
+  REMINDER_2H
+  NO_SHOW_FOLLOWUP
+}
+
+enum ReminderStatus {
+  /// Waiting for dueAt (also used while waiting to retry after a failure).
+  PENDING
+  /// Handed to n8n; waiting for its result.
+  CLAIMED
+  SENT
+  /// Out of attempts: the secretary is alerted.
+  FAILED
+  /// No longer needed (appointment changed) or stale.
+  CANCELLED
+  /// Not allowed (opt-out, no consent).
+  SKIPPED
+}
+
+model Reminder {
+  id             String         @id @default(uuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appointmentId  String
+  appointment    Appointment    @relation(fields: [appointmentId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  kind           ReminderKind
+  status         ReminderStatus @default(PENDING)
+  /// Earliest moment n8n may pick it up; moved forward on retries.
+  dueAt          DateTime
+  attempts       Int            @default(0)
+  claimedAt      DateTime?
+  sentAt         DateTime?
+  /// Why it was cancelled/skipped, or the last delivery error. Never holds message text or PII.
+  note           String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([appointmentId, kind])
+  @@index([status, dueAt])
+  @@index([organizationId, status])
+  @@map("reminder")
 }

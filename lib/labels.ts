@@ -1,4 +1,4 @@
-import type { AppointmentStatus } from "@/generated/prisma/client";
+import type { AppointmentStatus, ReminderKind } from "@/generated/prisma/client";
 
 export const APPOINTMENT_STATUS_LABEL: Record<AppointmentStatus, string> = {
   PENDING: "Pendente",
@@ -15,3 +15,10 @@ export const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 export function describeWorkDays(days: readonly number[]): string {
   return [...days].sort((a, b) => a - b).map((day) => WEEKDAY_LABELS[day]).join(", ");
 }
+
+export const REMINDER_KIND_LABEL: Record<ReminderKind, string> = {
+  CONFIRMATION: "Confirmação do agendamento",
+  REMINDER_24H: "Lembrete de 24h",
+  REMINDER_2H: "Lembrete de 2h",
+  NO_SHOW_FOLLOWUP: "Convite para remarcar",
+};

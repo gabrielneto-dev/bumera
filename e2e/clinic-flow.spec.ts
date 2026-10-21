@@ -24,7 +24,7 @@ async function signUp(page: Page, name: string, email: string) {
   await page.getByRole("button", { name: "Criar conta" }).click();
 }
 
-test("a clinic is set up, books an appointment and brings a secretary in by invitation", async ({ page, browser }) => {
+test("a clinic is set up, books an appointment and brings a secretary in by invitation", async ({ page, browser, request }) => {
   const day = nextWorkingDay();
   let bookedTime = "";
 
@@ -61,6 +61,7 @@ test("a clinic is set up, books an appointment and brings a secretary in by invi
     await dialog.getByLabel("Nome completo").fill("Maria Souza");
     await dialog.getByLabel("Telefone (WhatsApp)").fill("(11) 98765-4321");
     await dialog.getByLabel("CPF (opcional)").fill("123.456.789-00");
+    await dialog.getByLabel("O paciente aceitou receber mensagens por WhatsApp").check();
     await dialog.getByRole("button", { name: "Cadastrar" }).click();
     await expect(dialog.getByText("CPF inválido")).toBeVisible();
     await expect(dialog.getByLabel("Nome completo")).toHaveValue("Maria Souza");
@@ -106,6 +107,24 @@ test("a clinic is set up, books an appointment and brings a secretary in by invi
     await expect(again.getByLabel("Horário").locator("option")).not.toHaveCount(1);
     await expect(again.getByLabel("Horário").locator("option", { hasText: bookedTime })).toHaveCount(0);
     await again.getByRole("button", { name: "Cancelar" }).click();
+  });
+
+  await test.step("n8n picks up the confirmation message through the API and reports it sent", async () => {
+    const headers = { Authorization: `Bearer ${process.env.SERVICE_API_KEY}` };
+    expect((await request.get("/api/v1/reminders/due")).status()).toBe(401);
+
+    const due = await request.get("/api/v1/reminders/due", { headers });
+    expect(due.status()).toBe(200);
+    const { data } = await due.json();
+    const confirmation = data.find((item: { kind: string }) => item.kind === "CONFIRMATION");
+    expect(confirmation.patient).toMatchObject({ firstName: "Maria", phone: "+5511987654321" });
+    expect(confirmation.message).toContain(bookedTime);
+    expect(confirmation.message).toContain("Dra. Ana Paula");
+
+    const result = await request.post(`/api/v1/reminders/${confirmation.id}/result`, { headers, data: { outcome: "sent", attempt: confirmation.attempt } });
+    expect((await result.json()).data.status).toBe("SENT");
+    const next = await (await request.get("/api/v1/reminders/due", { headers })).json();
+    expect(next.data.find((item: { id: string }) => item.id === confirmation.id)).toBeUndefined();
   });
 
   await test.step("confirms the appointment", async () => {

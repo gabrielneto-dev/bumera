@@ -1,4 +1,4 @@
-import { CalendarClock, ClipboardList, UserPlus } from "lucide-react";
+import { CalendarClock, ClipboardList, MessageCircleWarning, UserPlus } from "lucide-react";
 import type { ReactNode } from "react";
 import { AvatarInitials } from "@/components/avatar-initials";
 import { EmptyState } from "@/components/empty-state";
@@ -6,9 +6,11 @@ import { ConfirmButton } from "@/components/form/confirm-button";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { PageHeader } from "@/components/page-header";
 import { formatDayLong, formatTime } from "@/lib/dates";
+import { REMINDER_KIND_LABEL } from "@/lib/labels";
 import { formatBrPhone } from "@/lib/phone";
 import { listPending } from "@/lib/services/appointments";
 import { listPatients } from "@/lib/services/patients";
+import { listFailedReminders } from "@/lib/services/reminders";
 import { getServiceContext } from "@/lib/services/server";
 import { approveAppointmentAction, approvePatientAction, rejectAppointmentAction } from "./actions";
 
@@ -31,11 +33,12 @@ function Section({ icon: Icon, title, count, children }: { icon: typeof UserPlus
 
 export default async function PendentesPage() {
   const ctx = await getServiceContext();
-  const [patients, appointments] = await Promise.all([
+  const [patients, appointments, failedReminders] = await Promise.all([
     listPatients(ctx, { status: "PENDING" }),
     listPending(ctx),
+    listFailedReminders(ctx),
   ]);
-  const isEmpty = patients.items.length === 0 && appointments.length === 0;
+  const isEmpty = patients.items.length === 0 && appointments.length === 0 && failedReminders.length === 0;
 
   return (
     <section className="space-y-8">
@@ -48,6 +51,28 @@ export default async function PendentesPage() {
         <EmptyState icon={ClipboardList} title="Tudo em dia">
           Quando um paciente se cadastrar ou marcar horário pelo WhatsApp, aparece aqui.
         </EmptyState>
+      )}
+
+      {failedReminders.length > 0 && (
+        <Section icon={MessageCircleWarning} title="Mensagens que não saíram" count={failedReminders.length}>
+          <Stagger className="space-y-2">
+            {failedReminders.map((reminder) => (
+              <StaggerItem key={reminder.id} className="relative flex flex-wrap items-center gap-4 overflow-hidden rounded-2xl border border-destructive/30 bg-card py-4 pr-4 pl-5">
+                <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-destructive/70" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{reminder.patient.name}</p>
+                  <p className="text-sm text-muted-foreground first-letter:uppercase">
+                    {REMINDER_KIND_LABEL[reminder.kind]} · consulta {formatDayLong(reminder.appointment.startsAt.slice(0, 10))}{" "}
+                    {formatTime(reminder.appointment.startsAt)}
+                  </p>
+                  <p className="text-sm text-muted-foreground tabular-nums">
+                    Avise por telefone: {formatBrPhone(reminder.patient.phoneE164)}
+                  </p>
+                </div>
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </Section>
       )}
 
       {patients.items.length > 0 && (
