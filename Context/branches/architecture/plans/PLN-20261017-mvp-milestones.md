@@ -28,3 +28,6 @@ M0 and M1 done (the originally planned M1 was split into M1a-M1f and completed).
 
 ## Progress 2026-10-21
 M2 done (commit 79bd0e6). M3 done: app, Evolution and Redis deployed in `~/bumera-app`, workflow `n8n/workflows/reminders-whatsapp.json` published and verified end to end with a real WhatsApp message; `message_log` dropped (the `reminder` table is the log). Next: M4 inbound and hardening (see `CTX-NTE-20261021-m2-m3-implementation`).
+
+## Progress 2026-10-21 (M4 slice 1)
+M4 started: inbound webhook, replies 1/2/SAIR, automatic replies, structured messages, auto-refresh (`CTX-NTE-20261021-m4-inbound-replies`). Still in M4: protect n8n/Evolution hostnames, backups (the user wants them last), LGPD checklist, RLS, reactivation of opted-out patients.

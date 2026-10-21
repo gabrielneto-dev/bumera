@@ -41,3 +41,6 @@
 
 ## 2026-10-21 (full save)
 - M2/M3 note, deployment decision (answers app-deployment), Evolution exposure risk, service-auth partial answer, plan progress, server inventory update, checkpoint, STATE.
+
+## 2026-10-21 (M4 save)
+- M4 note, replies decision, opt-out reactivation question, checkpoint, STATE and plan progress.

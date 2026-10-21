@@ -14,13 +14,14 @@ Scope: engines, stack, hosting, data, security. Status: active — direction dec
 - No Proxmox, clean server — `CTX-DEC-20261018-no-proxmox-clean-server`
 - E-mail delivered on screen for now — `CTX-DEC-20261020-email-on-screen`
 - Home-server hosting — `CTX-DEC-20261016-self-hosted-home-server`
+- Automatic replies reuse the reminders pipeline — `CTX-DEC-20261021-replies-via-reminder-pipeline`
 - App deployment on the shared infra, hostname `bumera.gnslab.com.br` — `CTX-DEC-20261021-shared-infra-app-deployment`
 
 ## Server and code
-Server inventory: `CTX-FCT-20261017-server-inventory`. Code map and conventions: `CTX-NTE-20261020-m1-implementation` (read first when changing code); reminders, deploy and the n8n flow: `CTX-NTE-20261021-m2-m3-implementation`.
+Server inventory: `CTX-FCT-20261017-server-inventory`. Code map and conventions: `CTX-NTE-20261020-m1-implementation` (read first when changing code); reminders, deploy and the n8n flow: `CTX-NTE-20261021-m2-m3-implementation`; inbound replies and automatic answers: `CTX-NTE-20261021-m4-inbound-replies`.
 
 ## Plan and drafts
-Approved: `CTX-DEC-20261017-mvp-simplified`, `CTX-PLN-20261017-mvp-milestones` (M0–M3 done; M4 next). Reference drafts (annotated with adjustments): `CTX-NTE-20261017-data-model-draft`, `CTX-NTE-20261017-integration-contracts-draft`. Superseded: `CTX-PLN-20261017-build-milestones`, `CTX-DEC-20261020-invite-codes-no-email` (misread; replaced by on-screen e-mail).
+Approved: `CTX-DEC-20261017-mvp-simplified`, `CTX-PLN-20261017-mvp-milestones` (M0–M3 done; M4 in progress). Reference drafts (annotated with adjustments): `CTX-NTE-20261017-data-model-draft`, `CTX-NTE-20261017-integration-contracts-draft`. Superseded: `CTX-PLN-20261017-build-milestones`, `CTX-DEC-20261020-invite-codes-no-email` (misread; replaced by on-screen e-mail).
 
 ## Implementation
 `CTX-NTE-20261018-m0-implementation` (what exists, how it was verified, gotchas). 
@@ -29,7 +30,7 @@ Approved: `CTX-DEC-20261017-mvp-simplified`, `CTX-PLN-20261017-mvp-milestones` (
 `CTX-RSK-20261014-whatsapp-unofficial-api`, `CTX-RSK-20261014-lgpd-patient-data`, `CTX-RSK-20261016-home-server-availability`, `CTX-RSK-20261021-evolution-publicly-exposed`
 
 ## Open questions
-`CTX-QUE-20261016-service-auth` (partly answered), `CTX-QUE-20261018-email-provider` (postponed)
+`CTX-QUE-20261016-service-auth` (partly answered), `CTX-QUE-20261021-opt-out-reactivation`, `CTX-QUE-20261018-email-provider` (postponed)
 
 ## Superseded / answered
 `CTX-QUE-20261018-app-deployment` (answered 2026-10-21), `CTX-ASM-20261014-stack-candidates` (superseded), `CTX-QUE-20261014-stack-final`, `CTX-QUE-20261014-whatsapp-integration-approach` (answered).
