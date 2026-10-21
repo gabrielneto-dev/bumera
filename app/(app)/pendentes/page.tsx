@@ -1,5 +1,6 @@
 import { CalendarClock, CalendarSync, ClipboardList, MessageCircleWarning, UserPlus } from "lucide-react";
 import type { ReactNode } from "react";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { AvatarInitials } from "@/components/avatar-initials";
 import { EmptyState } from "@/components/empty-state";
 import { ConfirmButton } from "@/components/form/confirm-button";
@@ -43,6 +44,7 @@ export default async function PendentesPage() {
 
   return (
     <section className="space-y-8">
+      <AutoRefresh />
       <PageHeader
         title="Pendentes"
         description="Cadastros e consultas que chegaram por WhatsApp e esperam a sua confirmação."

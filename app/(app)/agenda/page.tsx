@@ -1,5 +1,6 @@
 import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { ActionDialog } from "@/components/form/action-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { Stagger, StaggerItem } from "@/components/motion";
@@ -89,6 +90,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
 
   return (
     <section className="space-y-6">
+      <AutoRefresh />
       <PageHeader
         title="Agenda"
         description={

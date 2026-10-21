@@ -30,8 +30,10 @@ export function sanitizeName(raw: string): string {
     .trim();
 }
 
-const OPT_OUT_LINE = "Para não receber mais mensagens, responda SAIR.";
-const ANSWER_LINE = "Responda 1 para confirmar ou 2 para remarcar.";
+/** Blank line between paragraphs; WhatsApp renders *text* in bold. */
+const PARAGRAPH = "\n\n";
+const OPT_OUT_LINE = "Para não receber mais mensagens, responda *SAIR*.";
+const ANSWER_BLOCK = ["Responda:", "*1* para confirmar", "*2* para remarcar"].join("\n");
 
 function when(iso: string): { day: string; time: string } {
   const date = new Date(iso);
@@ -59,6 +61,8 @@ function greeting(patientName: string): string {
   return first ? `Olá, ${first}!` : "Olá!";
 }
 
+const join = (...paragraphs: string[]): string => paragraphs.join(PARAGRAPH);
+
 /** Fixed pt-BR texts (no AI in the pilot). Rendered by the app so n8n flows stay generic. */
 export function renderReminderMessage(raw: MessageInput): string {
   const input = {
@@ -69,22 +73,37 @@ export function renderReminderMessage(raw: MessageInput): string {
   };
   const { day, time } = when(input.startsAt);
   const hello = greeting(input.patientName);
+  const clinic = `*${input.clinicName}*`;
   const slot = `${day} às ${time}`;
+  const details = [`📅 ${slot}`, `🦷 ${input.procedureName}`, `👤 ${input.dentistName}`].join("\n");
 
   switch (input.kind) {
     case "CONFIRMATION":
-      return `${hello} Sua consulta na ${input.clinicName} foi agendada para ${slot}, com ${input.dentistName} (${input.procedureName}). ${ANSWER_LINE} ${OPT_OUT_LINE}`;
+      return join(hello, `Sua consulta na ${clinic} foi agendada.`, details, ANSWER_BLOCK, OPT_OUT_LINE);
     case "REMINDER_24H":
-      return `${hello} Lembrete: sua consulta na ${input.clinicName} é ${slot}, com ${input.dentistName}. ${ANSWER_LINE} ${OPT_OUT_LINE}`;
+      return join(hello, `Lembrete: você tem consulta na ${clinic} amanhã.`, details, ANSWER_BLOCK, OPT_OUT_LINE);
     case "REMINDER_2H":
-      return `${hello} Sua consulta na ${input.clinicName} é hoje às ${time}, com ${input.dentistName}. Até já!`;
+      return join(hello, `Sua consulta na ${clinic} é hoje.`, `⏰ ${time}\n👤 ${input.dentistName}`, "Até já!");
     case "REPLY_CONFIRMED":
-      return `${hello} Consulta confirmada: ${slot}, com ${input.dentistName}. Até lá!`;
+      return join(hello, "Consulta confirmada ✅", details, "Até lá!");
     case "REPLY_RESCHEDULE":
-      return `${hello} Recebemos o seu pedido para remarcar. A equipe da ${input.clinicName} entra em contato em breve para combinar um novo horário.`;
+      return join(
+        hello,
+        "Recebemos o seu pedido para remarcar.",
+        `A equipe da ${clinic} entra em contato em breve para combinar um novo horário.`,
+      );
     case "REPLY_OPTED_OUT":
-      return `${hello} Tudo certo: você não vai mais receber mensagens da ${input.clinicName}. Se mudar de ideia, é só falar com a clínica.`;
+      return join(
+        hello,
+        `Tudo certo: você não vai mais receber mensagens da ${clinic}.`,
+        "Se mudar de ideia, é só falar com a clínica.",
+      );
     case "NO_SHOW_FOLLOWUP":
-      return `${hello} Sentimos sua falta na consulta de ${slot} na ${input.clinicName}. Quer remarcar? Responda 2 para remarcar e nossa equipe entra em contato. ${OPT_OUT_LINE}`;
+      return join(
+        hello,
+        `Sentimos sua falta na consulta de ${slot} na ${clinic}.`,
+        "Quer remarcar? Responda *2* e nossa equipe entra em contato.",
+        OPT_OUT_LINE,
+      );
   }
 }

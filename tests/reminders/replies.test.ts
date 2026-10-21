@@ -49,6 +49,7 @@ describe("reply messages", () => {
     expect(text).toContain("14:30");
     expect(text).toContain("Dr. Teste");
     expect(text).not.toMatch(/responda/i);
+    expect(text).toContain("\n\n");
   });
 
   it("tells the patient the clinic will get in touch about rescheduling", () => {

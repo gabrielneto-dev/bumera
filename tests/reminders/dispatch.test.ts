@@ -156,7 +156,9 @@ describe("reminder dispatch", () => {
       const sneaky = await createPatient(prisma, clinic, { name: "*Dr.* http://evil.example/x Joana" });
       await seed({ patient: sneaky.id });
       const [due] = await claimDueReminders(prisma, { now: NOW });
-      expect(due?.message).not.toMatch(/evil|http|\*/);
+      expect(due?.message).not.toMatch(/evil|http/);
+      // The only formatting left is the app's own: the greeting carries just the cleaned first name.
+      expect(due?.message.split("\n\n")[0]).toBe("Olá, Joana!");
       expect(due?.patient.firstName).toBe("Joana");
     });
 
