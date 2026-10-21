@@ -22,7 +22,7 @@
     },
     {
       "parameters": {
-        "url": "http://app:3000/api/v1/reminders/due",
+        "url": "http://bumera-app:3000/api/v1/reminders/due",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendQuery": true,
@@ -68,7 +68,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://evolution:8080/message/sendText/bumera-teste",
+        "url": "http://bumera-evolution:8080/message/sendText/bumera-teste",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
@@ -102,7 +102,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://app:3000/api/v1/reminders/{{ $('Uma por lembrete').item.json.id }}/result",
+        "url": "=http://bumera-app:3000/api/v1/reminders/{{ $('Uma por lembrete').item.json.id }}/result",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
@@ -132,7 +132,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://app:3000/api/v1/reminders/{{ $('Uma por lembrete').item.json.id }}/result",
+        "url": "=http://bumera-app:3000/api/v1/reminders/{{ $('Uma por lembrete').item.json.id }}/result",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,

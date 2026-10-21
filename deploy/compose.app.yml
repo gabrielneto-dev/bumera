@@ -1,9 +1,17 @@
-# Production services for the Bumera app and Evolution API.
-# Merge with the existing stack on the server:
-#   cd ~/bumera && docker compose -f compose.yml -f compose.app.yml up -d --build app evolution
-# Values come from ~/bumera/.env (names listed in deploy/env.production.example).
+# Production services for the Bumera app and Evolution API, on the shared server infra.
+# Lives in ~/bumera-app on the server (sources in ~/bumera-app/src); Postgres and n8n come from
+# ~/infra and are reached over the external docker network "infra" (hosts: postgres, n8n).
+#   cd ~/bumera-app && docker compose build app && docker compose --profile tools run --rm migrate && docker compose up -d app evolution redis
+# Values come from ~/bumera-app/.env (names listed in deploy/env.production.example).
 # Nothing is published on the network: Cloudflare Tunnel -> 127.0.0.1:3000, and
-# n8n reaches app/evolution through the compose network (http://app:3000, http://evolution:8080).
+# n8n reaches the services as http://bumera-app:3000 and http://bumera-evolution:8080.
+name: bumera-app
+
+networks:
+  infra:
+    external: true
+    name: infra
+
 services:
   migrate:
     profiles: ["tools"]
@@ -12,10 +20,8 @@ services:
       target: migrate
     environment:
       DATABASE_URL: postgresql://bumera:${POSTGRES_PASSWORD}@postgres:5432/bumera_prod
-    depends_on:
-      postgres:
-        condition: service_healthy
     mem_limit: 768m
+    networks: [infra]
 
   app:
     build:
@@ -33,6 +39,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     mem_limit: 512m
+    networks: [infra]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1"]
       interval: 20s
@@ -45,13 +52,13 @@ services:
     container_name: bumera-evolution
     restart: unless-stopped
     environment:
-      SERVER_URL: http://evolution:8080
+      SERVER_URL: http://bumera-evolution:8080
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
       DATABASE_ENABLED: "true"
       DATABASE_PROVIDER: postgresql
-      DATABASE_CONNECTION_URI: postgresql://bumera:${POSTGRES_PASSWORD}@postgres:5432/evolution?schema=evolution_api
+      DATABASE_CONNECTION_URI: ${EVOLUTION_DATABASE_URI}
       CACHE_REDIS_ENABLED: "true"
-      CACHE_REDIS_URI: redis://redis:6379/6
+      CACHE_REDIS_URI: redis://bumera-redis:6379/6
       CACHE_REDIS_PREFIX_KEY: evolution
       CACHE_LOCAL_ENABLED: "false"
     ports:
@@ -59,9 +66,7 @@ services:
     volumes:
       - bumera_evolution_instances:/evolution/instances
     mem_limit: 640m
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks: [infra]
       redis:
         condition: service_started
 
@@ -71,6 +76,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
     mem_limit: 96m
+    networks: [infra]
 
 volumes:
   bumera_evolution_instances:
