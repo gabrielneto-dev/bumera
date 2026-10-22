@@ -1,4 +1,5 @@
 import type { PrismaClient, ReminderKind } from "@/generated/prisma/client";
+import { recordAudit } from "@/lib/audit";
 import { phoneCandidates, type InboundMessage } from "@/lib/inbound/evolution";
 import { parseIntent } from "@/lib/inbound/intent";
 import { toClinicSettings } from "@/lib/reminders/settings";
@@ -37,7 +38,7 @@ export async function handleInboundMessage(
   if (patients.length === 0) return { outcome: "UNKNOWN_PATIENT" };
   const patientIds = patients.map((patient) => patient.id);
 
-  if (intent === "OPT_OUT") return optOut(prisma, patientIds, now);
+  if (intent === "OPT_OUT") return optOut(prisma, message.organizationId, patientIds, now);
 
   const campaign = await openCampaignMessage(prisma, patientIds, now);
   if (campaign) return answerCampaign(prisma, campaign, intent === "CONFIRM" ? "INTERESTED" : "DECLINED", now);
@@ -62,6 +63,7 @@ export async function handleInboundMessage(
         await syncReminders(tx, row, now, settings);
       }
       await queueReply(tx, { organizationId: appointment.organizationId, appointmentId: appointment.id }, "REPLY_CONFIRMED", now);
+      await recordAudit(tx, { organizationId: appointment.organizationId, userId: null }, { action: "APPOINTMENT_ANSWERED_BY_PATIENT", patientId: appointment.patientId, entityId: appointment.id, details: { answer: "CONFIRMED" } });
     });
     return { outcome: "CONFIRMED", appointmentId: appointment.id };
   }
@@ -73,6 +75,7 @@ export async function handleInboundMessage(
       data: { status: "CANCELLED", note: "patient asked to reschedule" },
     });
     await queueReply(tx, { organizationId: appointment.organizationId, appointmentId: appointment.id }, "REPLY_RESCHEDULE", now);
+    await recordAudit(tx, { organizationId: appointment.organizationId, userId: null }, { action: "APPOINTMENT_ANSWERED_BY_PATIENT", patientId: appointment.patientId, entityId: appointment.id, details: { answer: "RESCHEDULE_REQUESTED" } });
   });
   return { outcome: "RESCHEDULE_REQUESTED", appointmentId: appointment.id };
 }
@@ -120,6 +123,10 @@ async function answerCampaign(
     } else if (appointmentId) {
       await queueReply(tx, { organizationId, appointmentId }, replyKind, now);
     }
+    const subject = quoteId
+      ? await tx.quote.findUnique({ where: { id: quoteId }, select: { patientId: true } })
+      : await tx.appointment.findUnique({ where: { id: appointmentId ?? "" }, select: { patientId: true } });
+    await recordAudit(tx, { organizationId, userId: null }, { action: "APPOINTMENT_ANSWERED_BY_PATIENT", patientId: subject?.patientId, entityId: quoteId ?? appointmentId ?? undefined, details: { answer } });
   });
   return quoteId ? { outcome: answer, quoteId } : { outcome: answer, appointmentId: appointmentId ?? undefined };
 }
@@ -154,7 +161,8 @@ async function queueReply(db: ReplyDb, subject: ReplySubject, kind: ReplyKind, n
   });
 }
 
-async function optOut(prisma: PrismaClient, patientIds: string[], now: Date): Promise<InboundOutcome> {
+async function optOut(prisma: PrismaClient, organizationId: string, patientIds: string[], now: Date): Promise<InboundOutcome> {
+  const newlyOptedOut = await prisma.patient.findMany({ where: { id: { in: patientIds }, doNotContact: false }, select: { id: true } });
   await prisma.$transaction([
     prisma.patient.updateMany({
       where: { id: { in: patientIds }, doNotContact: false },
@@ -168,6 +176,9 @@ async function optOut(prisma: PrismaClient, patientIds: string[], now: Date): Pr
       data: { status: "SKIPPED", note: "patient opted out" },
     }),
   ]);
+  for (const patient of newlyOptedOut) {
+    await recordAudit(scopedPrisma(prisma, organizationId), { organizationId, userId: null }, { action: "PATIENT_OPTED_OUT", patientId: patient.id, entityId: patient.id });
+  }
   // One acknowledgement, attached to the patient's latest appointment or, failing that, latest quote;
   // without either there is nothing to attach it to. A separate step is fine: if it fails, the webhook
   // is retried and every step above is safe to repeat.

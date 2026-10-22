@@ -93,6 +93,7 @@ model Organization {
   reminders      Reminder[]
   quotes         Quote[]
   clinicSettings ClinicSettings?
+  auditLogs      AuditLog[]
 
   @@unique([slug])
   @@map("organization")
@@ -209,6 +210,8 @@ model Patient {
   consentSource  String?
   doNotContact   Boolean       @default(false)
   optedOutAt     DateTime?
+  /// Set when the patient's data was erased on request (LGPD art. 18): the row stays only for the clinic's records.
+  anonymizedAt   DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   appointments   Appointment[]
@@ -389,4 +392,51 @@ model ClinicSettings {
   updatedAt            DateTime     @updatedAt
 
   @@map("clinic_settings")
+}
+
+// ---------------------------------------------------------------------------
+// LGPD: who did what with patient data. Append-only by convention (the app never updates or deletes
+// rows). It deliberately holds no personal values: only ids, action names and changed field names.
+// ---------------------------------------------------------------------------
+
+enum AuditAction {
+  PATIENT_CREATED
+  PATIENT_UPDATED
+  PATIENT_CONFIRMED
+  CONSENT_RENEWED
+  PATIENT_OPTED_OUT
+  PATIENT_EXPORTED
+  PATIENT_ANONYMIZED
+  APPOINTMENT_BOOKED
+  APPOINTMENT_STATUS_CHANGED
+  APPOINTMENT_ANSWERED_BY_PATIENT
+  QUOTE_CREATED
+  QUOTE_CLOSED
+  SETTINGS_UPDATED
+  WHATSAPP_CHANGED
+}
+
+enum AuditActor {
+  USER
+  SYSTEM
+}
+
+model AuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// USER = a signed-in member (actorUserId); SYSTEM = the app acting on a patient's WhatsApp message.
+  actorType      AuditActor
+  actorUserId    String?
+  action         AuditAction
+  /// The patient concerned, when there is one. Not a foreign key: it must outlive an erasure.
+  patientId      String?
+  entityId       String?
+  /// Names of changed fields and similar; never names, phones, CPFs or message text.
+  details        Json?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, patientId, createdAt])
+  @@map("audit_log")
 }

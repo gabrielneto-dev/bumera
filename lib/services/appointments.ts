@@ -9,6 +9,7 @@ import {
   listFreeSlots,
   zonedDayRange,
 } from "@/lib/schedule";
+import { recordAudit } from "@/lib/audit";
 import { syncReminders } from "@/lib/reminders/sync";
 import { loadClinicSettings } from "@/lib/services/settings";
 import type { ServiceContext } from "@/lib/services/context";
@@ -65,11 +66,12 @@ function notFound(resource: string): AppError {
 
 async function loadBookingTargets(ctx: ServiceContext, ids: { patientId: string; dentistId: string; procedureId: string }) {
   const [patient, dentist, procedure] = await Promise.all([
-    ctx.db.patient.findUnique({ where: { id: ids.patientId }, select: { id: true } }),
+    ctx.db.patient.findUnique({ where: { id: ids.patientId }, select: { id: true, anonymizedAt: true } }),
     ctx.db.dentist.findUnique({ where: { id: ids.dentistId } }),
     ctx.db.procedure.findUnique({ where: { id: ids.procedureId } }),
   ]);
   if (!patient) throw notFound("patient");
+  if (patient.anonymizedAt) throw new AppError("ANONYMIZED_PATIENT", "Os dados deste paciente foram apagados a pedido dele");
   if (!dentist) throw notFound("dentist");
   if (!procedure) throw notFound("procedure");
   if (!dentist.active || !procedure.active) {
@@ -112,6 +114,7 @@ export async function bookAppointment(ctx: ServiceContext, rawInput: unknown): P
         include,
       });
       await syncReminders(tx, { ...created, reactivateAfterMonths: created.procedure.reactivateAfterMonths }, ctx.now(), settings);
+      await recordAudit(tx, ctx, { action: "APPOINTMENT_BOOKED", patientId: input.patientId, entityId: created.id });
       return created;
     });
     return toDto(row);
@@ -141,6 +144,12 @@ export async function changeAppointmentStatus(
   const updated = await ctx.db.$transaction(async (tx) => {
     const row = await tx.appointment.update({ where: { id }, data: { status: to }, include });
     await syncReminders(tx, { ...row, reactivateAfterMonths: row.procedure.reactivateAfterMonths }, ctx.now(), settings);
+    await recordAudit(tx, ctx, {
+      action: "APPOINTMENT_STATUS_CHANGED",
+      patientId: row.patient.id,
+      entityId: id,
+      details: { from: current.status, to },
+    });
     return row;
   });
   return toDto(updated);

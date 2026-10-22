@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { recordAudit } from "@/lib/audit";
 import { assertCan } from "@/lib/authz";
 import { AppError } from "@/lib/errors";
 import { syncQuoteReminders } from "@/lib/reminders/sync";
@@ -46,8 +47,9 @@ function toDto(row: QuoteRow, now: Date, validDays: number): QuoteDto {
 export async function createQuote(ctx: ServiceContext, rawInput: unknown): Promise<QuoteDto> {
   assertCan(ctx.role, "quote", "create");
   const input = parseInput(quoteInputSchema, rawInput);
-  const patient = await ctx.db.patient.findUnique({ where: { id: input.patientId }, select: { id: true } });
+  const patient = await ctx.db.patient.findUnique({ where: { id: input.patientId }, select: { id: true, anonymizedAt: true } });
   if (!patient) throw new AppError("NOT_FOUND", "Paciente não encontrado", { resource: "patient" });
+  if (patient.anonymizedAt) throw new AppError("ANONYMIZED_PATIENT", "Os dados deste paciente foram apagados a pedido dele");
 
   const now = ctx.now();
   const settings = await loadClinicSettings(ctx);
@@ -63,6 +65,7 @@ export async function createQuote(ctx: ServiceContext, rawInput: unknown): Promi
       include,
     });
     await syncQuoteReminders(tx, created, now, settings);
+    await recordAudit(tx, ctx, { action: "QUOTE_CREATED", patientId: created.patientId, entityId: created.id });
     return created;
   });
   return toDto(row, now, settings.quoteValidDays);
@@ -82,6 +85,7 @@ export async function changeQuoteStatus(ctx: ServiceContext, id: string, rawStat
   const row = await ctx.db.$transaction(async (tx) => {
     const updated = await tx.quote.update({ where: { id }, data: { status: to, closedAt: now }, include });
     await syncQuoteReminders(tx, updated, now, settings);
+    await recordAudit(tx, ctx, { action: "QUOTE_CLOSED", patientId: updated.patientId, entityId: id, details: { status: to } });
     return updated;
   });
   return toDto(row, now, settings.quoteValidDays);

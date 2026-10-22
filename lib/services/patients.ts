@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { recordAudit } from "@/lib/audit";
 import { assertCan } from "@/lib/authz";
 import { isValidCpf, maskCpf } from "@/lib/cpf";
 import { decryptField, encryptField, hashField } from "@/lib/crypto";
@@ -8,6 +9,9 @@ import { allowMessagesSchema, parseInput, patientInputSchema, patientUpdateSchem
 import type { ServiceContext } from "@/lib/services/context";
 
 const DEFAULT_PAGE_SIZE = 50;
+const ERASED_NAME = "Paciente removido";
+const ERASED_PHONE = "REMOVIDO";
+const ERASED_TEXT = "(removido)";
 const MIN_PHONE_SEARCH_DIGITS = 4;
 
 export interface PatientDto {
@@ -19,6 +23,8 @@ export interface PatientDto {
   status: "PENDING" | "CONFIRMED";
   source: "SECRETARY" | "WHATSAPP";
   doNotContact: boolean;
+  /** The patient's data was erased on request (LGPD): only the clinic's record of what happened remains. */
+  anonymized: boolean;
   createdAt: string;
 }
 
@@ -34,6 +40,7 @@ function toDto(row: PatientRow, ctx: ServiceContext): PatientDto {
     status: row.status,
     source: row.source,
     doNotContact: row.doNotContact,
+    anonymized: row.anonymizedAt !== null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -58,6 +65,13 @@ async function requirePatient(ctx: ServiceContext, id: string): Promise<PatientR
   return row;
 }
 
+/** Like requirePatient, but refuses a patient whose data was erased: nothing may be added to it. */
+export async function requireActivePatient(ctx: ServiceContext, id: string): Promise<PatientRow> {
+  const row = await requirePatient(ctx, id);
+  if (row.anonymizedAt) throw new AppError("ANONYMIZED_PATIENT", "Os dados deste paciente foram apagados a pedido dele");
+  return row;
+}
+
 function birthDateToDate(value: string, ctx: ServiceContext): Date {
   const date = new Date(`${value}T00:00:00.000Z`);
   if (date > ctx.now()) {
@@ -75,17 +89,21 @@ export async function createPatient(ctx: ServiceContext, rawInput: unknown): Pro
   if (cpfHash) await assertNoDuplicate(ctx, cpfHash);
 
   try {
-    const row = await ctx.db.patient.create({
-      data: {
-        organizationId: ctx.organizationId,
-        name: input.name,
-        cpfEncrypted: input.cpf ? encryptField(input.cpf, ctx.keys.encryption) : null,
-        cpfHash,
-        phoneE164: input.phone,
-        birthDate: input.birthDate ? birthDateToDate(input.birthDate, ctx) : null,
-        consentAt: input.consent ? ctx.now() : null,
-        consentSource: input.consent ? "secretary" : null,
-      },
+    const row = await ctx.db.$transaction(async (tx) => {
+      const created = await tx.patient.create({
+        data: {
+          organizationId: ctx.organizationId,
+          name: input.name,
+          cpfEncrypted: input.cpf ? encryptField(input.cpf, ctx.keys.encryption) : null,
+          cpfHash,
+          phoneE164: input.phone,
+          birthDate: input.birthDate ? birthDateToDate(input.birthDate, ctx) : null,
+          consentAt: input.consent ? ctx.now() : null,
+          consentSource: input.consent ? "secretary" : null,
+        },
+      });
+      await recordAudit(tx, ctx, { action: "PATIENT_CREATED", patientId: created.id, entityId: created.id });
+      return created;
     });
     return toDto(row, ctx);
   } catch (error) {
@@ -105,7 +123,7 @@ export async function updatePatient(
 ): Promise<PatientDto> {
   assertCan(ctx.role, "patient", "update");
   const input = parseInput(patientUpdateSchema, rawInput);
-  await requirePatient(ctx, id);
+  await requireActivePatient(ctx, id);
 
   const data: Prisma.PatientUpdateInput = {};
   if (input.name !== undefined) data.name = input.name;
@@ -124,17 +142,25 @@ export async function updatePatient(
       data.cpfHash = cpfHash;
     }
   }
-  return toDto(await ctx.db.patient.update({ where: { id }, data }), ctx);
+  const changed = Object.entries(input).filter(([, value]) => value !== undefined).map(([field]) => field);
+  const row = await ctx.db.$transaction(async (tx) => {
+    const updated = await tx.patient.update({ where: { id }, data });
+    await recordAudit(tx, ctx, { action: "PATIENT_UPDATED", patientId: id, entityId: id, details: { fields: changed } });
+    return updated;
+  });
+  return toDto(row, ctx);
 }
 
 /** A secretary confirms a patient created through WhatsApp. */
 export async function confirmPatient(ctx: ServiceContext, id: string): Promise<PatientDto> {
   assertCan(ctx.role, "patient", "update");
   await requirePatient(ctx, id);
-  return toDto(
-    await ctx.db.patient.update({ where: { id }, data: { status: "CONFIRMED" } }),
-    ctx,
-  );
+  const row = await ctx.db.$transaction(async (tx) => {
+    const updated = await tx.patient.update({ where: { id }, data: { status: "CONFIRMED" } });
+    await recordAudit(tx, ctx, { action: "PATIENT_CONFIRMED", patientId: id, entityId: id });
+    return updated;
+  });
+  return toDto(row, ctx);
 }
 
 /**
@@ -145,13 +171,56 @@ export async function confirmPatient(ctx: ServiceContext, id: string): Promise<P
 export async function allowMessagesAgain(ctx: ServiceContext, id: string, rawInput: unknown): Promise<PatientDto> {
   assertCan(ctx.role, "patient", "update");
   parseInput(allowMessagesSchema, rawInput);
-  const patient = await requirePatient(ctx, id);
+  const patient = await requireActivePatient(ctx, id);
   if (!patient.doNotContact) {
     throw new AppError("NOT_OPTED_OUT", "Este paciente não pediu para parar de receber mensagens");
   }
-  const row = await ctx.db.patient.update({
-    where: { id },
-    data: { doNotContact: false, optedOutAt: null, consentAt: ctx.now(), consentSource: "secretary_reactivation" },
+  const row = await ctx.db.$transaction(async (tx) => {
+    const updated = await tx.patient.update({
+      where: { id },
+      data: { doNotContact: false, optedOutAt: null, consentAt: ctx.now(), consentSource: "secretary_reactivation" },
+    });
+    await recordAudit(tx, ctx, { action: "CONSENT_RENEWED", patientId: id, entityId: id });
+    return updated;
+  });
+  return toDto(row, ctx);
+}
+
+/**
+ * Erases a patient's personal data at their request (LGPD art. 18, VI). The row is kept, stripped of every
+ * personal field, because the clinic's appointments and quotes still refer to it. Irreversible; idempotent.
+ */
+export async function anonymizePatient(ctx: ServiceContext, id: string): Promise<PatientDto> {
+  assertCan(ctx.role, "patient", "delete");
+  const current = await requirePatient(ctx, id);
+  if (current.anonymizedAt) return toDto(current, ctx);
+
+  const now = ctx.now();
+  const row = await ctx.db.$transaction(async (tx) => {
+    const erased = await tx.patient.update({
+      where: { id },
+      data: {
+        name: ERASED_NAME,
+        cpfEncrypted: null,
+        cpfHash: null,
+        phoneE164: ERASED_PHONE,
+        birthDate: null,
+        consentAt: null,
+        consentSource: null,
+        doNotContact: true,
+        optedOutAt: now,
+        anonymizedAt: now,
+      },
+    });
+    // Nothing more goes out to this patient, and a quote's free text may name them.
+    await tx.reminder.updateMany({
+      where: { status: { in: ["PENDING", "CLAIMED"] }, OR: [{ appointment: { patientId: id } }, { quote: { patientId: id } }] },
+      data: { status: "CANCELLED", note: "patient data erased" },
+    });
+    await tx.quote.updateMany({ where: { patientId: id, status: "OPEN" }, data: { status: "DECLINED", closedAt: now } });
+    await tx.quote.updateMany({ where: { patientId: id }, data: { description: ERASED_TEXT } });
+    await recordAudit(tx, ctx, { action: "PATIENT_ANONYMIZED", patientId: id, entityId: id });
+    return erased;
   });
   return toDto(row, ctx);
 }

@@ -15,6 +15,7 @@ export const statement = {
   procedure: ["create", "read", "update", "delete"],
   dentist: ["create", "read", "update", "delete"],
   quote: ["create", "read", "update"],
+  audit: ["read"],
   triggerRule: ["read", "update"],
 } as const;
 
@@ -27,6 +28,7 @@ export const admin = ac.newRole({
   procedure: ["create", "read", "update", "delete"],
   dentist: ["create", "read", "update", "delete"],
   quote: ["create", "read", "update"],
+  audit: ["read"],
   triggerRule: ["read", "update"],
 });
 

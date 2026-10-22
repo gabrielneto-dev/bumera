@@ -1,3 +1,4 @@
+import { recordAudit } from "@/lib/audit";
 import { assertCan } from "@/lib/authz";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { AppError } from "@/lib/errors";
@@ -24,6 +25,7 @@ export async function setWhatsappInstance(ctx: ServiceContext, rawInput: unknown
       update: { whatsappInstance: instance },
       create: { organizationId: ctx.organizationId, whatsappInstance: instance },
     });
+    await recordAudit(ctx.db, ctx, { action: "WHATSAPP_CHANGED", details: { connected: row.whatsappInstance !== null } });
     return row.whatsappInstance;
   } catch (error) {
     if (isUniqueViolation(error)) {

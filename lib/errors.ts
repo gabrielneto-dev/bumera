@@ -9,7 +9,8 @@ export type AppErrorCode =
   | "INACTIVE_RESOURCE"
   | "INVALID_TRANSITION"
   | "NOT_OPTED_OUT"
-  | "DUPLICATE_WHATSAPP";
+  | "DUPLICATE_WHATSAPP"
+  | "ANONYMIZED_PATIENT";
 
 /** Expected, user-facing failures. Anything else is a bug and must not leak details. */
 export class AppError extends Error {

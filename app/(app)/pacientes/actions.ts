@@ -3,7 +3,7 @@
 import type { ActionState } from "@/lib/action-state";
 import { formBoolean, formOptional, formString } from "@/lib/form-data";
 import { runAction } from "@/lib/run-action";
-import { allowMessagesAgain, confirmPatient, createPatient, updatePatient } from "@/lib/services/patients";
+import { allowMessagesAgain, anonymizePatient, confirmPatient, createPatient, updatePatient } from "@/lib/services/patients";
 import { getServiceContext } from "@/lib/services/server";
 
 export async function createPatientAction(_previous: ActionState, formData: FormData): Promise<ActionState> {
@@ -55,5 +55,12 @@ export async function allowMessagesAgainAction(
   return runAction(async () => {
     await allowMessagesAgain(await getServiceContext(), id, { consent: formBoolean(formData, "consent") });
     return "Mensagens liberadas novamente.";
+  });
+}
+
+export async function anonymizePatientAction(id: string): Promise<ActionState> {
+  return runAction(async () => {
+    await anonymizePatient(await getServiceContext(), id);
+    return "Dados do paciente apagados.";
   });
 }

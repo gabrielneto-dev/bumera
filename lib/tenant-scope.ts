@@ -21,6 +21,7 @@ const TENANT_MODELS: ReadonlySet<string> = new Set([
   "Reminder",
   "Quote",
   "ClinicSettings",
+  "AuditLog",
 ]);
 
 const FILTER_OPERATIONS: ReadonlySet<string> = new Set([

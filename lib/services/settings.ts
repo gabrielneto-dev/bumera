@@ -1,5 +1,6 @@
+import { recordAudit } from "@/lib/audit";
 import { assertCan } from "@/lib/authz";
-import { type ClinicSettings, toClinicSettings } from "@/lib/reminders/settings";
+import { type ClinicSettings, DEFAULT_CLINIC_SETTINGS, toClinicSettings } from "@/lib/reminders/settings";
 import { syncQuoteReminders, syncReminders } from "@/lib/reminders/sync";
 import { clinicSettingsSchema, parseInput } from "@/lib/schemas";
 import type { ServiceContext } from "@/lib/services/context";
@@ -23,6 +24,7 @@ export async function getSettings(ctx: ServiceContext): Promise<ClinicSettings> 
 export async function updateSettings(ctx: ServiceContext, rawInput: unknown): Promise<ClinicSettings> {
   assertCan(ctx.role, "triggerRule", "update");
   const input = parseInput(clinicSettingsSchema, rawInput);
+  const before = await loadClinicSettings(ctx);
   const saved = toClinicSettings(
     await ctx.db.clinicSettings.upsert({
       where: { organizationId: ctx.organizationId },
@@ -30,6 +32,9 @@ export async function updateSettings(ctx: ServiceContext, rawInput: unknown): Pr
       create: { ...input, organizationId: ctx.organizationId },
     }),
   );
+
+  const changed = (Object.keys(DEFAULT_CLINIC_SETTINGS) as Array<keyof ClinicSettings>).filter((field) => saved[field] !== before[field]);
+  if (changed.length > 0) await recordAudit(ctx.db, ctx, { action: "SETTINGS_UPDATED", details: { fields: changed } });
 
   const now = ctx.now();
   const appointments = await ctx.db.appointment.findMany({
