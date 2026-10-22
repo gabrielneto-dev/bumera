@@ -16,6 +16,8 @@ const MAX_LIMIT = 50;
 /** A claim nobody reported on for this long is handed out again (n8n crashed or lost the answer). */
 const CLAIM_TTL_MS = 10 * 60_000;
 const MAX_NOTE_LENGTH = 500;
+/** How long a message waits before the app looks again for a clinic whose WhatsApp is not connected. */
+const NO_WHATSAPP_RETRY_MS = 30 * 60_000;
 /** The claim transaction touches up to MAX_LIMIT rows one by one. */
 const TRANSACTION_TIMEOUT_MS = 20_000;
 
@@ -48,6 +50,8 @@ export interface DueReminder {
   /** Null for quote follow-ups and their replies. */
   appointment: { id: string; startsAt: string; endsAt: string; dentistName: string; procedureName: string } | null;
   quote: { id: string; description: string } | null;
+  /** The clinic's WhatsApp (Evolution) instance n8n must send this message through. */
+  whatsapp: { instance: string };
 }
 
 export interface ClaimOptions {
@@ -62,7 +66,7 @@ function patientOf(row: ReminderDetail) {
   return patient;
 }
 
-function toDue(row: ReminderDetail, attempt: number): DueReminder {
+function toDue(row: ReminderDetail, attempt: number, instance: string): DueReminder {
   const { appointment, quote } = row;
   const patient = patientOf(row);
   return {
@@ -90,6 +94,7 @@ function toDue(row: ReminderDetail, attempt: number): DueReminder {
         }
       : null,
     quote: quote ? { id: quote.id, description: quote.description } : null,
+    whatsapp: { instance },
   };
 }
 
@@ -114,6 +119,7 @@ async function loadSendPolicy(tx: Prisma.TransactionClient, rows: ReminderDetail
   const organizationIds = [...new Set(rows.map((row) => row.organizationId))];
   const settingRows = await tx.clinicSettings.findMany({ where: { organizationId: { in: organizationIds } } });
   const settingsByClinic = new Map(settingRows.map((row) => [row.organizationId, toClinicSettings(row)]));
+  const instanceByClinic = new Map(settingRows.map((row) => [row.organizationId, row.whatsappInstance]));
   const dayStart = startOfLocalDay(now);
   const counts = await tx.reminder.groupBy({
     by: ["organizationId"],
@@ -129,6 +135,7 @@ async function loadSendPolicy(tx: Prisma.TransactionClient, rows: ReminderDetail
   const handedOverToday = new Map(counts.map((item) => [item.organizationId, item._count._all]));
   return {
     settingsOf: (organizationId: string): ClinicSettings => settingsByClinic.get(organizationId) ?? toClinicSettings(null),
+    instanceOf: (organizationId: string): string | null => instanceByClinic.get(organizationId) ?? null,
     handedOverToday,
   };
 }
@@ -144,7 +151,7 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
     const ids = await lockClaimable(tx, now, capped);
     if (ids.length === 0) return [];
     const rows = (await tx.reminder.findMany({ where: { id: { in: ids } }, include: detailInclude })).sort(byPriority);
-    const { settingsOf, handedOverToday } = await loadSendPolicy(tx, rows, now);
+    const { settingsOf, instanceOf, handedOverToday } = await loadSendPolicy(tx, rows, now);
     /** Not now: back to pending, due again when sending is allowed. */
     const hold = (id: string, dueAt: Date) =>
       tx.reminder.update({ where: { id }, data: { status: "PENDING", claimedAt: null, dueAt } });
@@ -172,6 +179,12 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
         await tx.reminder.update({ where: { id: row.id }, data: { status: "FAILED", note: "no delivery result after the last attempt" } });
         continue;
       }
+      const instance = instanceOf(row.organizationId);
+      if (!instance) {
+        // The clinic has no WhatsApp connected: nothing can be sent. Check again later; the message is not lost.
+        await hold(row.id, new Date(now.getTime() + NO_WHATSAPP_RETRY_MS));
+        continue;
+      }
       if (!isReplyKind(row.kind)) {
         if (isQuietNow(now, settings)) {
           await hold(row.id, nextQuietEnd(now, settings));
@@ -185,7 +198,7 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
       const attempt = row.attempts + 1;
       await tx.reminder.update({ where: { id: row.id }, data: { status: "CLAIMED", claimedAt: now, attempts: attempt } });
       handedOverToday.set(row.organizationId, (handedOverToday.get(row.organizationId) ?? 0) + 1);
-      due.push(toDue(row, attempt));
+      due.push(toDue(row, attempt, instance));
     }
     return due;
   }, { timeout: TRANSACTION_TIMEOUT_MS });

@@ -42,7 +42,7 @@ describe("handleInboundMessage", () => {
   }
 
   const receive = (text: string, phoneE164 = PHONE) =>
-    handleInboundMessage(prisma, { phoneE164, text, messageId: "m1" }, NOW);
+    handleInboundMessage(prisma, { instance: "bumera-teste", organizationId: clinic, phoneE164, text, messageId: "m1" }, NOW);
 
   it("confirms the next upcoming appointment on reply 1", async () => {
     const later = await appointment(72);
@@ -102,14 +102,15 @@ describe("handleInboundMessage", () => {
     expect(reminder.status).toBe("SKIPPED");
   });
 
-  it("opts out every clinic's record of the same phone", async () => {
+  it("opts out only the clinic that received the message, even if the same phone is a patient elsewhere", async () => {
     const other = await createClinic(prisma, "b");
     const otherPatient = await createPatient(prisma, other, { phoneE164: PHONE });
 
     const result = await receive("sair");
 
-    expect(result).toMatchObject({ outcome: "OPTED_OUT", patients: 2 });
-    expect((await prisma.patient.findUniqueOrThrow({ where: { id: otherPatient.id } })).doNotContact).toBe(true);
+    expect(result).toMatchObject({ outcome: "OPTED_OUT", patients: 1 });
+    expect((await prisma.patient.findUniqueOrThrow({ where: { id: patientId } })).doNotContact).toBe(true);
+    expect((await prisma.patient.findUniqueOrThrow({ where: { id: otherPatient.id } })).doNotContact).toBe(false);
   });
 
   it("matches a phone saved with the ninth digit when WhatsApp sends it without", async () => {
@@ -140,14 +141,14 @@ describe("handleInboundMessage", () => {
     expect(await receive("1")).toEqual({ outcome: "NO_APPOINTMENT" });
   });
 
-  it("with the same phone in two clinics, answers the soonest appointment", async () => {
+  it("with the same phone in two clinics, answers the appointment of the clinic that received the message", async () => {
     const other = await createClinic(prisma, "b");
     const otherPatient = await createPatient(prisma, other, { phoneE164: PHONE });
     const otherDentist = await createDentist(prisma, other);
     const otherProcedure = await createProcedure(prisma, other);
-    await appointment(48);
+    const mine = await appointment(48);
     const startsAt = new Date(NOW.getTime() + 12 * HOUR);
-    const soonest = await prisma.appointment.create({
+    const soonerElsewhere = await prisma.appointment.create({
       data: {
         organizationId: other,
         patientId: otherPatient.id,
@@ -160,6 +161,7 @@ describe("handleInboundMessage", () => {
 
     const result = await receive("1");
 
-    expect(result).toMatchObject({ outcome: "CONFIRMED", appointmentId: soonest.id });
+    expect(result).toMatchObject({ outcome: "CONFIRMED", appointmentId: mine.id });
+    expect((await prisma.appointment.findUniqueOrThrow({ where: { id: soonerElsewhere.id } })).status).toBe("SCHEDULED");
   });
 });

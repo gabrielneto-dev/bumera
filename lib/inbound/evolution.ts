@@ -1,4 +1,6 @@
 export interface InboundMessage {
+  /** Evolution instance (the clinic's WhatsApp number) that received the message. */
+  instance: string;
   phoneE164: string;
   text: string;
   messageId: string;
@@ -38,13 +40,14 @@ export function parseEvolutionMessage(payload: unknown): InboundMessage | null {
   const key = asRecord(data?.key);
   if (!key || key.fromMe === true) return null;
 
+  const instance = asString(body?.instance);
   const remoteJid = asString(key.remoteJid);
   // WhatsApp may hide the number behind a @lid id and send the real one alongside.
   const phoneE164 = phoneFromJid(remoteJid) ?? phoneFromJid(asString(key.remoteJidAlt));
   const text = textOf(asRecord(data?.message));
   const messageId = asString(key.id);
-  if (!phoneE164 || !text || !messageId) return null;
-  return { phoneE164, text, messageId };
+  if (!instance || !phoneE164 || !text || !messageId) return null;
+  return { instance, phoneE164, text, messageId };
 }
 
 /**

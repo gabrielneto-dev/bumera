@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getDue } from "@/app/api/v1/reminders/due/route";
 import { POST as postResult } from "@/app/api/v1/reminders/[id]/result/route";
 import { createPrismaClient } from "@/lib/prisma";
-import { createClinic, createDentist, createPatient, createProcedure } from "../helpers/factories";
+import { connectWhatsapp, createClinic, createDentist, createPatient, createProcedure } from "../helpers/factories";
 
 const prisma = createPrismaClient(process.env.DATABASE_URL as string);
 const KEY = "service-key-service-key-service-key-0001";
@@ -26,6 +26,7 @@ describe("reminders API (service key)", () => {
     vi.stubEnv("SERVICE_API_KEY", KEY);
     await prisma.$executeRawUnsafe('TRUNCATE TABLE "organization" CASCADE');
     const clinic = await createClinic(prisma, "a");
+    await connectWhatsapp(prisma, clinic);
     const dentist = await createDentist(prisma, clinic, "Dra. Ana");
     const procedure = await createProcedure(prisma, clinic);
     const patient = await createPatient(prisma, clinic, { name: "Maria Souza" });

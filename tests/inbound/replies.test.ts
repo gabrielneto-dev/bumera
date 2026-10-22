@@ -3,7 +3,7 @@ import { handleInboundMessage } from "@/lib/inbound/handle";
 import { createPrismaClient } from "@/lib/prisma";
 import { claimDueReminders } from "@/lib/reminders/dispatch";
 import { syncReminders } from "@/lib/reminders/sync";
-import { createClinic, createDentist, createPatient, createProcedure } from "../helpers/factories";
+import { connectWhatsapp, createClinic, createDentist, createPatient, createProcedure } from "../helpers/factories";
 import { NOW } from "../helpers/service-context";
 
 const prisma = createPrismaClient(process.env.DATABASE_URL as string);
@@ -18,6 +18,7 @@ describe("automatic replies to patients", () => {
   beforeEach(async () => {
     await prisma.$executeRawUnsafe('TRUNCATE TABLE "organization" CASCADE');
     clinic = await createClinic(prisma, "a");
+    await connectWhatsapp(prisma, clinic);
     const dentist = await createDentist(prisma, clinic);
     const procedure = await createProcedure(prisma, clinic);
     patientId = (await createPatient(prisma, clinic, { name: "Maria Souza", phoneE164: PHONE })).id;
@@ -33,7 +34,7 @@ describe("automatic replies to patients", () => {
     await prisma.$disconnect();
   });
 
-  const receive = (text: string, id = "m1") => handleInboundMessage(prisma, { phoneE164: PHONE, text, messageId: id }, NOW);
+  const receive = (text: string, id = "m1") => handleInboundMessage(prisma, { instance: "bumera-teste", organizationId: clinic, phoneE164: PHONE, text, messageId: id }, NOW);
   const replies = () =>
     prisma.reminder.findMany({ where: { appointmentId, kind: { in: ["REPLY_CONFIRMED", "REPLY_RESCHEDULE", "REPLY_OPTED_OUT"] } }, orderBy: { kind: "asc" } });
   const repliesOfKind = (kind: "REPLY_CONFIRMED" | "REPLY_RESCHEDULE" | "REPLY_OPTED_OUT") =>
@@ -94,7 +95,7 @@ describe("automatic replies to patients", () => {
 
   it("sends no reply for unclear messages or unknown phones", async () => {
     await receive("talvez");
-    await handleInboundMessage(prisma, { phoneE164: "+5511900000000", text: "1", messageId: "x" }, NOW);
+    await handleInboundMessage(prisma, { instance: "bumera-teste", organizationId: clinic, phoneE164: "+5511900000000", text: "1", messageId: "x" }, NOW);
 
     expect(await replies()).toHaveLength(0);
   });

@@ -8,7 +8,7 @@ describe("parseEvolutionMessage", () => {
     const parsed = parseEvolutionMessage(
       base({ key: { remoteJid: "5517997822073@s.whatsapp.net", fromMe: false, id: "ABC" }, message: { conversation: "1" } }),
     );
-    expect(parsed).toEqual({ phoneE164: "+5517997822073", text: "1", messageId: "ABC" });
+    expect(parsed).toEqual({ instance: "bumera-teste", phoneE164: "+5517997822073", text: "1", messageId: "ABC" });
   });
 
   it("accepts the upper-case event name and extended text", () => {
@@ -40,6 +40,10 @@ describe("parseEvolutionMessage", () => {
     ["a non-Brazilian number", { key: { remoteJid: "14155550123@s.whatsapp.net", fromMe: false, id: "1" }, message: { conversation: "1" } }],
   ])("ignores %s", (_name, data) => {
     expect(parseEvolutionMessage(base(data))).toBeNull();
+  });
+
+  it("ignores a payload that does not name the instance", () => {
+    expect(parseEvolutionMessage({ event: "messages.upsert", data: { key: { remoteJid: "5517997822073@s.whatsapp.net", fromMe: false, id: "1" }, message: { conversation: "1" } } })).toBeNull();
   });
 
   it("ignores other events and malformed payloads", () => {

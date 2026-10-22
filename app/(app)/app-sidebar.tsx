@@ -6,6 +6,7 @@ import {
   LogOut,
   MessageSquareText,
   Receipt,
+  Smartphone,
   Stethoscope,
   UserRound,
   Users,
@@ -32,7 +33,7 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { ThemeToggle } from "./theme-toggle";
 
-export type NavIcon = "agenda" | "pacientes" | "pendentes" | "dentistas" | "procedimentos" | "equipe" | "orcamentos" | "mensagens";
+export type NavIcon = "agenda" | "pacientes" | "pendentes" | "dentistas" | "procedimentos" | "equipe" | "orcamentos" | "mensagens" | "whatsapp";
 export type NavGroup = "Rotina" | "Cadastros" | "Clínica";
 
 export interface NavItem {
@@ -51,6 +52,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   equipe: UsersRound,
   orcamentos: Receipt,
   mensagens: MessageSquareText,
+  whatsapp: Smartphone,
 };
 
 const GROUP_ORDER: NavGroup[] = ["Rotina", "Cadastros", "Clínica"];

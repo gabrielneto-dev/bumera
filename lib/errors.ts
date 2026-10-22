@@ -8,7 +8,8 @@ export type AppErrorCode =
   | "PAST_APPOINTMENT"
   | "INACTIVE_RESOURCE"
   | "INVALID_TRANSITION"
-  | "NOT_OPTED_OUT";
+  | "NOT_OPTED_OUT"
+  | "DUPLICATE_WHATSAPP";
 
 /** Expected, user-facing failures. Anything else is a bug and must not leak details. */
 export class AppError extends Error {

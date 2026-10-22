@@ -154,6 +154,16 @@ export const clinicSettingsSchema = z
     }
   });
 
+/** Evolution instance names: lowercase letters, digits, "-" and "_", starting with a letter or digit. */
+export const whatsappInstanceSchema = z.object({
+  instance: z
+    .string({ error: "Informe o nome da instância" })
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9][a-z0-9_-]{1,39}$/, "Use de 2 a 40 letras minúsculas, números, - ou _")
+    .nullable(),
+});
+
 export const appointmentInputSchema = z.object({
   patientId: z.uuid(),
   dentistId: z.uuid(),

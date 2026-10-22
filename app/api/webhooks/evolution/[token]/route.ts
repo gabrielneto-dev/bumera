@@ -29,7 +29,13 @@ export async function POST(request: Request, context: { params: Promise<{ token:
   if (!message) return ok({ outcome: "IGNORED" });
 
   try {
-    return ok(await handleInboundMessage(prisma, message, new Date()));
+    // The instance that received the message says which clinic it belongs to.
+    const clinic = await prisma.clinicSettings.findUnique({
+      where: { whatsappInstance: message.instance },
+      select: { organizationId: true },
+    });
+    if (!clinic) return ok({ outcome: "UNKNOWN_INSTANCE" });
+    return ok(await handleInboundMessage(prisma, { ...message, organizationId: clinic.organizationId }, new Date()));
   } catch (error) {
     return failFrom(error);
   }

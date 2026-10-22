@@ -5,28 +5,33 @@ import { toClinicSettings } from "@/lib/reminders/settings";
 import { syncQuoteReminders, syncReminders } from "@/lib/reminders/sync";
 import { scopedPrisma, type ScopedPrisma } from "@/lib/tenant-scope";
 
+/** A patient's message, already tied to the clinic whose WhatsApp number received it. */
+export interface ClinicMessage extends InboundMessage {
+  organizationId: string;
+}
+
 export type InboundOutcome =
   | { outcome: "CONFIRMED" | "RESCHEDULE_REQUESTED" | "INTERESTED" | "DECLINED"; appointmentId?: string; quoteId?: string }
   | { outcome: "OPTED_OUT"; patients: number }
-  | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "IGNORED" };
+  | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "UNKNOWN_INSTANCE" | "IGNORED" };
 
 const LIVE_STATUSES = ["SCHEDULED", "CONFIRMED"] as const;
 
 /**
- * Applies a patient's WhatsApp reply. Runs across clinics on purpose: the sender is identified
- * only by phone number, and consent withdrawal must reach every record of that number.
+ * Applies a patient's WhatsApp reply inside the clinic whose number received it: the same person may be a
+ * patient of several clinics, and a message sent to one must never act on another's appointments or consent.
  * Every branch is safe to repeat (the webhook can be delivered more than once).
  */
 export async function handleInboundMessage(
   prisma: PrismaClient,
-  message: InboundMessage,
+  message: ClinicMessage,
   now: Date,
 ): Promise<InboundOutcome> {
   const intent = parseIntent(message.text);
   if (intent === "UNKNOWN") return { outcome: "IGNORED" };
 
   const patients = await prisma.patient.findMany({
-    where: { phoneE164: { in: phoneCandidates(message.phoneE164) } },
+    where: { organizationId: message.organizationId, phoneE164: { in: phoneCandidates(message.phoneE164) } },
     select: { id: true },
   });
   if (patients.length === 0) return { outcome: "UNKNOWN_PATIENT" };

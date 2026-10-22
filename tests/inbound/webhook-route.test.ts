@@ -29,6 +29,7 @@ describe("POST /api/webhooks/evolution/[token]", () => {
     vi.stubEnv("EVOLUTION_WEBHOOK_TOKEN", TOKEN);
     await prisma.$executeRawUnsafe('TRUNCATE TABLE "organization" CASCADE');
     const clinic = await createClinic(prisma, "a");
+    await prisma.clinicSettings.create({ data: { organizationId: clinic, whatsappInstance: "bumera-teste" } });
     const dentist = await createDentist(prisma, clinic);
     const procedure = await createProcedure(prisma, clinic);
     const patient = await createPatient(prisma, clinic, { phoneE164: "+5511987654321" });

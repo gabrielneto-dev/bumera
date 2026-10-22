@@ -30,6 +30,9 @@ const envSchema = z.object({
     .string()
     .min(MIN_SECRET_LENGTH, `EVOLUTION_WEBHOOK_TOKEN must have at least ${MIN_SECRET_LENGTH} characters`)
     .optional(),
+  /** Evolution API address and key, only used to show a clinic's WhatsApp connection state. */
+  EVOLUTION_API_URL: z.url().optional(),
+  EVOLUTION_API_KEY: z.string().min(MIN_SECRET_LENGTH).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

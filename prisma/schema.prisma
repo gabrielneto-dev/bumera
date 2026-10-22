@@ -383,6 +383,9 @@ model ClinicSettings {
   quietEndHour         Int          @default(8)
   /// Messages handed to n8n per local day and clinic; replies are counted but never blocked.
   dailySendLimit       Int          @default(150)
+  /// Name of the clinic's Evolution API instance (its WhatsApp number). Unique: it identifies the clinic of an
+  /// inbound message, and tells n8n which instance to send through. Null = WhatsApp not connected yet.
+  whatsappInstance     String?      @unique
   updatedAt            DateTime     @updatedAt
 
   @@map("clinic_settings")

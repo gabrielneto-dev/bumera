@@ -41,6 +41,9 @@ services:
       CPF_HASH_KEY: ${CPF_HASH_KEY}
       SERVICE_API_KEY: ${SERVICE_API_KEY}
       EVOLUTION_WEBHOOK_TOKEN: ${EVOLUTION_WEBHOOK_TOKEN}
+      # Read-only: shows each clinic's WhatsApp connection state on the WhatsApp screen.
+      EVOLUTION_API_URL: http://bumera-evolution:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
     ports:
       - "127.0.0.1:3000:3000"
     mem_limit: 512m

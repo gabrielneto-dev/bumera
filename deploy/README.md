@@ -24,3 +24,12 @@ Instance `bumera-teste` (Baileys), paired by QR code through the Evolution API (
 ## n8n
 Create two *Header Auth* credentials: `Bumera service key` (name `Authorization`, value `Bearer <SERVICE_API_KEY>`) and `Evolution API key` (name `apikey`, value `<EVOLUTION_API_KEY>`).
 Import `n8n/workflows/reminders-whatsapp.json`, link both credentials, run it once manually, then activate.
+
+## Adding a clinic (one WhatsApp number per clinic)
+Each clinic has its own Evolution instance; its name is saved on the app's **WhatsApp** screen (admin only) and is unique across clinics. Until it is set, that clinic's messages wait (they are checked again every 30 minutes) and Pendentes shows a warning.
+1. Create the instance (header `apikey`, from inside the Evolution container or through an SSH tunnel to 127.0.0.1:8080): `POST /instance/create` with `{"instanceName":"<name>","qrcode":true,"integration":"WHATSAPP-BAILEYS"}`.
+2. Point its webhook at the app: `POST /webhook/set/<name>` with `{"webhook":{"enabled":true,"url":"http://bumera-app:3000/api/webhooks/evolution/<EVOLUTION_WEBHOOK_TOKEN>","events":["MESSAGES_UPSERT"],"webhookByEvents":false,"webhookBase64":false}}`. Never print the response: it echoes the secret URL.
+3. Pair the clinic's phone with the QR code (`GET /instance/connect/<name>`).
+4. In the app, as the clinic's admin, open **WhatsApp** and save the same name; the screen shows the connection state.
+The n8n workflow needs no change per clinic: the app tells it which instance to use for every message (`whatsapp.instance`), and inbound messages find their clinic by the instance that received them.
+

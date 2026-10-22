@@ -3,7 +3,7 @@ import { handleInboundMessage } from "@/lib/inbound/handle";
 import { createPrismaClient } from "@/lib/prisma";
 import { claimDueReminders } from "@/lib/reminders/dispatch";
 import { listFailedReminders, listInterestedPatients } from "@/lib/services/reminders";
-import { createClinic, createPatient } from "../helpers/factories";
+import { connectWhatsapp, createClinic, createPatient } from "../helpers/factories";
 import { ctxFor, NOW } from "../helpers/service-context";
 
 const prisma = createPrismaClient(process.env.DATABASE_URL as string);
@@ -18,6 +18,7 @@ describe("quote follow-ups end to end", () => {
   beforeEach(async () => {
     await prisma.$executeRawUnsafe('TRUNCATE TABLE "organization" CASCADE');
     clinic = await createClinic(prisma, "a");
+    await connectWhatsapp(prisma, clinic);
     patientId = (await createPatient(prisma, clinic, { name: "Maria Souza", phoneE164: PHONE })).id;
     quoteId = (await prisma.quote.create({ data: { organizationId: clinic, patientId, description: "Implante dente 36", createdAt: new Date(NOW.getTime() - 2 * DAY) } })).id;
   });
@@ -28,7 +29,7 @@ describe("quote follow-ups end to end", () => {
 
   const followUp = (kind: "QUOTE_FOLLOWUP_1" | "QUOTE_FOLLOWUP_2" = "QUOTE_FOLLOWUP_1", extra: Record<string, unknown> = {}) =>
     prisma.reminder.create({ data: { organizationId: clinic, quoteId, kind, dueAt: new Date(NOW.getTime() - 60_000), ...extra } });
-  const receive = (text: string) => handleInboundMessage(prisma, { phoneE164: PHONE, text, messageId: "m1" }, NOW);
+  const receive = (text: string) => handleInboundMessage(prisma, { instance: "bumera-teste", organizationId: clinic, phoneE164: PHONE, text, messageId: "m1" }, NOW);
 
   it("hands a due follow-up to n8n with the quote in the message", async () => {
     await followUp();

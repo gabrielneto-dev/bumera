@@ -40,7 +40,7 @@ describe("replies to a reactivation message", () => {
     await prisma.$disconnect();
   });
 
-  const receive = (text: string) => handleInboundMessage(prisma, { phoneE164: PHONE, text, messageId: "m1" }, NOW);
+  const receive = (text: string) => handleInboundMessage(prisma, { instance: "bumera-teste", organizationId: clinic, phoneE164: PHONE, text, messageId: "m1" }, NOW);
 
   it("records interest on reply 1 and acknowledges it", async () => {
     expect(await receive("1")).toMatchObject({ outcome: "INTERESTED", appointmentId });

@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createPrismaClient } from "@/lib/prisma";
 import { claimDueReminders } from "@/lib/reminders/dispatch";
-import { createClinic, createDentist, createPatient, createProcedure } from "../helpers/factories";
+import { connectWhatsapp, createClinic, createDentist, createPatient, createProcedure } from "../helpers/factories";
 
 const prisma = createPrismaClient(process.env.DATABASE_URL as string);
 const HOUR = 3_600_000;
@@ -20,6 +20,7 @@ describe("sending window and daily limit when handing reminders to n8n", () => {
     slot = 0;
     await prisma.$executeRawUnsafe('TRUNCATE TABLE "organization" CASCADE');
     clinic = await createClinic(prisma, "a");
+    await connectWhatsapp(prisma, clinic);
     dentistId = (await createDentist(prisma, clinic)).id;
     procedureId = (await createProcedure(prisma, clinic)).id;
   });
@@ -56,7 +57,8 @@ describe("sending window and daily limit when handing reminders to n8n", () => {
       },
     });
   }
-  const settings = (data: Record<string, unknown>, org = clinic) => prisma.clinicSettings.create({ data: { organizationId: org, ...data } });
+  const settings = (data: Record<string, unknown>, org = clinic) =>
+    prisma.clinicSettings.upsert({ where: { organizationId: org }, update: data, create: { organizationId: org, ...data } });
   const row = (id: string) => prisma.reminder.findUniqueOrThrow({ where: { id } });
 
   describe("quiet hours", () => {
@@ -161,6 +163,7 @@ describe("sending window and daily limit when handing reminders to n8n", () => {
     it("keeps each clinic's count separate", async () => {
       await settings({ dailySendLimit: 1 });
       const other = await createClinic(prisma, "b");
+      await connectWhatsapp(prisma, other);
       await reminder({ now: DAYTIME });
       await reminder({ now: DAYTIME });
       const elsewhere = await reminder({ now: DAYTIME, org: other });

@@ -40,3 +40,13 @@ export function createPatient(
 }
 
 export const at = (hhmm: string, day = "2026-10-20") => new Date(`${day}T${hhmm}:00.000Z`);
+
+/** Gives a clinic a connected WhatsApp instance, which is required before any message is handed to n8n. */
+export function connectWhatsapp(prisma: PrismaClient, organizationId: string, instance = "bumera-teste") {
+  const name = organizationId === "org_a" ? instance : `${instance}-${organizationId}`;
+  return prisma.clinicSettings.upsert({
+    where: { organizationId },
+    update: { whatsappInstance: name },
+    create: { organizationId, whatsappInstance: name },
+  });
+}

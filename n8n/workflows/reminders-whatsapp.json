@@ -68,7 +68,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://bumera-evolution:8080/message/sendText/bumera-teste",
+        "url": "={{ 'http://bumera-evolution:8080/message/sendText/' + $json.whatsapp.instance }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,

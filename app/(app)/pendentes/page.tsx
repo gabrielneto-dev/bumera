@@ -13,6 +13,7 @@ import { listPending, listRescheduleRequests } from "@/lib/services/appointments
 import { listPatients } from "@/lib/services/patients";
 import { listFailedReminders, listInterestedPatients } from "@/lib/services/reminders";
 import { getServiceContext } from "@/lib/services/server";
+import { hasWhatsappInstance } from "@/lib/services/whatsapp";
 import { approveAppointmentAction, approvePatientAction, markInterestHandledAction, rejectAppointmentAction } from "./actions";
 
 export const metadata = { title: "Pendentes" };
@@ -34,12 +35,13 @@ function Section({ icon: Icon, title, count, children }: { icon: typeof UserPlus
 
 export default async function PendentesPage() {
   const ctx = await getServiceContext();
-  const [patients, appointments, failedReminders, rescheduleRequests, interested] = await Promise.all([
+  const [patients, appointments, failedReminders, rescheduleRequests, interested, whatsappConnected] = await Promise.all([
     listPatients(ctx, { status: "PENDING" }),
     listPending(ctx),
     listFailedReminders(ctx),
     listRescheduleRequests(ctx),
     listInterestedPatients(ctx),
+    hasWhatsappInstance(ctx),
   ]);
   const isEmpty = patients.items.length === 0 && appointments.length === 0 && failedReminders.length === 0 && rescheduleRequests.length === 0 && interested.length === 0;
 
@@ -50,6 +52,12 @@ export default async function PendentesPage() {
         title="Pendentes"
         description="Cadastros e consultas que chegaram por WhatsApp e esperam a sua confirmação."
       />
+
+      {!whatsappConnected && (
+        <p role="alert" className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm">
+          O WhatsApp desta clínica ainda não está conectado: nenhum lembrete sai até o administrador conectar, na tela WhatsApp.
+        </p>
+      )}
 
       {isEmpty && (
         <EmptyState icon={ClipboardList} title="Tudo em dia">
