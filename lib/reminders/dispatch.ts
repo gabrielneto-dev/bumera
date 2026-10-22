@@ -18,6 +18,8 @@ const CLAIM_TTL_MS = 10 * 60_000;
 const MAX_NOTE_LENGTH = 500;
 /** How long a message waits before the app looks again for a clinic whose WhatsApp is not connected. */
 const NO_WHATSAPP_RETRY_MS = 30 * 60_000;
+/** A reply to a patient's message is worth retrying for a day; after that it would only confuse them. */
+const INBOUND_RETRY_WINDOW_MS = 24 * 3_600_000;
 /** The claim transaction touches up to MAX_LIMIT rows one by one. */
 const TRANSACTION_TIMEOUT_MS = 20_000;
 
@@ -31,6 +33,11 @@ const detailInclude = {
     },
   },
   quote: {
+    include: {
+      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true } },
+    },
+  },
+  inboundMessage: {
     include: {
       patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true } },
     },
@@ -61,8 +68,8 @@ export interface ClaimOptions {
 
 /** Who the reminder is about: the patient of its appointment or of its quote. */
 function patientOf(row: ReminderDetail) {
-  const patient = row.appointment?.patient ?? row.quote?.patient;
-  if (!patient) throw new AppError("VALIDATION", "Lembrete sem consulta nem orçamento", { id: row.id });
+  const patient = row.appointment?.patient ?? row.quote?.patient ?? row.inboundMessage?.patient;
+  if (!patient) throw new AppError("VALIDATION", "Lembrete sem consulta, orçamento nem mensagem", { id: row.id });
   return patient;
 }
 
@@ -77,10 +84,11 @@ function toDue(row: ReminderDetail, attempt: number, instance: string): DueRemin
       kind: row.kind,
       clinicName: row.organization.name,
       patientName: patient.name,
-      startsAt: (appointment?.startsAt ?? quote?.createdAt ?? new Date(0)).toISOString(),
+      startsAt: (appointment?.startsAt ?? quote?.createdAt ?? row.createdAt).toISOString(),
       dentistName: appointment?.dentist.name ?? "",
       procedureName: appointment?.procedure.name ?? "",
       quoteDescription: quote?.description,
+      freeText: row.text ?? undefined,
     }),
     clinic: row.organization,
     patient: { id: patient.id, firstName: firstName(patient.name), phone: patient.phoneE164 },
@@ -205,8 +213,12 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
 }
 
 /** Retrying after this moment is pointless: the appointment started, or the quote expired. */
-function retryDeadline(row: { appointment: { startsAt: Date } | null; quote: { createdAt: Date } | null }, quoteValidDays: number): Date {
+function retryDeadline(
+  row: { appointment: { startsAt: Date } | null; quote: { createdAt: Date } | null; inboundMessage: { createdAt: Date } | null },
+  quoteValidDays: number,
+): Date {
   if (row.appointment) return row.appointment.startsAt;
+  if (row.inboundMessage) return new Date(row.inboundMessage.createdAt.getTime() + INBOUND_RETRY_WINDOW_MS);
   const created = row.quote?.createdAt ?? new Date(0);
   return new Date(created.getTime() + quoteValidDays * 86_400_000);
 }
@@ -239,7 +251,11 @@ export async function recordReminderResult(
 
     const row = await tx.reminder.findUniqueOrThrow({
       where: { id },
-      include: { appointment: { select: { startsAt: true } }, quote: { select: { createdAt: true } } },
+      include: {
+        appointment: { select: { startsAt: true } },
+        quote: { select: { createdAt: true } },
+        inboundMessage: { select: { createdAt: true } },
+      },
     });
     if (row.status !== "CLAIMED" || row.attempts !== result.attempt) return { id, status: row.status };
     const quoteValidDays = row.quote

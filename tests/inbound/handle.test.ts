@@ -131,7 +131,7 @@ describe("handleInboundMessage", () => {
     await appointment(24);
 
     expect(await receive("1", "+5511900000000")).toEqual({ outcome: "UNKNOWN_PATIENT" });
-    expect(await receive("talvez")).toEqual({ outcome: "IGNORED" });
+    expect(await receive("talvez")).toEqual({ outcome: "HANDOFF" });
   });
 
   it("does not confirm an appointment of a patient who opted out", async () => {

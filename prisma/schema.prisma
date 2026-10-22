@@ -78,22 +78,23 @@ model Verification {
 }
 
 model Organization {
-  id             String          @id
-  name           String
-  slug           String
-  logo           String?
-  createdAt      DateTime
-  metadata       String?
-  members        Member[]
-  invitations    Invitation[]
-  dentists       Dentist[]
-  procedures     Procedure[]
-  patients       Patient[]
-  appointments   Appointment[]
-  reminders      Reminder[]
-  quotes         Quote[]
-  clinicSettings ClinicSettings?
-  auditLogs      AuditLog[]
+  id              String           @id
+  name            String
+  slug            String
+  logo            String?
+  createdAt       DateTime
+  metadata        String?
+  members         Member[]
+  invitations     Invitation[]
+  dentists        Dentist[]
+  procedures      Procedure[]
+  patients        Patient[]
+  appointments    Appointment[]
+  reminders       Reminder[]
+  quotes          Quote[]
+  clinicSettings  ClinicSettings?
+  auditLogs       AuditLog[]
+  inboundMessages InboundMessage[]
 
   @@unique([slug])
   @@map("organization")
@@ -194,28 +195,29 @@ model Procedure {
 }
 
 model Patient {
-  id             String        @id @default(uuid())
-  organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name           String
+  id              String           @id @default(uuid())
+  organizationId  String
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
   /// AES-256-GCM payload (lib/crypto.ts); null for patients without CPF.
-  cpfEncrypted   String?
+  cpfEncrypted    String?
   /// Keyed hash of the CPF digits, used for the per-clinic uniqueness rule.
-  cpfHash        String?
-  phoneE164      String
-  birthDate      DateTime?     @db.Date
-  status         PatientStatus @default(CONFIRMED)
-  source         RecordSource  @default(SECRETARY)
-  consentAt      DateTime?
-  consentSource  String?
-  doNotContact   Boolean       @default(false)
-  optedOutAt     DateTime?
+  cpfHash         String?
+  phoneE164       String
+  birthDate       DateTime?        @db.Date
+  status          PatientStatus    @default(CONFIRMED)
+  source          RecordSource     @default(SECRETARY)
+  consentAt       DateTime?
+  consentSource   String?
+  doNotContact    Boolean          @default(false)
+  optedOutAt      DateTime?
   /// Set when the patient's data was erased on request (LGPD art. 18): the row stays only for the clinic's records.
-  anonymizedAt   DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  appointments   Appointment[]
-  quotes         Quote[]
+  anonymizedAt    DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  appointments    Appointment[]
+  quotes          Quote[]
+  inboundMessages InboundMessage[]
 
   @@unique([id, organizationId])
   @@unique([organizationId, cpfHash])
@@ -273,6 +275,9 @@ enum ReminderKind {
   /// Module 2: follow-ups after a quote was given (day 2 and day 7).
   QUOTE_FOLLOWUP_1
   QUOTE_FOLLOWUP_2
+  /// Module 4: answers to a free-text message from a patient.
+  REPLY_HANDOFF
+  REPLY_AI
 }
 
 /// What the patient answered to a campaign message (reactivation).
@@ -296,32 +301,37 @@ enum ReminderStatus {
 }
 
 model Reminder {
-  id             String          @id @default(uuid())
-  organizationId String
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  /// Exactly one of appointmentId / quoteId is set (CHECK constraint in the migration).
-  appointmentId  String?
-  appointment    Appointment?    @relation(fields: [appointmentId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  quoteId        String?
-  quote          Quote?          @relation(fields: [quoteId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  kind           ReminderKind
-  status         ReminderStatus  @default(PENDING)
+  id               String          @id @default(uuid())
+  organizationId   String
+  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Exactly one of appointmentId / quoteId / inboundMessageId is set (CHECK constraint in the migration).
+  appointmentId    String?
+  appointment      Appointment?    @relation(fields: [appointmentId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  quoteId          String?
+  quote            Quote?          @relation(fields: [quoteId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  inboundMessageId String?
+  inboundMessage   InboundMessage? @relation(fields: [inboundMessageId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  /// Free text of an AI answer (REPLY_AI only); every other kind is rendered from a fixed template.
+  text             String?
+  kind             ReminderKind
+  status           ReminderStatus  @default(PENDING)
   /// Earliest moment n8n may pick it up; moved forward on retries.
-  dueAt          DateTime
-  attempts       Int             @default(0)
-  claimedAt      DateTime?
-  sentAt         DateTime?
+  dueAt            DateTime
+  attempts         Int             @default(0)
+  claimedAt        DateTime?
+  sentAt           DateTime?
   /// Patient's answer to a campaign message, when it was given, and when the secretary dealt with it.
-  answer         ReminderAnswer?
-  answeredAt     DateTime?
-  handledAt      DateTime?
+  answer           ReminderAnswer?
+  answeredAt       DateTime?
+  handledAt        DateTime?
   /// Why it was cancelled/skipped, or the last delivery error. Never holds message text or PII.
-  note           String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  note             String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@unique([appointmentId, kind])
   @@unique([quoteId, kind])
+  @@unique([inboundMessageId, kind])
   @@index([status, dueAt])
   @@index([organizationId, status])
   @@map("reminder")
@@ -389,6 +399,12 @@ model ClinicSettings {
   /// Name of the clinic's Evolution API instance (its WhatsApp number). Unique: it identifies the clinic of an
   /// inbound message, and tells n8n which instance to send through. Null = WhatsApp not connected yet.
   whatsappInstance     String?      @unique
+  /// Module 4 (opt-in): the clinic accepted that patients' messages go, masked, to an external AI provider.
+  aiEnabled            Boolean      @default(false)
+  aiEnabledAt          DateTime?
+  aiEnabledBy          String?
+  /// What the AI may answer from: address, opening hours, payment methods and so on, written by the clinic.
+  clinicInfo           String?
   updatedAt            DateTime     @updatedAt
 
   @@map("clinic_settings")
@@ -414,6 +430,9 @@ enum AuditAction {
   QUOTE_CLOSED
   SETTINGS_UPDATED
   WHATSAPP_CHANGED
+  AI_SETTINGS_CHANGED
+  INBOUND_MESSAGE_HANDLED
+  PATIENT_MESSAGE_ANSWERED_BY_AI
 }
 
 enum AuditActor {
@@ -439,4 +458,47 @@ model AuditLog {
   @@index([organizationId, createdAt])
   @@index([organizationId, patientId, createdAt])
   @@map("audit_log")
+}
+
+// ---------------------------------------------------------------------------
+// Module 4: free-text messages from known patients that no keyword explains. They wait here for a person
+// (or are answered by the AI when the clinic opted in). The text is kept only while it is needed:
+// it is cleared when the message is handled and when the patient's data is erased.
+// ---------------------------------------------------------------------------
+
+enum InboundStatus {
+  OPEN
+  HANDLED
+}
+
+enum InboundReason {
+  UNRECOGNIZED
+  URGENT
+  AI_UNSURE
+  AI_UNAVAILABLE
+  AI_ANSWERED
+}
+
+model InboundMessage {
+  id             String        @id @default(uuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  patientId      String
+  patient        Patient       @relation(fields: [patientId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  /// Evolution's message id: the same delivery repeated is recognized and ignored.
+  messageId      String
+  /// Null once handled or erased.
+  text           String?
+  reason         InboundReason
+  status         InboundStatus @default(OPEN)
+  /// What the AI understood, when it looked at the message ("QUESTION", "YES", ...); never the text.
+  aiIntent       String?
+  handledAt      DateTime?
+  createdAt      DateTime      @default(now())
+  reminders      Reminder[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, messageId])
+  @@index([organizationId, status])
+  @@map("inbound_message")
 }

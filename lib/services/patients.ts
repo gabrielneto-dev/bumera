@@ -214,11 +214,15 @@ export async function anonymizePatient(ctx: ServiceContext, id: string): Promise
     });
     // Nothing more goes out to this patient, and a quote's free text may name them.
     await tx.reminder.updateMany({
-      where: { status: { in: ["PENDING", "CLAIMED"] }, OR: [{ appointment: { patientId: id } }, { quote: { patientId: id } }] },
+      where: {
+        status: { in: ["PENDING", "CLAIMED"] },
+        OR: [{ appointment: { patientId: id } }, { quote: { patientId: id } }, { inboundMessage: { patientId: id } }],
+      },
       data: { status: "CANCELLED", note: "patient data erased" },
     });
     await tx.quote.updateMany({ where: { patientId: id, status: "OPEN" }, data: { status: "DECLINED", closedAt: now } });
     await tx.quote.updateMany({ where: { patientId: id }, data: { description: ERASED_TEXT } });
+    await tx.inboundMessage.updateMany({ where: { patientId: id }, data: { text: null, status: "HANDLED", handledAt: now } });
     await recordAudit(tx, ctx, { action: "PATIENT_ANONYMIZED", patientId: id, entityId: id });
     return erased;
   });

@@ -1,10 +1,12 @@
 import type { PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { recordAudit } from "@/lib/audit";
 import { phoneCandidates, type InboundMessage } from "@/lib/inbound/evolution";
+import { receiveFreeText } from "@/lib/inbound/free-text";
 import { parseIntent } from "@/lib/inbound/intent";
+import { queueReply, type ReplyKind } from "@/lib/inbound/reply";
 import { toClinicSettings } from "@/lib/reminders/settings";
 import { syncQuoteReminders, syncReminders } from "@/lib/reminders/sync";
-import { scopedPrisma, type ScopedPrisma } from "@/lib/tenant-scope";
+import { scopedPrisma } from "@/lib/tenant-scope";
 
 /** A patient's message, already tied to the clinic whose WhatsApp number received it. */
 export interface ClinicMessage extends InboundMessage {
@@ -14,7 +16,7 @@ export interface ClinicMessage extends InboundMessage {
 export type InboundOutcome =
   | { outcome: "CONFIRMED" | "RESCHEDULE_REQUESTED" | "INTERESTED" | "DECLINED"; appointmentId?: string; quoteId?: string }
   | { outcome: "OPTED_OUT"; patients: number }
-  | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "UNKNOWN_INSTANCE" | "IGNORED" };
+  | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "UNKNOWN_INSTANCE" | "IGNORED" | "HANDOFF" };
 
 const LIVE_STATUSES = ["SCHEDULED", "CONFIRMED"] as const;
 
@@ -29,14 +31,21 @@ export async function handleInboundMessage(
   now: Date,
 ): Promise<InboundOutcome> {
   const intent = parseIntent(message.text);
-  if (intent === "UNKNOWN") return { outcome: "IGNORED" };
 
   const patients = await prisma.patient.findMany({
     where: { organizationId: message.organizationId, phoneE164: { in: phoneCandidates(message.phoneE164) } },
-    select: { id: true },
+    select: { id: true, doNotContact: true },
+    orderBy: { createdAt: "asc" },
   });
   if (patients.length === 0) return { outcome: "UNKNOWN_PATIENT" };
   const patientIds = patients.map((patient) => patient.id);
+
+  if (intent === "UNKNOWN") {
+    // Free text: kept for the secretary, unless the patient asked not to be contacted at all.
+    const reachable = patients.find((patient) => !patient.doNotContact);
+    if (!reachable) return { outcome: "IGNORED" };
+    return receiveFreeText(prisma, message, reachable.id, now);
+  }
 
   if (intent === "OPT_OUT") return optOut(prisma, message.organizationId, patientIds, now);
 
@@ -132,34 +141,6 @@ async function answerCampaign(
 }
 
 const PLANNED_REMINDER_KINDS = ["CONFIRMATION", "REMINDER_24H", "REMINDER_2H", "NO_SHOW_FOLLOWUP"] as const;
-
-type ReplyKind = "REPLY_CONFIRMED" | "REPLY_RESCHEDULE" | "REPLY_OPTED_OUT" | "REPLY_INTERESTED" | "REPLY_DECLINED";
-type ReplyDb = Pick<ScopedPrisma, "reminder">;
-/** What a reply is about: an appointment or a quote, inside one clinic. */
-type ReplySubject = { organizationId: string } & ({ appointmentId: string } | { quoteId: string });
-
-/**
- * Queues the automatic answer, due immediately, for n8n to pick up through /due. One per
- * (subject, kind): a patient answering twice, or a webhook delivered twice, gets one reply.
- */
-async function queueReply(db: ReplyDb, subject: ReplySubject, kind: ReplyKind, now: Date): Promise<void> {
-  const { organizationId } = subject;
-  if ("appointmentId" in subject) {
-    const { appointmentId } = subject;
-    await db.reminder.upsert({
-      where: { appointmentId_kind: { appointmentId, kind } },
-      update: {},
-      create: { organizationId, appointmentId, kind, dueAt: now },
-    });
-    return;
-  }
-  const { quoteId } = subject;
-  await db.reminder.upsert({
-    where: { quoteId_kind: { quoteId, kind } },
-    update: {},
-    create: { organizationId, quoteId, kind, dueAt: now },
-  });
-}
 
 async function optOut(prisma: PrismaClient, organizationId: string, patientIds: string[], now: Date): Promise<InboundOutcome> {
   const newlyOptedOut = await prisma.patient.findMany({ where: { id: { in: patientIds }, doNotContact: false }, select: { id: true } });

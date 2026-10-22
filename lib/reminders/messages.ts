@@ -12,10 +12,13 @@ export interface MessageInput {
   procedureName: string;
   /** What was quoted (quote follow-ups only). */
   quoteDescription?: string;
+  /** The AI's answer (REPLY_AI only); cleaned before it is sent. */
+  freeText?: string;
 }
 
 const MAX_NAME_LENGTH = 60;
 const MAX_QUOTE_LENGTH = 120;
+const MAX_FREE_TEXT_LENGTH = 800;
 
 /**
  * Names are typed by people (or arrive from WhatsApp) and end up inside a message sent from the
@@ -65,7 +68,24 @@ function greeting(patientName: string): string {
   return first ? `Olá, ${first}!` : "Olá!";
 }
 
+/**
+ * Free text written by an AI is untrusted: paragraphs are kept, but links, formatting characters and
+ * control characters are removed and the length is capped.
+ */
+export function sanitizeParagraphs(raw: string, maxLength = MAX_FREE_TEXT_LENGTH): string {
+  return raw
+    .split(/\n\s*\n/)
+    .map((paragraph) => sanitizeName(paragraph, maxLength))
+    .filter(Boolean)
+    .join(PARAGRAPH)
+    .slice(0, maxLength)
+    .trim();
+}
+
 const join = (...paragraphs: string[]): string => paragraphs.join(PARAGRAPH);
+
+const handoffMessage = (hello: string, clinic: string): string =>
+  join(hello, `Recebemos a sua mensagem na ${clinic}.`, "A nossa equipe vai ler e responder assim que possível.");
 
 /** Fixed pt-BR texts (no AI in the pilot). Rendered by the app so n8n flows stay generic. */
 export function renderReminderMessage(raw: MessageInput): string {
@@ -124,6 +144,12 @@ export function renderReminderMessage(raw: MessageInput): string {
         QUOTE_ANSWER_BLOCK,
         OPT_OUT_LINE,
       );
+    case "REPLY_HANDOFF":
+      return handoffMessage(hello, clinic);
+    case "REPLY_AI": {
+      const answer = sanitizeParagraphs(raw.freeText ?? "");
+      return answer ? join(hello, answer) : handoffMessage(hello, clinic);
+    }
     case "REPLY_INTERESTED":
       return join(hello, "Ótimo! 😊", `A equipe da ${clinic} entra em contato em breve.`);
     case "REPLY_DECLINED":

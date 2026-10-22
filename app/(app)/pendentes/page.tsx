@@ -1,4 +1,4 @@
-import { CalendarClock, CalendarSync, ClipboardList, HeartHandshake, MessageCircleWarning, UserPlus } from "lucide-react";
+import { CalendarClock, CalendarSync, ClipboardList, HeartHandshake, MessageCircleWarning, MessageSquareText, UserPlus } from "lucide-react";
 import type { ReactNode } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { AvatarInitials } from "@/components/avatar-initials";
@@ -10,11 +10,12 @@ import { formatDayLong, formatTime } from "@/lib/dates";
 import { REMINDER_KIND_LABEL } from "@/lib/labels";
 import { formatBrPhone } from "@/lib/phone";
 import { listPending, listRescheduleRequests } from "@/lib/services/appointments";
+import { listInbox } from "@/lib/services/inbox";
 import { listPatients } from "@/lib/services/patients";
 import { listFailedReminders, listInterestedPatients } from "@/lib/services/reminders";
 import { getServiceContext } from "@/lib/services/server";
 import { hasWhatsappInstance } from "@/lib/services/whatsapp";
-import { approveAppointmentAction, approvePatientAction, markInterestHandledAction, rejectAppointmentAction } from "./actions";
+import { approveAppointmentAction, approvePatientAction, markInboxHandledAction, markInterestHandledAction, rejectAppointmentAction } from "./actions";
 
 export const metadata = { title: "Pendentes" };
 // Per-user page: it depends on the session cookie, so navigating here may block (loading.tsx covers the wait).
@@ -35,15 +36,16 @@ function Section({ icon: Icon, title, count, children }: { icon: typeof UserPlus
 
 export default async function PendentesPage() {
   const ctx = await getServiceContext();
-  const [patients, appointments, failedReminders, rescheduleRequests, interested, whatsappConnected] = await Promise.all([
+  const [patients, appointments, failedReminders, rescheduleRequests, interested, whatsappConnected, inbox] = await Promise.all([
     listPatients(ctx, { status: "PENDING" }),
     listPending(ctx),
     listFailedReminders(ctx),
     listRescheduleRequests(ctx),
     listInterestedPatients(ctx),
     hasWhatsappInstance(ctx),
+    listInbox(ctx),
   ]);
-  const isEmpty = patients.items.length === 0 && appointments.length === 0 && failedReminders.length === 0 && rescheduleRequests.length === 0 && interested.length === 0;
+  const isEmpty = patients.items.length === 0 && appointments.length === 0 && failedReminders.length === 0 && rescheduleRequests.length === 0 && interested.length === 0 && inbox.length === 0;
 
   return (
     <section className="space-y-8">
@@ -63,6 +65,30 @@ export default async function PendentesPage() {
         <EmptyState icon={ClipboardList} title="Tudo em dia">
           Quando um paciente se cadastrar ou marcar horário pelo WhatsApp, aparece aqui.
         </EmptyState>
+      )}
+
+      {inbox.length > 0 && (
+        <Section icon={MessageSquareText} title="Mensagens para responder" count={inbox.length}>
+          <Stagger className="space-y-2">
+            {inbox.map((item) => (
+              <StaggerItem
+                key={item.id}
+                className={`relative flex flex-wrap items-center gap-4 overflow-hidden rounded-2xl border bg-card py-4 pr-4 pl-5 ${item.reason === "URGENT" ? "border-destructive/40" : ""}`}
+              >
+                <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${item.reason === "URGENT" ? "bg-destructive" : "bg-warning"}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2 font-medium">
+                    <span className="truncate">{item.patient.name}</span>
+                    {item.reason === "URGENT" ? <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-semibold text-destructive">Urgente</span> : null}
+                  </p>
+                  <p className="text-sm break-words whitespace-pre-wrap">{item.text}</p>
+                  <p className="text-sm text-muted-foreground tabular-nums">Responda por aqui ou ligue: {formatBrPhone(item.patient.phoneE164)}</p>
+                </div>
+                <ConfirmButton label="Marcar como respondida" action={markInboxHandledAction.bind(null, item.id)} />
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </Section>
       )}
 
       {interested.length > 0 && (

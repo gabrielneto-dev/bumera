@@ -29,6 +29,8 @@ export const REMINDER_KIND_LABEL: Record<ReminderKind, string> = {
   REPLY_DECLINED: "Resposta: agora não",
   QUOTE_FOLLOWUP_1: "Orçamento: 1º contato",
   QUOTE_FOLLOWUP_2: "Orçamento: 2º contato",
+  REPLY_HANDOFF: "Resposta: mensagem recebida",
+  REPLY_AI: "Resposta do assistente",
 };
 
 export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
@@ -46,4 +48,7 @@ export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
   QUOTE_CLOSED: "Orçamento encerrado",
   SETTINGS_UPDATED: "Configurações de mensagens alteradas",
   WHATSAPP_CHANGED: "WhatsApp da clínica alterado",
+  AI_SETTINGS_CHANGED: "Assistente de IA alterado",
+  INBOUND_MESSAGE_HANDLED: "Mensagem de paciente respondida pela equipe",
+  PATIENT_MESSAGE_ANSWERED_BY_AI: "Paciente respondido pelo assistente de IA",
 };
