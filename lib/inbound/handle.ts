@@ -1,7 +1,6 @@
 import type { PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { recordAudit } from "@/lib/audit";
 import { phoneCandidates, type InboundMessage } from "@/lib/inbound/evolution";
-import { getAiClient } from "@/lib/ai";
 import type { AiClient, AiContext } from "@/lib/ai/types";
 import { receiveFreeText } from "@/lib/inbound/free-text";
 import { parseIntent } from "@/lib/inbound/intent";
@@ -20,7 +19,7 @@ export type InboundOutcome =
   | { outcome: "OPTED_OUT"; patients: number }
   | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "UNKNOWN_INSTANCE" | "IGNORED" | "HANDOFF" | "ANSWERED_BY_AI" };
 
-/** Injected in tests; by default the AI client comes from the server configuration (null when absent). */
+/** Injected in tests; by default the AI client is built from the clinic's saved key (none = no AI). */
 export interface InboundDeps {
   ai?: AiClient | null;
 }
@@ -56,7 +55,7 @@ export async function handleInboundMessage(
     const reachable = patients.find((patient) => !patient.doNotContact);
     if (!reachable) return { outcome: "IGNORED" };
     return receiveFreeText(prisma, message, reachable.id, now, {
-      ai: deps.ai === undefined ? getAiClient() : deps.ai,
+      ai: deps.ai,
       apply: (aiIntent) => applyIntent(prisma, message, aiIntent, patientIds, now),
       context: () => describeContext(prisma, patientIds, now),
     });

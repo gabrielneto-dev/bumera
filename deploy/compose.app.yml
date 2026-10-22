@@ -22,6 +22,8 @@ services:
       target: migrate
     environment:
       DATABASE_URL: postgresql://bumera:${POSTGRES_PASSWORD}@postgres:5432/bumera_prod
+      # Only for scripts/ai-eval.ts --from-db, which decrypts the clinic's saved AI key in memory.
+      CPF_ENCRYPTION_KEY: ${CPF_ENCRYPTION_KEY}
     mem_limit: 768m
     networks: [infra]
 

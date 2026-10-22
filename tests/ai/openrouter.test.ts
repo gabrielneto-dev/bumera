@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AiError, createOpenRouterClient } from "@/lib/ai/openrouter";
-import { getAiClient } from "@/lib/ai";
+import { DEFAULT_AI_MODEL, resolveAiClient } from "@/lib/ai";
+import { encryptField } from "@/lib/crypto";
+import { randomBytes } from "node:crypto";
 
 const input = {
   clinicName: "Odonto Company",
@@ -79,13 +81,38 @@ describe("OpenRouter client", () => {
     await expect(client().interpret(input)).rejects.toBeInstanceOf(AiError);
   });
 
-  it("is not available until the server has a key and a model", () => {
-    vi.stubEnv("OPENROUTER_API_KEY", "");
-    vi.stubEnv("AI_MODEL", "");
-    expect(getAiClient()).toBeNull();
-    vi.stubEnv("OPENROUTER_API_KEY", "k".repeat(40));
-    expect(getAiClient()).toBeNull();
-    vi.stubEnv("AI_MODEL", "provider/model-x");
-    expect(getAiClient()).not.toBeNull();
+  describe("resolveAiClient", () => {
+    const encryptionKey = randomBytes(32).toString("base64");
+    const key = "sk-or-v1-0123456789abcdef0123456789abcdef";
+
+    it("uses the clinic's own stored key", async () => {
+      const fetchMock = stubFetch(async () => reply({ intent: "OTHER", confidence: 0.9, answer: null }));
+      const resolved = resolveAiClient({ encryptedKey: encryptField(key, encryptionKey), encryptionKey });
+
+      await resolved?.interpret(input);
+
+      const init = (fetchMock.mock.calls[0] as [string, RequestInit])[1];
+      expect((init.headers as Record<string, string>).authorization).toBe(`Bearer ${key}`);
+      expect(JSON.parse(String(init.body)).model).toBe(DEFAULT_AI_MODEL);
+    });
+
+    it("lets the server override the model, and falls back to a key of the whole server", async () => {
+      vi.stubEnv("AI_MODEL", "provider/model-y");
+      vi.stubEnv("OPENROUTER_API_KEY", "g".repeat(40));
+      const fetchMock = stubFetch(async () => reply({ intent: "OTHER", confidence: 0.9, answer: null }));
+
+      await resolveAiClient({ encryptedKey: null, encryptionKey })?.interpret(input);
+
+      const init = (fetchMock.mock.calls[0] as [string, RequestInit])[1];
+      expect((init.headers as Record<string, string>).authorization).toBe(`Bearer ${"g".repeat(40)}`);
+      expect(JSON.parse(String(init.body)).model).toBe("provider/model-y");
+    });
+
+    it("is unavailable without any key, or when the stored one cannot be read", () => {
+      vi.stubEnv("OPENROUTER_API_KEY", "");
+      expect(resolveAiClient({ encryptedKey: null, encryptionKey })).toBeNull();
+      expect(resolveAiClient({ encryptedKey: "v1:garbage:garbage:garbage", encryptionKey })).toBeNull();
+      expect(resolveAiClient({ encryptedKey: encryptField(key, encryptionKey), encryptionKey: randomBytes(32).toString("base64") })).toBeNull();
+    });
   });
 });

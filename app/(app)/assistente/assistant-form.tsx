@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState } from "react";
-import { CheckboxField, FormMessage, FormStateProvider, SubmitButton, TextareaField, useActionFormState } from "@/components/form/form-state";
+import { CheckboxField, FormMessage, FormStateProvider, SubmitButton, TextareaField, TextField, useActionFormState } from "@/components/form/form-state";
 import { type ActionState, idleState } from "@/lib/action-state";
 import type { AssistantSettings } from "@/lib/services/assistant";
 
@@ -24,8 +24,9 @@ export function AssistantForm({ settings, action }: { settings: AssistantSetting
   const [state, formAction] = useActionState<ActionState, FormData>(async (previous, formData) => {
     const next = await action(previous, formData);
     if (next.status === "success") router.refresh();
+    // The key is write-only: it is never sent back into the form, even when the save is rejected.
     return next.status === "error"
-      ? { ...next, values: Object.fromEntries([...formData.entries()].filter(([, value]) => typeof value === "string")) as Record<string, string> }
+      ? { ...next, values: Object.fromEntries([...formData.entries()].filter(([name, value]) => name !== "apiKey" && typeof value === "string")) as Record<string, string> }
       : next;
   }, idleState);
 
@@ -48,9 +49,23 @@ export function AssistantForm({ settings, action }: { settings: AssistantSetting
               label="Aceito que as mensagens dos pacientes sejam enviadas a um provedor de IA externo, com CPF, telefone, e-mail e nome mascarados, sem guardar histórico no provedor."
             />
           )}
-          {!settings.serverReady && (
+        </fieldset>
+
+        <fieldset className="space-y-4 rounded-2xl border bg-card p-5">
+          <legend className="sr-only">Chave da OpenRouter</legend>
+          <TextField
+            name="apiKey"
+            label={settings.keyConfigured ? "Trocar a chave da OpenRouter" : "Chave da OpenRouter"}
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={settings.keyConfigured ? `Chave salva, termina em ${settings.keyLast4 ?? "••••"}` : "sk-or-…"}
+            hint="Fica guardada criptografada e nunca mais é mostrada. É com ela que as mensagens são interpretadas e o custo é cobrado da sua conta na OpenRouter."
+          />
+          {settings.keyConfigured && <CheckboxField name="removeKey" label="Remover a chave salva" />}
+          {!settings.ready && (
             <p role="note" className="rounded-lg bg-warning/15 px-3 py-2 text-sm">
-              O servidor ainda não tem uma IA configurada: ativar aqui não muda nada até isso ser feito. Enquanto isso, as mensagens livres vão para a secretária.
+              Sem uma chave o assistente não funciona: as mensagens livres continuam indo para a secretária.
             </p>
           )}
         </fieldset>

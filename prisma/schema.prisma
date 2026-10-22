@@ -403,6 +403,10 @@ model ClinicSettings {
   aiEnabled            Boolean      @default(false)
   aiEnabledAt          DateTime?
   aiEnabledBy          String?
+  /// The clinic's own OpenRouter key, AES-256-GCM encrypted (same key as the CPFs); never shown again. Only the last
+  /// characters are kept in clear so the screen can say which key is saved.
+  aiApiKeyEncrypted    String?
+  aiApiKeyLast4        String?
   /// What the AI may answer from: address, opening hours, payment methods and so on, written by the clinic.
   clinicInfo           String?
   updatedAt            DateTime     @updatedAt

@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@/generated/prisma/client";
+import { resolveAiClient } from "@/lib/ai";
 import type { AiClient, AiContext, AiDecision } from "@/lib/ai/types";
 import { maskPersonalData } from "@/lib/ai/mask";
 import { recordAudit } from "@/lib/audit";
@@ -26,8 +27,8 @@ export interface FreeTextMessage {
 }
 
 export interface FreeTextHelpers {
-  /** Null when the server has no AI configured. */
-  ai: AiClient | null;
+  /** Set only in tests; normally the client is built from the clinic's saved key. */
+  ai?: AiClient | null;
   /** Does what a keyword reply would have done. */
   apply: (intent: ReplyIntent) => Promise<InboundOutcome>;
   context: () => Promise<AiContext>;
@@ -111,9 +112,11 @@ async function askAi(
   helpers: FreeTextHelpers,
 ): Promise<AiDecision | "off" | "unavailable"> {
   const { organizationId } = message;
-  if (!helpers.ai) return "off";
   const settings = await prisma.clinicSettings.findUnique({ where: { organizationId } });
   if (!settings?.aiEnabled) return "off";
+  const encryptionKey = process.env.CPF_ENCRYPTION_KEY;
+  const ai = helpers.ai !== undefined ? helpers.ai : encryptionKey ? resolveAiClient({ encryptedKey: settings.aiApiKeyEncrypted, encryptionKey }) : null;
+  if (!ai) return "off";
 
   const usedToday = await prisma.inboundMessage.count({
     where: { organizationId, aiIntent: { not: null }, createdAt: { gte: startOfLocalDay(now) } },
@@ -125,7 +128,7 @@ async function askAi(
     prisma.patient.findUniqueOrThrow({ where: { id: patientId }, select: { name: true } }),
   ]);
   try {
-    return await helpers.ai.interpret({
+    return await ai.interpret({
       clinicName: clinic.name,
       clinicInfo: settings.clinicInfo ?? "",
       message: maskPersonalData(message.text, [patient.name]).slice(0, MAX_AI_MESSAGE_LENGTH),

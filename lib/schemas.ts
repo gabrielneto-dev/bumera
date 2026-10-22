@@ -169,6 +169,15 @@ export const assistantSettingsSchema = z.object({
   clinicInfo: z.string({ error: "Informe o texto" }).trim().max(2000, "Use até 2000 caracteres"),
   /** The clinic's acceptance that patients' messages go, masked, to an external AI provider. */
   accept: z.boolean().optional(),
+  /** A new OpenRouter key; leave out to keep the saved one. */
+  apiKey: z
+    .string()
+    .trim()
+    .min(20, "A chave parece curta demais")
+    .max(200, "A chave parece longa demais")
+    .regex(/^\S+$/, "A chave não pode ter espaços")
+    .optional(),
+  removeKey: z.boolean().optional(),
 });
 
 export const appointmentInputSchema = z.object({
