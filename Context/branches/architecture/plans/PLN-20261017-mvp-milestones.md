@@ -6,7 +6,7 @@ branch: architecture
 tags: [roadmap, pilot]
 status: in-progress
 created_at: 2026-10-17
-updated_at: 2026-10-21
+updated_at: 2026-10-22
 related: [CTX-DEC-20261017-mvp-simplified]
 supersedes: CTX-PLN-20261017-build-milestones
 ---
@@ -37,3 +37,6 @@ Beyond the original M0-M4, modules 1 (reactivation) and 2 (quotes) were built an
 
 ## Progress 2026-10-21 (clinic settings)
 Per-clinic message timings built and deployed (`CTX-NTE-20261021-clinic-settings`). Remaining: module 4 (AI), then e-mail provider, password reset and off-machine backup.
+
+## Progress 2026-10-22
+Quiet hours, daily send limit and one WhatsApp instance per clinic built and deployed (`CTX-NTE-20261021-clinic-settings`, `CTX-NTE-20261022-whatsapp-per-clinic`). The system is ready for more than one clinic except the manual Evolution instance/QR setup. Remaining: module 4 (AI), LGPD gaps (audit log, patient export/deletion), then e-mail, password reset and off-machine backup.

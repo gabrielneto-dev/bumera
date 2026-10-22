@@ -53,3 +53,6 @@
 
 ## 2026-10-21 (clinic settings save)
 - Clinic settings note, checkpoint, STATE, plan and index updates.
+
+## 2026-10-22 (WhatsApp per clinic save)
+- Quiet hours/limit added to the clinic-settings note, new WhatsApp-per-clinic note, checkpoint, STATE, plan and indexes.

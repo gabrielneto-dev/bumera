@@ -18,7 +18,7 @@ Scope: engines, stack, hosting, data, security. Status: active — direction dec
 - App deployment on the shared infra, hostname `bumera.gnslab.com.br` — `CTX-DEC-20261021-shared-infra-app-deployment`
 
 ## Server and code
-Server inventory: `CTX-FCT-20261017-server-inventory`. Code map and conventions: `CTX-NTE-20261020-m1-implementation` (read first when changing code); reminders, deploy and the n8n flow: `CTX-NTE-20261021-m2-m3-implementation`; inbound replies and automatic answers: `CTX-NTE-20261021-m4-inbound-replies`; LGPD technical checklist: `CTX-NTE-20261021-lgpd-checklist`; reactivation and quotes: `CTX-NTE-20261021-modules-1-2-reactivation-quotes`; per-clinic message timings: `CTX-NTE-20261021-clinic-settings`.
+Server inventory: `CTX-FCT-20261017-server-inventory`. Code map and conventions: `CTX-NTE-20261020-m1-implementation` (read first when changing code); reminders, deploy and the n8n flow: `CTX-NTE-20261021-m2-m3-implementation`; inbound replies and automatic answers: `CTX-NTE-20261021-m4-inbound-replies`; LGPD technical checklist: `CTX-NTE-20261021-lgpd-checklist`; reactivation and quotes: `CTX-NTE-20261021-modules-1-2-reactivation-quotes`; per-clinic message timings, quiet hours and daily limit: `CTX-NTE-20261021-clinic-settings`; one WhatsApp instance per clinic: `CTX-NTE-20261022-whatsapp-per-clinic`.
 
 ## Plan and drafts
 Approved: `CTX-DEC-20261017-mvp-simplified`, `CTX-PLN-20261017-mvp-milestones` (M0–M3 done; M4 in progress). Reference drafts (annotated with adjustments): `CTX-NTE-20261017-data-model-draft`, `CTX-NTE-20261017-integration-contracts-draft`. Superseded: `CTX-PLN-20261017-build-milestones`, `CTX-DEC-20261020-invite-codes-no-email` (misread; replaced by on-screen e-mail).

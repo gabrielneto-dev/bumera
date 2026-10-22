@@ -26,5 +26,8 @@ related: [CTX-DEC-20261017-clinic-defined-reminders, CTX-NTE-20261021-modules-1-
 ## UI
 `/mensagens` (menu "Mensagens", group "Clínica"), `app/(app)/mensagens/{page,actions,settings-form}`. Non-admins see a notice. Verified on 2026-10-21 in production: defaults shown, validation message for an invalid order, saving moved an unsent quote follow-up (+7 to +8 days) while the sent one stayed; settings were restored to the defaults afterwards.
 
+## Quiet hours and daily limit (commit 66c4c1d, migration 20261021200000)
+Fields `quietEnabled` (true), `quietStartHour` 21, `quietEndHour` 8 (local, America/Sao_Paulo, may cross midnight; start must differ from end), `dailySendLimit` 150 (service range 10-1000; the DB only rejects nonsense, 1-1000). Enforced when n8n polls (`claimDueReminders`), not when planning: a reminder that falls in the quiet period stays PENDING with `dueAt` moved to the period's end (`lib/reminders/send-window.ts`: `isQuietNow`, `nextQuietEnd`, `nextDayWindowStart`, `startOfLocalDay`); beyond the daily limit it is moved to the next sending window. The count per clinic is what was handed over since local midnight (SENT by `sentAt` + CLAIMED by `claimedAt`). Replies to a patient's own message (`REPLY_*`) are exempt from both, are served first and count toward the limit. A reminder deferred past its appointment is cancelled by the existing guard. Verified in production by moving the quiet window around "now": the reminder waited, nothing was sent.
+
 ## Not done
-Editing the message texts, per-procedure reminder timings, quiet hours (no sending at night) and a daily sending limit.
+Editing the message texts, per-procedure reminder timings. A WhatsApp-send throttle between messages is only the 4 s batching interval in the n8n workflow.
