@@ -24,10 +24,13 @@ This lists technical controls. Legal items need a lawyer before paid clients (`C
 - **Transport:** public hostnames sit behind the Cloudflare Tunnel (HTTPS); service-to-service traffic stays on the private docker network.
 - **Backups:** daily `pg_dump` of `bumera_prod` and `evolution` to `~/backups/bumera` (mode 600, 14 days, listed after each dump) on the same server (`deploy/backup.sh`, cron 03:30 UTC).
 
+## Closed on 2026-10-22 (see `CTX-NTE-20261022-lgpd-audit-export-erasure`)
+Activity log (append-only, no personal values), export of a patient's data, erasure by anonymization. Rows below that mention them as gaps are superseded.
+
 ## Gaps (open)
 - Backups stay on the same machine and are not encrypted: add an off-machine encrypted copy before real patient data.
 - Evolution and n8n hostnames are public (`CTX-RSK-20261021-evolution-publicly-exposed`).
-- No audit log of who read or changed patient data; no data export or deletion flow for a patient's request (LGPD art. 18); no retention policy.
+- Reads of patient data are not logged; no retention policy; Evolution keeps its own copy of contacts and conversations that the erasure does not reach.
 - No privacy notice, processor agreement (clinic = controller, Bumera = processor) or consent wording reviewed by a lawyer.
 - WhatsApp access is through an unofficial API (`CTX-RSK-20261014-whatsapp-unofficial-api`); WhatsApp conversations are also stored by the Evolution database.
 - Password reset and real e-mail delivery do not exist (on-screen codes only).

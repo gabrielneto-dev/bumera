@@ -56,3 +56,6 @@
 
 ## 2026-10-22 (WhatsApp per clinic save)
 - Quiet hours/limit added to the clinic-settings note, new WhatsApp-per-clinic note, checkpoint, STATE, plan and indexes.
+
+## 2026-10-22 (LGPD features save)
+- LGPD features note, checklist update, checkpoint, STATE, plan and indexes.

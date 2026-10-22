@@ -1,12 +1,12 @@
 # Project State
 
 Last updated: 2026-10-22
-Latest checkpoint: Context/checkpoints/CP-20261022-1300-whatsapp-per-clinic.md
+Latest checkpoint: Context/checkpoints/CP-20261022-1530-lgpd-features.md
 
 ## Current objective
 Ship the pilot: confirmação/lembrete over WhatsApp for 1–3 dental clinics (modules 1–3, no AI), hosted on the user's server. M4 (inbound replies and hardening) in progress.
 
-## Working (built, tested, committed through c4345d1)
+## Working (built, tested, committed through 48d3e27)
 - Next.js 16 app with Better Auth (multi-tenant clinics, roles, invitations, on-screen e-mail codes); registry and agenda (patients with encrypted CPF, dentists, procedures, appointments with no-overlap, pending queue).
 - M2: `reminder` table recomputed with appointment changes, `GET /api/v1/reminders/due` and `POST .../result` (Bearer service key), failed reminders on Pendentes.
 - M3: deployed on the server in `~/bumera-app` (app, Evolution v2.3.7, Redis) over the shared `~/infra` stack (Postgres, pgAdmin, n8n); app at `bumera.gnslab.com.br`; WhatsApp test instance `bumera-teste` paired; n8n workflow "Bumera - Lembretes por WhatsApp" published (every 5 min) and verified end to end with a real message.
@@ -16,14 +16,16 @@ Ship the pilot: confirmação/lembrete over WhatsApp for 1–3 dental clinics (m
 
 - Patient screen: "Permitir mensagens" (explicit consent recorded) reactivates an opted-out patient. Backups: daily `pg_dump` of `bumera_prod` and `evolution` on the server (`deploy/backup.sh`, cron 03:30 UTC, 14 days). LGPD checklist: `CTX-NTE-20261021-lgpd-checklist`.
 
-- Module 1 (reactivation: per-procedure return invitation) and module 2 (quotes: Orçamentos screen, follow-ups at day 2 and 7, expiry at 14 days), both with replies 1/2 and Pendentes follow-up; module 1 verified on the owner's phone too. Details: `CTX-NTE-20261021-modules-1-2-reactivation-quotes`, rules `CTX-DEC-20261021-reactivation-and-quotes-rules`. 476 tests.
+- Module 1 (reactivation: per-procedure return invitation) and module 2 (quotes: Orçamentos screen, follow-ups at day 2 and 7, expiry at 14 days), both with replies 1/2 and Pendentes follow-up; module 1 verified on the owner's phone too. Details: `CTX-NTE-20261021-modules-1-2-reactivation-quotes`, rules `CTX-DEC-20261021-reactivation-and-quotes-rules`. 497 tests.
 
 - Per-clinic message timings: admin-only Mensagens screen (confirmation, two reminders, no-show invite, quote follow-up days and validity) with live re-planning of unsent reminders. `CTX-NTE-20261021-clinic-settings`.
 
 - Quiet hours (default 21:00-08:00) and a daily send limit (default 150) per clinic, enforced when n8n polls; replies exempt. One WhatsApp instance per clinic: admin WhatsApp screen with connection state, `/due` carries `whatsapp.instance` (n8n workflow updated), replies and opt-out scoped to the clinic that received the message. `CTX-NTE-20261021-clinic-settings`, `CTX-NTE-20261022-whatsapp-per-clinic`.
 
+- LGPD: append-only activity log with the admin Atividades screen, export of a patient's data (JSON download) and erasure by anonymization ("Apagar dados", admin only). `CTX-NTE-20261022-lgpd-audit-export-erasure`.
+
 ## Not built yet
-Creating a clinic's Evolution instance and QR code from the app (manual runbook in `deploy/README.md`), audit log and patient data export/deletion, Editable message texts, module 4 (AI, last), off-machine encrypted backup copy, webhook setup for new Evolution instances (manual today), audit log and patient data export/deletion, protection of public n8n/Evolution hostnames, LGPD checklist, e-mail provider, password reset, cleaning test data in `bumera_prod` (Gabriel Teste, Teste Falha).
+Creating a clinic's Evolution instance and QR code from the app (manual runbook in `deploy/README.md`), erasure inside Evolution and a retention policy, Editable message texts, module 4 (AI, last), off-machine encrypted backup copy, webhook setup for new Evolution instances (manual today), audit log and patient data export/deletion, protection of public n8n/Evolution hostnames, LGPD checklist, e-mail provider, password reset, cleaning test data in `bumera_prod` (Gabriel Teste, Teste Falha).
 
 ## Blockers
 None.

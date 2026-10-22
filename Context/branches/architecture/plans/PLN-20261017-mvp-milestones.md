@@ -40,3 +40,6 @@ Per-clinic message timings built and deployed (`CTX-NTE-20261021-clinic-settings
 
 ## Progress 2026-10-22
 Quiet hours, daily send limit and one WhatsApp instance per clinic built and deployed (`CTX-NTE-20261021-clinic-settings`, `CTX-NTE-20261022-whatsapp-per-clinic`). The system is ready for more than one clinic except the manual Evolution instance/QR setup. Remaining: module 4 (AI), LGPD gaps (audit log, patient export/deletion), then e-mail, password reset and off-machine backup.
+
+## Progress 2026-10-22 (LGPD)
+Activity log, patient data export and erasure built and deployed (`CTX-NTE-20261022-lgpd-audit-export-erasure`). Remaining: module 4 (AI), then e-mail, password reset and off-machine backup; erasure in Evolution and a retention policy are open.
