@@ -164,6 +164,13 @@ export const whatsappInstanceSchema = z.object({
     .nullable(),
 });
 
+export const assistantSettingsSchema = z.object({
+  enabled: z.boolean(),
+  clinicInfo: z.string({ error: "Informe o texto" }).trim().max(2000, "Use até 2000 caracteres"),
+  /** The clinic's acceptance that patients' messages go, masked, to an external AI provider. */
+  accept: z.boolean().optional(),
+});
+
 export const appointmentInputSchema = z.object({
   patientId: z.uuid(),
   dentistId: z.uuid(),

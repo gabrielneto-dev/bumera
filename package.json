@@ -14,7 +14,8 @@
     "db:deploy": "prisma migrate deploy",
     "postinstall": "prisma generate",
     "db:tunnel": "ssh -fN -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -L 5433:127.0.0.1:5432 my-server",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "ai:eval": "tsx scripts/ai-eval.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

@@ -1,6 +1,8 @@
 import type { PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { recordAudit } from "@/lib/audit";
 import { phoneCandidates, type InboundMessage } from "@/lib/inbound/evolution";
+import { getAiClient } from "@/lib/ai";
+import type { AiClient, AiContext } from "@/lib/ai/types";
 import { receiveFreeText } from "@/lib/inbound/free-text";
 import { parseIntent } from "@/lib/inbound/intent";
 import { queueReply, type ReplyKind } from "@/lib/inbound/reply";
@@ -16,7 +18,15 @@ export interface ClinicMessage extends InboundMessage {
 export type InboundOutcome =
   | { outcome: "CONFIRMED" | "RESCHEDULE_REQUESTED" | "INTERESTED" | "DECLINED"; appointmentId?: string; quoteId?: string }
   | { outcome: "OPTED_OUT"; patients: number }
-  | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "UNKNOWN_INSTANCE" | "IGNORED" | "HANDOFF" };
+  | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "UNKNOWN_INSTANCE" | "IGNORED" | "HANDOFF" | "ANSWERED_BY_AI" };
+
+/** Injected in tests; by default the AI client comes from the server configuration (null when absent). */
+export interface InboundDeps {
+  ai?: AiClient | null;
+}
+
+/** The three things a reply can mean, whether the patient typed a keyword or the AI read their own words. */
+export type ReplyIntent = "CONFIRM" | "RESCHEDULE" | "OPT_OUT";
 
 const LIVE_STATUSES = ["SCHEDULED", "CONFIRMED"] as const;
 
@@ -29,6 +39,7 @@ export async function handleInboundMessage(
   prisma: PrismaClient,
   message: ClinicMessage,
   now: Date,
+  deps: InboundDeps = {},
 ): Promise<InboundOutcome> {
   const intent = parseIntent(message.text);
 
@@ -44,9 +55,32 @@ export async function handleInboundMessage(
     // Free text: kept for the secretary, unless the patient asked not to be contacted at all.
     const reachable = patients.find((patient) => !patient.doNotContact);
     if (!reachable) return { outcome: "IGNORED" };
-    return receiveFreeText(prisma, message, reachable.id, now);
+    return receiveFreeText(prisma, message, reachable.id, now, {
+      ai: deps.ai === undefined ? getAiClient() : deps.ai,
+      apply: (aiIntent) => applyIntent(prisma, message, aiIntent, patientIds, now),
+      context: () => describeContext(prisma, patientIds, now),
+    });
   }
 
+  return applyIntent(prisma, message, intent, patientIds, now);
+}
+
+/** What the clinic last asked this patient, so "sim" can be read correctly. */
+async function describeContext(prisma: PrismaClient, patientIds: string[], now: Date): Promise<AiContext> {
+  if (await openCampaignMessage(prisma, patientIds, now)) return "campaign";
+  const upcoming = await prisma.appointment.count({
+    where: { patientId: { in: patientIds }, status: { in: [...LIVE_STATUSES] }, startsAt: { gt: now } },
+  });
+  return upcoming > 0 ? "appointment" : "none";
+}
+
+async function applyIntent(
+  prisma: PrismaClient,
+  message: ClinicMessage,
+  intent: ReplyIntent,
+  patientIds: string[],
+  now: Date,
+): Promise<InboundOutcome> {
   if (intent === "OPT_OUT") return optOut(prisma, message.organizationId, patientIds, now);
 
   const campaign = await openCampaignMessage(prisma, patientIds, now);
