@@ -170,6 +170,7 @@ export default async function PendentesPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{patient.name}</p>
                   <p className="text-sm text-muted-foreground tabular-nums">{formatBrPhone(patient.phoneE164)}</p>
+                  {patient.guardianName ? <p className="text-sm text-muted-foreground">Responsável pelos avisos: {patient.guardianName}</p> : null}
                 </div>
                 <ConfirmButton label="Confirmar cadastro" action={approvePatientAction.bind(null, patient.id)} />
               </StaggerItem>
@@ -191,7 +192,10 @@ export default async function PendentesPage() {
                     {appointment.dentist.name} · {appointment.procedure.name}
                   </p>
                   {appointment.source === "WHATSAPP" ? (
-                    <p className="text-sm text-muted-foreground tabular-nums">Pedido pelo WhatsApp: {formatBrPhone(appointment.patient.phoneE164)}</p>
+                    <p className="text-sm text-muted-foreground tabular-nums">
+                      Pedido pelo WhatsApp: {formatBrPhone(appointment.patient.phoneE164)}
+                      {appointment.patient.guardianName ? ` · responsável: ${appointment.patient.guardianName}` : ""}
+                    </p>
                   ) : null}
                 </div>
                 <div className="flex gap-2">

@@ -13,7 +13,14 @@ export function procedureMenu(clinicName: string, procedures: ReadonlyArray<{ na
   return join(...[welcome, `Qual procedimento você procura?\n${options}`, OPTION_TALK].filter(Boolean));
 }
 
+export const askWho = (): string =>
+  join("A consulta é para você ou para outra pessoa?", "*1* Para mim\n*2* Para outra pessoa (filho, familiar…)", OPTION_TALK);
+
+export const askPerson = (): string => "Qual é o nome completo de quem vai ser atendido?";
+
 export const askName = (): string => "Perfeito! Qual é o seu nome completo?";
+
+export const askGuardianName = (): string => "E qual é o seu nome? Você será o contato para os avisos.";
 
 export function slotMenu(slots: readonly SlotOption[], hasMore: boolean, heading = "Estes são os próximos horários livres:"): string {
   const lines = slots.map((slot, index) => `*${index + 1}* ${formatSlot(slot.startsAt)} (${clean(slot.dentistName)})`);
@@ -21,8 +28,10 @@ export function slotMenu(slots: readonly SlotOption[], hasMore: boolean, heading
   return join(heading, lines.join("\n"), OPTION_TALK);
 }
 
-export function confirmation(slot: SlotOption, procedureName: string): string {
-  const details = [`📅 ${formatSlot(slot.startsAt)}`, `🦷 ${clean(procedureName)}`, `👤 ${clean(slot.dentistName)}`].join("\n");
+export function confirmation(slot: SlotOption, procedureName: string, person?: string): string {
+  const lines = [`📅 ${formatSlot(slot.startsAt)}`, `🦷 ${clean(procedureName)}`, `👤 ${clean(slot.dentistName)}`];
+  if (person) lines.push(`🙂 Paciente: ${clean(person)}`);
+  const details = lines.join("\n");
   return join(
     "Confere o seu pedido:",
     details,
@@ -31,8 +40,13 @@ export function confirmation(slot: SlotOption, procedureName: string): string {
   );
 }
 
-export const requested = (clinicName: string): string =>
-  join("Pedido recebido! ✅", `A equipe da *${clean(clinicName)}* vai confirmar o seu horário em breve e avisamos por aqui.`);
+export const requested = (clinicName: string, person?: string): string =>
+  join(
+    "Pedido recebido! ✅",
+    person
+      ? `A equipe da *${clean(clinicName)}* vai confirmar o horário de ${clean(person)} em breve e avisamos você por aqui.`
+      : `A equipe da *${clean(clinicName)}* vai confirmar o seu horário em breve e avisamos por aqui.`,
+  );
 
 export const slotTaken = (): string => "Esse horário acabou de ser ocupado. Veja outras opções:";
 

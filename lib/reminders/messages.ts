@@ -14,6 +14,8 @@ export interface MessageInput {
   quoteDescription?: string;
   /** The AI's answer (REPLY_AI only); cleaned before it is sent. */
   freeText?: string;
+  /** For a dependent: who answers for the patient. Messages are addressed to them and speak of the patient. */
+  guardianName?: string;
 }
 
 const MAX_NAME_LENGTH = 60;
@@ -89,6 +91,9 @@ export function sanitizeParagraphs(raw: string, maxLength = MAX_FREE_TEXT_LENGTH
     .trim();
 }
 
+/** An optional last line added by the app (e.g. other appointments still waiting), kept short and without links. */
+const extraLine = (text: string | undefined): string => sanitizeParagraphs(text ?? "", 200);
+
 const join = (...paragraphs: string[]): string => paragraphs.join(PARAGRAPH);
 
 const handoffMessage = (hello: string, clinic: string): string =>
@@ -104,24 +109,28 @@ export function renderReminderMessage(raw: MessageInput): string {
     quoteDescription: sanitizeName(raw.quoteDescription ?? "", MAX_QUOTE_LENGTH),
   };
   const { day, time } = when(input.startsAt);
-  const hello = greeting(input.patientName);
+  const guardian = sanitizeName(raw.guardianName ?? "");
+  const dependent = guardian !== "";
+  // For a dependent the greeting goes to the person who answers, and the text speaks of the patient.
+  const hello = greeting(dependent ? guardian : input.patientName);
+  const who = firstName(input.patientName);
   const clinic = `*${input.clinicName}*`;
   const slot = `${day} às ${time}`;
   const details = [`📅 ${slot}`, `🦷 ${input.procedureName}`, `👤 ${input.dentistName}`].join("\n");
 
   switch (input.kind) {
     case "CONFIRMATION":
-      return join(hello, `Sua consulta na ${clinic} foi agendada.`, details, ANSWER_BLOCK, OPT_OUT_LINE);
+      return join(hello, dependent ? `A consulta de *${who}* na ${clinic} foi agendada.` : `Sua consulta na ${clinic} foi agendada.`, details, ANSWER_BLOCK, OPT_OUT_LINE);
     case "REMINDER_24H":
-      return join(hello, `Lembrete: você tem uma consulta na ${clinic}.`, details, ANSWER_BLOCK, OPT_OUT_LINE);
+      return join(hello, dependent ? `Lembrete: *${who}* tem uma consulta na ${clinic}.` : `Lembrete: você tem uma consulta na ${clinic}.`, details, ANSWER_BLOCK, OPT_OUT_LINE);
     case "REMINDER_2H":
-      return join(hello, `Lembrete: sua consulta na ${clinic} está chegando.`, details, "Até já!");
+      return join(hello, dependent ? `Lembrete: a consulta de *${who}* na ${clinic} está chegando.` : `Lembrete: sua consulta na ${clinic} está chegando.`, details, "Até já!");
     case "REPLY_CONFIRMED":
-      return join(hello, "Consulta confirmada ✅", details, "Até lá!");
+      return join(...[hello, dependent ? `Consulta de *${who}* confirmada ✅` : "Consulta confirmada ✅", details, "Até lá!", extraLine(raw.freeText)].filter(Boolean));
     case "REPLY_RESCHEDULE":
       return join(
         hello,
-        "Recebemos o seu pedido para remarcar.",
+        dependent ? `Recebemos o pedido para remarcar a consulta de *${who}*.` : "Recebemos o seu pedido para remarcar.",
         `A equipe da ${clinic} entra em contato em breve para combinar um novo horário.`,
       );
     case "REPLY_OPTED_OUT":
@@ -133,7 +142,9 @@ export function renderReminderMessage(raw: MessageInput): string {
     case "REACTIVATION":
       return join(
         hello,
-        `Faz um tempo desde o seu atendimento na ${clinic} (${input.procedureName}). Que tal agendar o seu retorno?`,
+        dependent
+          ? `Faz um tempo desde o atendimento de *${who}* na ${clinic} (${input.procedureName}). Que tal agendar o retorno?`
+          : `Faz um tempo desde o seu atendimento na ${clinic} (${input.procedureName}). Que tal agendar o seu retorno?`,
         ["Responda:", "*1* para agendar", "*2* para agora não"].join("\n"),
         OPT_OUT_LINE,
       );
@@ -167,7 +178,7 @@ export function renderReminderMessage(raw: MessageInput): string {
     case "NO_SHOW_FOLLOWUP":
       return join(
         hello,
-        `Sentimos sua falta na consulta de ${slot} na ${clinic}.`,
+        dependent ? `Sentimos a falta de *${who}* na consulta de ${slot} na ${clinic}.` : `Sentimos sua falta na consulta de ${slot} na ${clinic}.`,
         "Quer remarcar? Responda *2* e nossa equipe entra em contato.",
         OPT_OUT_LINE,
       );

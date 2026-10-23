@@ -28,24 +28,24 @@ const detailInclude = {
   organization: { select: { id: true, name: true } },
   appointment: {
     include: {
-      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true } },
+      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true, guardianName: true } },
       dentist: { select: { name: true } },
       procedure: { select: { name: true } },
     },
   },
   quote: {
     include: {
-      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true } },
+      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true, guardianName: true } },
     },
   },
   inboundMessage: {
     include: {
-      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true } },
+      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true, guardianName: true } },
     },
   },
   conversation: {
     include: {
-      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true } },
+      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true, guardianName: true } },
     },
   },
 } satisfies Prisma.ReminderInclude;
@@ -84,6 +84,7 @@ function conversationPatient(row: ReminderDetail) {
       consentAt: conversation.createdAt,
       doNotContact: false,
       status: "CONFIRMED" as const,
+      guardianName: null,
     }
   );
 }
@@ -111,6 +112,7 @@ function toDue(row: ReminderDetail, attempt: number, instance: string): DueRemin
       procedureName: appointment?.procedure.name ?? "",
       quoteDescription: quote?.description,
       freeText: row.text ?? undefined,
+      guardianName: patient.guardianName ?? undefined,
     }),
     clinic: row.organization,
     patient: { id: patient.id, firstName: firstName(patient.name), phone: patient.phoneE164 },

@@ -47,7 +47,7 @@ export async function handleInboundMessage(
 
   const patients = await prisma.patient.findMany({
     where: { organizationId: message.organizationId, phoneE164: { in: phoneCandidates(message.phoneE164) } },
-    select: { id: true, doNotContact: true },
+    select: { id: true, doNotContact: true, guardianName: true },
     orderBy: { createdAt: "asc" },
   });
   const phones = phoneCandidates(message.phoneE164);
@@ -79,7 +79,8 @@ export async function handleInboundMessage(
   if (intent === "UNKNOWN") {
     // Free text: a request to book starts the dialog; anything else is kept for the secretary, unless the
     // patient asked not to be contacted at all.
-    const reachable = patients.find((patient) => !patient.doNotContact);
+    // The adult who owns the phone, not a dependent that shares it.
+    const reachable = patients.find((patient) => !patient.doNotContact && !patient.guardianName) ?? patients.find((patient) => !patient.doNotContact);
     if (!reachable) return { outcome: "IGNORED" };
     if (bookingEnabled && looksLikeBookingRequest(message.text)) return startConversation(prisma, message, reachable, now, deps.ai);
     return receiveFreeText(prisma, message, reachable.id, now, {
@@ -114,15 +115,7 @@ async function applyIntent(
   const campaign = await openCampaignMessage(prisma, patientIds, now);
   if (campaign) return answerCampaign(prisma, campaign, intent === "CONFIRM" ? "INTERESTED" : "DECLINED", now);
 
-  const appointment = await prisma.appointment.findFirst({
-    where: {
-      patientId: { in: patientIds },
-      status: { in: [...LIVE_STATUSES] },
-      startsAt: { gt: now },
-      patient: { doNotContact: false },
-    },
-    orderBy: { startsAt: "asc" },
-  });
+  const appointment = await findSubjectAppointment(prisma, patientIds, intent, now);
   if (!appointment) return { outcome: "NO_APPOINTMENT" };
 
   const db = scopedPrisma(prisma, appointment.organizationId);
@@ -133,7 +126,11 @@ async function applyIntent(
         const row = await tx.appointment.update({ where: { id: appointment.id }, data: { status: "CONFIRMED" } });
         await syncReminders(tx, row, now, settings);
       }
-      await queueReply(tx, { organizationId: appointment.organizationId, appointmentId: appointment.id }, "REPLY_CONFIRMED", now);
+      const others = await tx.appointment.count({
+        where: { patientId: { in: patientIds }, status: "SCHEDULED", startsAt: { gt: now }, NOT: { id: appointment.id } },
+      });
+      const note = others > 0 ? `Ainda há ${others} ${others === 1 ? "consulta aguardando" : "consultas aguardando"} confirmação: responda 1 de novo para confirmar a próxima.` : undefined;
+      await queueReply(tx, { organizationId: appointment.organizationId, appointmentId: appointment.id }, "REPLY_CONFIRMED", now, note);
       await recordAudit(tx, { organizationId: appointment.organizationId, userId: null }, { action: "APPOINTMENT_ANSWERED_BY_PATIENT", patientId: appointment.patientId, entityId: appointment.id, details: { answer: "CONFIRMED" } });
     });
     return { outcome: "CONFIRMED", appointmentId: appointment.id };
@@ -149,6 +146,30 @@ async function applyIntent(
     await recordAudit(tx, { organizationId: appointment.organizationId, userId: null }, { action: "APPOINTMENT_ANSWERED_BY_PATIENT", patientId: appointment.patientId, entityId: appointment.id, details: { answer: "RESCHEDULE_REQUESTED" } });
   });
   return { outcome: "RESCHEDULE_REQUESTED", appointmentId: appointment.id };
+}
+
+/** Messages about an appointment that a reply "1" or "2" most likely answers. */
+const APPOINTMENT_REMINDER_KINDS: readonly ReminderKind[] = ["CONFIRMATION", "REMINDER_24H", "REMINDER_2H"];
+const SUBJECT_WINDOW_MS = 48 * 3_600_000;
+
+/**
+ * The appointment a reply is about. When several people share the phone (a parent and children) "the soonest" is a
+ * guess, so the appointment of the latest message sent about one wins; "1" prefers one still waiting for
+ * confirmation, so repeating it walks through them. Without a recent message the soonest one is used.
+ */
+async function findSubjectAppointment(prisma: PrismaClient, patientIds: string[], intent: "CONFIRM" | "RESCHEDULE", now: Date) {
+  const live = { patientId: { in: patientIds }, status: { in: [...LIVE_STATUSES] }, startsAt: { gt: now }, patient: { doNotContact: false } };
+  const recent = await prisma.reminder.findMany({
+    where: { status: "SENT", sentAt: { gte: new Date(now.getTime() - SUBJECT_WINDOW_MS) }, kind: { in: [...APPOINTMENT_REMINDER_KINDS] }, appointment: live },
+    include: { appointment: true },
+    orderBy: { sentAt: "desc" },
+  });
+  const appointments = recent.flatMap((row) => (row.appointment ? [row.appointment] : []));
+  const preferred = intent === "CONFIRM" ? appointments.find((item) => item.status === "SCHEDULED") : undefined;
+  const chosen = preferred ?? appointments[0];
+  if (chosen) return chosen;
+  const waiting = intent === "CONFIRM" ? await prisma.appointment.findFirst({ where: { ...live, status: "SCHEDULED" }, orderBy: { startsAt: "asc" } }) : null;
+  return waiting ?? prisma.appointment.findFirst({ where: live, orderBy: { startsAt: "asc" } });
 }
 
 const CAMPAIGN_KINDS: readonly ReminderKind[] = ["REACTIVATION", "QUOTE_FOLLOWUP_1", "QUOTE_FOLLOWUP_2"];

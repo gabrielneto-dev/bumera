@@ -15,6 +15,8 @@ export interface PatientExport {
     /** Full CPF, digits only: it is the patient's own data. */
     cpf: string | null;
     phone: string;
+    /** For a dependent: the person who answers for them. */
+    guardianName: string | null;
     birthDate: string | null;
     status: string;
     source: string;
@@ -74,6 +76,7 @@ export async function exportPatientData(ctx: ServiceContext, id: string): Promis
       name: patient.name,
       cpf: patient.cpfEncrypted ? decryptField(patient.cpfEncrypted, ctx.keys.encryption) : null,
       phone: patient.phoneE164,
+      guardianName: patient.guardianName,
       birthDate: patient.birthDate ? patient.birthDate.toISOString().slice(0, 10) : null,
       status: patient.status,
       source: patient.source,

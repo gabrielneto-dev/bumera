@@ -25,6 +25,8 @@ export interface PatientDto {
   doNotContact: boolean;
   /** The patient's data was erased on request (LGPD): only the clinic's record of what happened remains. */
   anonymized: boolean;
+  /** For a dependent: who answers for them. */
+  guardianName: string | null;
   createdAt: string;
 }
 
@@ -41,6 +43,7 @@ function toDto(row: PatientRow, ctx: ServiceContext): PatientDto {
     source: row.source,
     doNotContact: row.doNotContact,
     anonymized: row.anonymizedAt !== null,
+    guardianName: row.guardianName,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -83,7 +86,7 @@ function birthDateToDate(value: string, ctx: ServiceContext): Date {
 }
 
 /** `whatsapp`: registered by the booking dialog: pending the secretary's confirmation, consent given in the chat. */
-export async function createPatient(ctx: ServiceContext, rawInput: unknown, options: { whatsapp?: boolean } = {}): Promise<PatientDto> {
+export async function createPatient(ctx: ServiceContext, rawInput: unknown, options: { whatsapp?: boolean; guardianName?: string } = {}): Promise<PatientDto> {
   assertCan(ctx.role, "patient", "create");
   const input = parseInput(patientInputSchema, rawInput);
   const cpfHash = input.cpf ? hashField(input.cpf, ctx.keys.hash) : null;
@@ -100,7 +103,8 @@ export async function createPatient(ctx: ServiceContext, rawInput: unknown, opti
           phoneE164: input.phone,
           birthDate: input.birthDate ? birthDateToDate(input.birthDate, ctx) : null,
           consentAt: input.consent ? ctx.now() : null,
-          consentSource: input.consent ? (options.whatsapp ? "whatsapp_booking" : "secretary") : null,
+          consentSource: input.consent ? (options.guardianName ? "whatsapp_booking_guardian" : options.whatsapp ? "whatsapp_booking" : "secretary") : null,
+          guardianName: options.guardianName ?? null,
           ...(options.whatsapp ? { status: "PENDING" as const, source: "WHATSAPP" as const } : {}),
         },
       });
@@ -214,6 +218,19 @@ export async function anonymizePatient(ctx: ServiceContext, id: string): Promise
         anonymizedAt: now,
       },
     });
+    // Dependents reached through this person's phone lose their contact channel and the guardian's name: both
+    // are the erased person's data. Their own records stay, but nothing can be sent to them any more.
+    if (!current.guardianName) {
+      const dependents = await tx.patient.findMany({ where: { phoneE164: current.phoneE164, guardianName: { not: null }, NOT: { id } }, select: { id: true } });
+      const dependentIds = dependents.map((item) => item.id);
+      if (dependentIds.length > 0) {
+        await tx.patient.updateMany({ where: { id: { in: dependentIds } }, data: { phoneE164: ERASED_PHONE, guardianName: null, doNotContact: true, optedOutAt: now } });
+        await tx.reminder.updateMany({
+          where: { status: { in: ["PENDING", "CLAIMED"] }, OR: [{ appointment: { patientId: { in: dependentIds } } }, { quote: { patientId: { in: dependentIds } } }] },
+          data: { status: "CANCELLED", note: "guardian data erased" },
+        });
+      }
+    }
     // Nothing more goes out to this patient, and a quote's free text may name them.
     await tx.reminder.updateMany({
       where: {

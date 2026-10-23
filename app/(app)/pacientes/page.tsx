@@ -85,6 +85,7 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
                   {formatBrPhone(patient.phoneE164)}
                   {patient.cpfMasked ? ` · CPF ${patient.cpfMasked}` : ""}
                 </p>
+                {patient.guardianName ? <p className="text-sm text-muted-foreground">Responsável pelos avisos: {patient.guardianName}</p> : null}
               </div>
               <div className="flex items-center gap-2">
                 {patient.status === "PENDING" ? <Badge variant="outline">Aguardando confirmação</Badge> : null}

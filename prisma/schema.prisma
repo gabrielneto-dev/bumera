@@ -214,6 +214,9 @@ model Patient {
   optedOutAt      DateTime?
   /// Set when the patient's data was erased on request (LGPD art. 18): the row stays only for the clinic's records.
   anonymizedAt    DateTime?
+  /// For a dependent (a child, a relative): the name of the person who answers for them. The phone is theirs, and
+  /// messages are addressed to them. Cleared when that person's data is erased.
+  guardianName    String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   appointments    Appointment[]
@@ -530,6 +533,10 @@ model InboundMessage {
 
 enum ConversationStep {
   PROCEDURE
+  /// For themselves or for someone else (a child, a relative)?
+  WHO
+  /// The name of that other person.
+  PERSON
   NAME
   SLOT
   CONFIRM
@@ -555,6 +562,10 @@ model Conversation {
   procedureId     String?
   /// What the person said their name is; cleared when the conversation ends.
   name            String?
+  /// true = for the person writing, false = for someone else, null = not asked yet.
+  forSelf         Boolean?
+  /// The other person's name when the appointment is for someone else; cleared when the conversation ends.
+  personName      String?
   /// The slots last offered: [{ startsAt, dentistId }]; cleared when the conversation ends.
   slotOptions     Json?
   slotOffset      Int                @default(0)

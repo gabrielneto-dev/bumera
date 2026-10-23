@@ -2,7 +2,7 @@ import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { clinicAi } from "@/lib/ai/clinic";
 import type { AiClient } from "@/lib/ai/types";
 import { maskPersonalData } from "@/lib/ai/mask";
-import { cleanName, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
+import { cleanName, detectWhom, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
 import * as say from "@/lib/booking/messages";
 import { findNextSlots, type SlotOption } from "@/lib/booking/slots";
 import { isUniqueViolation } from "@/lib/db-errors";
@@ -53,13 +53,23 @@ async function aiProcedure(
   }
 }
 
+/** What is still needed before slots can be offered, in the order the dialog asks for it. */
+function missingStep(conv: Pick<Conversation, "procedureId" | "forSelf" | "personName" | "patientId" | "name">): "PROCEDURE" | "WHO" | "PERSON" | "NAME" | "SLOT" {
+  if (!conv.procedureId) return "PROCEDURE";
+  if (conv.forSelf === null) return "WHO";
+  if (conv.forSelf === false && !conv.personName) return "PERSON";
+  // The writer's own name: the patient's when the appointment is for them, the contact for the notices otherwise.
+  if (!conv.patientId && !conv.name) return "NAME";
+  return "SLOT";
+}
+
 const normalize = (text: string): string => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Closes conversations nobody answered for a day, erasing the name and slots they held. */
 export async function expireStaleConversations(prisma: PrismaClient, now: Date): Promise<void> {
   await prisma.conversation.updateMany({
     where: { status: "OPEN", expiresAt: { lt: now } },
-    data: { status: "EXPIRED", name: null, slotOptions: Prisma.DbNull },
+    data: { status: "EXPIRED", name: null, personName: null, slotOptions: Prisma.DbNull },
   });
 }
 
@@ -67,7 +77,7 @@ export async function expireStaleConversations(prisma: PrismaClient, now: Date):
 export async function closeOpenConversations(prisma: PrismaClient, organizationId: string, phones: string[]): Promise<void> {
   await prisma.conversation.updateMany({
     where: { organizationId, phoneE164: { in: phones }, status: "OPEN" },
-    data: { status: "EXPIRED", name: null, slotOptions: Prisma.DbNull },
+    data: { status: "EXPIRED", name: null, personName: null, slotOptions: Prisma.DbNull },
   });
 }
 
@@ -91,15 +101,18 @@ export async function startConversation(prisma: PrismaClient, message: ClinicMes
   const clinic = await clinicName(prisma, organizationId);
   const named = procedures.length > 1 ? (matchProcedure(message.text, procedures) ?? (await aiProcedure(prisma, organizationId, ai, message.text, procedures, clinic))) : null;
   const only = procedures.length === 1 ? procedures[0] : procedures.find((procedure) => procedure.id === named);
+  const whom = detectWhom(message.text);
+  const start = { patientId: patient?.id ?? null, procedureId: only?.id ?? null, forSelf: whom === null ? null : whom === "self", personName: null, name: null };
   let created: Conversation;
   try {
     created = await prisma.conversation.create({
       data: {
         organizationId,
         phoneE164: message.phoneE164,
-        patientId: patient?.id ?? null,
-        procedureId: only?.id ?? null,
-        step: only ? (patient ? "SLOT" : "NAME") : "PROCEDURE",
+        patientId: start.patientId,
+        procedureId: start.procedureId,
+        forSelf: start.forSelf,
+        step: missingStep(start),
         lastMessageId: message.messageId,
         expiresAt: new Date(now.getTime() + CONVERSATION_TTL_MS),
       },
@@ -109,10 +122,28 @@ export async function startConversation(prisma: PrismaClient, message: ClinicMes
     if (isUniqueViolation(error)) return { outcome: "IGNORED" };
     throw error;
   }
-  const name = clinic;
-  if (procedures.length === 0) return handOff(prisma, created, message, now, name, "Pediu para marcar uma consulta (sem procedimentos cadastrados)");
-  if (!only) return reply(prisma, created, message, now, say.procedureMenu(name, procedures));
-  return created.step === "NAME" ? reply(prisma, created, message, now, say.askName()) : offerSlots(prisma, created, message, now, name, 0);
+  if (procedures.length === 0) return handOff(prisma, created, message, now, clinic, "Pediu para marcar uma consulta (sem procedimentos cadastrados)");
+  return prompt(prisma, created, message, now, clinic, procedures);
+}
+
+/** Says what the dialog needs next: a menu, a question, or the free slots. */
+async function prompt(prisma: PrismaClient, conv: Conversation, message: ClinicMessage, now: Date, name: string, procedures?: ReadonlyArray<{ name: string }>): Promise<InboundOutcome> {
+  switch (conv.step) {
+    case "PROCEDURE": {
+      const list = procedures ?? (await prisma.procedure.findMany({ where: { organizationId: conv.organizationId, active: true }, orderBy: { name: "asc" }, take: MENU_LIMIT }));
+      return reply(prisma, conv, message, now, say.procedureMenu(name, list));
+    }
+    case "WHO":
+      return reply(prisma, conv, message, now, say.askWho());
+    case "PERSON":
+      return reply(prisma, conv, message, now, say.askPerson());
+    case "NAME":
+      return reply(prisma, conv, message, now, conv.forSelf === false ? say.askGuardianName() : say.askName());
+    case "SLOT":
+      return offerSlots(prisma, conv, message, now, name, 0);
+    case "CONFIRM":
+      return reply(prisma, conv, message, now, say.slotMenu(readSlots(conv).items, readSlots(conv).hasMore));
+  }
 }
 
 /** Applies one more message to an open conversation. */
@@ -127,6 +158,10 @@ export async function continueConversation(prisma: PrismaClient, message: Clinic
   switch (conversation.step) {
     case "PROCEDURE":
       return onProcedure(prisma, conversation, message, now, name, choice, ai);
+    case "WHO":
+      return onWho(prisma, conversation, message, now, name, choice);
+    case "PERSON":
+      return onPerson(prisma, conversation, message, now, name);
     case "NAME":
       return onName(prisma, conversation, message, now, name);
     case "SLOT":
@@ -143,15 +178,29 @@ async function onProcedure(prisma: PrismaClient, conv: Conversation, message: Cl
       ? procedures[choice - 1]?.id
       : (matchProcedure(message.text, procedures) ?? (await aiProcedure(prisma, conv.organizationId, ai, message.text, procedures, name)));
   if (!chosen) return miss(prisma, conv, message, now, name, say.procedureMenu(name, procedures, false));
-  const next = await advance(prisma, conv, message, { procedureId: chosen, step: conv.patientId ? "SLOT" : "NAME" }, now);
-  return next.step === "NAME" ? reply(prisma, next, message, now, say.askName()) : offerSlots(prisma, next, message, now, name, 0);
+  const next = await advance(prisma, conv, message, { procedureId: chosen }, now);
+  return prompt(prisma, next, message, now, name);
+}
+
+async function onWho(prisma: PrismaClient, conv: Conversation, message: ClinicMessage, now: Date, name: string, choice: number | null): Promise<InboundOutcome> {
+  const whom = choice === 1 ? "self" : choice === 2 ? "other" : detectWhom(message.text);
+  if (!whom) return miss(prisma, conv, message, now, name, say.askWho());
+  const next = await advance(prisma, conv, message, { forSelf: whom === "self" }, now);
+  return prompt(prisma, next, message, now, name);
+}
+
+async function onPerson(prisma: PrismaClient, conv: Conversation, message: ClinicMessage, now: Date, name: string): Promise<InboundOutcome> {
+  const given = cleanName(message.text);
+  if (!given) return miss(prisma, conv, message, now, name, say.askPerson());
+  const next = await advance(prisma, conv, message, { personName: given }, now);
+  return prompt(prisma, next, message, now, name);
 }
 
 async function onName(prisma: PrismaClient, conv: Conversation, message: ClinicMessage, now: Date, name: string): Promise<InboundOutcome> {
   const given = cleanName(message.text);
-  if (!given) return miss(prisma, conv, message, now, name, say.askName());
-  const next = await advance(prisma, conv, message, { name: given, step: "SLOT" }, now);
-  return offerSlots(prisma, next, message, now, name, 0);
+  if (!given) return miss(prisma, conv, message, now, name, conv.forSelf === false ? say.askGuardianName() : say.askName());
+  const next = await advance(prisma, conv, message, { name: given }, now);
+  return prompt(prisma, next, message, now, name);
 }
 
 async function onSlot(prisma: PrismaClient, conv: Conversation, message: ClinicMessage, now: Date, name: string, choice: number | null): Promise<InboundOutcome> {
@@ -160,7 +209,7 @@ async function onSlot(prisma: PrismaClient, conv: Conversation, message: ClinicM
     const slot = offered.items[choice - 1] as SlotOption;
     const next = await advance(prisma, conv, message, { chosenStartsAt: new Date(slot.startsAt), chosenDentistId: slot.dentistId, step: "CONFIRM" }, now);
     const procedure = await prisma.procedure.findUniqueOrThrow({ where: { id: conv.procedureId as string }, select: { name: true } });
-    return reply(prisma, next, message, now, say.confirmation(slot, procedure.name));
+    return reply(prisma, next, message, now, say.confirmation(slot, procedure.name, next.forSelf === false ? (next.personName ?? undefined) : undefined));
   }
   if (choice !== null && offered.hasMore && choice === offered.items.length + 1) {
     return offerSlots(prisma, conv, message, now, name, conv.slotOffset + PAGE_SIZE);
@@ -178,21 +227,33 @@ async function onConfirm(prisma: PrismaClient, conv: Conversation, message: Clin
     const offered = readSlots(conv);
     const slot = offered.items.find((item) => item.startsAt === conv.chosenStartsAt?.toISOString());
     const procedure = await prisma.procedure.findUniqueOrThrow({ where: { id: conv.procedureId as string }, select: { name: true } });
-    return miss(prisma, conv, message, now, name, slot ? say.confirmation(slot, procedure.name) : say.slotMenu(offered.items, offered.hasMore));
+    return miss(prisma, conv, message, now, name, slot ? say.confirmation(slot, procedure.name, conv.forSelf === false ? (conv.personName ?? undefined) : undefined) : say.slotMenu(offered.items, offered.hasMore));
   }
   return book(prisma, conv, message, now, name);
 }
 
-/** Registers the person if needed and files the pending appointment the secretary will approve. */
+/** Registers the patient if needed (a dependent when it is for someone else) and files the pending appointment. */
 async function book(prisma: PrismaClient, conv: Conversation, message: ClinicMessage, now: Date, name: string): Promise<InboundOutcome> {
   const system = makeSystemContext(prisma, conv.organizationId, now);
+  const phone = phoneCandidates(conv.phoneE164).map((candidate) => normalizeBrPhone(candidate)).find(Boolean);
+  const forOther = conv.forSelf === false;
   let patientId = conv.patientId;
-  if (!patientId) {
-    const phone = phoneCandidates(conv.phoneE164).map((candidate) => normalizeBrPhone(candidate)).find(Boolean);
+
+  if (forOther) {
+    const guardian = conv.patientId ? (await prisma.patient.findUniqueOrThrow({ where: { id: conv.patientId }, select: { name: true } })).name : conv.name;
+    if (!phone || !conv.personName || !guardian) return handOff(prisma, conv, message, now, name, "Quis marcar uma consulta para outra pessoa (dados incompletos)");
+    // A returning dependent (same name, same contact phone) keeps their record instead of getting a second one.
+    const existing = await prisma.patient.findFirst({
+      where: { organizationId: conv.organizationId, phoneE164: { in: phoneCandidates(conv.phoneE164) }, guardianName: { not: null }, anonymizedAt: null, name: { equals: conv.personName, mode: "insensitive" } },
+    });
+    patientId = existing?.id ?? (await createPatient(system, { name: conv.personName, phone, consent: true }, { whatsapp: true, guardianName: guardian })).id;
+  } else if (!patientId) {
     if (!phone || !conv.name) return handOff(prisma, conv, message, now, name, "Quis marcar uma consulta (dados incompletos)");
     patientId = (await createPatient(system, { name: conv.name, phone, consent: true }, { whatsapp: true })).id;
     await prisma.conversation.update({ where: { id: conv.id }, data: { patientId } });
   }
+
+  const person = forOther ? (conv.personName ?? undefined) : undefined;
   try {
     const appointment = await bookAppointment(
       system,
@@ -201,13 +262,13 @@ async function book(prisma: PrismaClient, conv: Conversation, message: ClinicMes
     );
     const done = await prisma.conversation.update({
       where: { id: conv.id },
-      data: { status: "DONE", patientId, appointmentId: appointment.id, name: null, slotOptions: Prisma.DbNull, lastMessageId: message.messageId },
+      data: { status: "DONE", appointmentId: appointment.id, name: null, personName: null, slotOptions: Prisma.DbNull, lastMessageId: message.messageId },
     });
-    await reply(prisma, done, message, now, say.requested(name));
+    await reply(prisma, done, message, now, say.requested(name, person));
     return { outcome: "BOOKING_REQUESTED", appointmentId: appointment.id };
   } catch (error) {
     if (error instanceof AppError && ["SLOT_TAKEN", "PAST_APPOINTMENT", "OUTSIDE_WORKING_HOURS"].includes(error.code)) {
-      const refreshed = await prisma.conversation.update({ where: { id: conv.id }, data: { patientId, step: "SLOT", chosenStartsAt: null, chosenDentistId: null } });
+      const refreshed = await prisma.conversation.update({ where: { id: conv.id }, data: { step: "SLOT", chosenStartsAt: null, chosenDentistId: null } });
       return offerSlots(prisma, refreshed, message, now, name, 0, say.slotTaken());
     }
     throw error;
@@ -231,9 +292,12 @@ async function offerSlots(prisma: PrismaClient, conv: Conversation, message: Cli
 
 /** Saves the new state of the conversation and counts this message as seen. */
 async function advance(prisma: PrismaClient, conv: Conversation, message: ClinicMessage, data: Prisma.ConversationUncheckedUpdateInput, now: Date): Promise<Conversation> {
+  // Unless the caller says where to go, the next step is whatever is still missing after this answer.
+  const merged = { ...conv, ...(data as Partial<Conversation>) };
+  const step = data.step ?? missingStep(merged);
   return prisma.conversation.update({
     where: { id: conv.id },
-    data: { ...data, misses: 0, lastMessageId: message.messageId, expiresAt: new Date(now.getTime() + CONVERSATION_TTL_MS) },
+    data: { ...data, step, misses: 0, lastMessageId: message.messageId, expiresAt: new Date(now.getTime() + CONVERSATION_TTL_MS) },
   });
 }
 
@@ -252,7 +316,7 @@ async function handOff(prisma: PrismaClient, conv: Conversation, message: Clinic
   const procedure = conv.procedureId ? await prisma.procedure.findUnique({ where: { id: conv.procedureId }, select: { name: true } }) : null;
   const db = scopedPrisma(prisma, conv.organizationId);
   await db.$transaction(async (tx) => {
-    await tx.conversation.update({ where: { id: conv.id }, data: { status: "HANDED_OFF", name: null, slotOptions: Prisma.DbNull, lastMessageId: message.messageId } });
+    await tx.conversation.update({ where: { id: conv.id }, data: { status: "HANDED_OFF", name: null, personName: null, slotOptions: Prisma.DbNull, lastMessageId: message.messageId } });
     await tx.inboundMessage.upsert({
       where: { organizationId_messageId: { organizationId: conv.organizationId, messageId: `conversation-${conv.id}` } },
       update: {},

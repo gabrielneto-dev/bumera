@@ -29,7 +29,7 @@ const TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]> = {
 };
 
 const include = {
-  patient: { select: { id: true, name: true, phoneE164: true } },
+  patient: { select: { id: true, name: true, phoneE164: true, guardianName: true } },
   dentist: { select: { id: true, name: true } },
   procedure: { select: { id: true, name: true, reactivateAfterMonths: true } },
 } satisfies Prisma.AppointmentInclude;
@@ -42,7 +42,7 @@ export interface AppointmentDto {
   endsAt: string;
   status: AppointmentStatus;
   source: "SECRETARY" | "WHATSAPP";
-  patient: { id: string; name: string; phoneE164: string };
+  patient: { id: string; name: string; phoneE164: string; guardianName: string | null };
   dentist: { id: string; name: string };
   procedure: { id: string; name: string };
 }

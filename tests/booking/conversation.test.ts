@@ -44,7 +44,8 @@ describe("booking conversation", () => {
   /** Walks a stranger up to the slot menu for "Clareamento dental". */
   async function reachSlots() {
     await say("Oi, quero marcar uma consulta");
-    await say("2");
+    await say("2"); // Clareamento dental
+    await say("1"); // for myself
     await say("Ana Souza");
   }
 
@@ -103,7 +104,9 @@ describe("booking conversation", () => {
 
       await say("Oi, queria agendar");
 
-      expect(await conversation()).toMatchObject({ step: "NAME", procedureId: clareamentoId });
+      expect(await conversation()).toMatchObject({ step: "WHO", procedureId: clareamentoId });
+      await say("1");
+      expect(await conversation()).toMatchObject({ step: "NAME" });
     });
 
     it("is welcomed even without any AI and does not need the clinic to change anything", async () => {
@@ -121,6 +124,8 @@ describe("booking conversation", () => {
       await say("gostaria de agendar uma limpeza", KNOWN);
       expect(await conversation(KNOWN)).toMatchObject({ patientId, step: "PROCEDURE" });
 
+      await say("1", KNOWN);
+      expect(await conversation(KNOWN)).toMatchObject({ step: "WHO" });
       await say("1", KNOWN);
       expect(await conversation(KNOWN)).toMatchObject({ step: "SLOT" });
       await say("1", KNOWN);
@@ -145,7 +150,7 @@ describe("booking conversation", () => {
       await say("1", KNOWN);
 
       expect((await prisma.appointment.findUniqueOrThrow({ where: { id: booked.id } })).status).toBe("SCHEDULED");
-      expect(await conversation(KNOWN)).toMatchObject({ step: "SLOT" });
+      expect(await conversation(KNOWN)).toMatchObject({ step: "WHO" });
     });
 
     it("SAIR always works: the patient is opted out and the conversation closes", async () => {
@@ -180,6 +185,7 @@ describe("booking conversation", () => {
     it("hands over when there is no free time in the coming days", async () => {
       await prisma.dentist.update({ where: { id: dentistId }, data: { workDays: [] } });
       await say("oi");
+      await say("1");
       await say("1");
       expect(await say("Ana Souza")).toMatchObject({ outcome: "HANDOFF" });
       expect((await conversation()).status).toBe("HANDED_OFF");
@@ -292,10 +298,10 @@ describe("booking conversation: the first message already says what the person w
     await say("Oi, quero fazer um clareamento");
 
     const conv = await prisma.conversation.findFirstOrThrow();
-    expect(conv.step).toBe("NAME");
+    expect(conv.step).toBe("WHO");
     expect(conv.procedureId).not.toBeNull();
     const reply = await prisma.reminder.findFirstOrThrow({ where: { kind: "REPLY_FLOW" } });
-    expect(reply.text).toContain("nome");
+    expect(reply.text).toContain("para outra pessoa");
   });
 
   it("still shows the menu when the message does not name one clearly", async () => {

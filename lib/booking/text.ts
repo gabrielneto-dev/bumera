@@ -63,3 +63,13 @@ export function cleanName(text: string): string | null {
   const hasBothCases = /\p{Ll}/u.test(stripped) && /\p{Lu}/u.test(stripped);
   return hasBothCases ? stripped : titleCase(stripped);
 }
+
+const FOR_OTHER = /\b(filh[oa]s?|esposa|marido|mulher|namorad[oa]|mae|pai|irma[oa]?|irmao|neto|neta|sobrinh[oa]|prim[oa]|tio|tia|avo|avos|amig[oa]|outra pessoa|outro paciente|pra ele|pra ela|para ele|para ela)\b/;
+const FOR_SELF = /\b(para mim|pra mim|eu mesm[oa]|e pra mim|sou eu|para eu)\b/;
+
+/** Whether a message says the appointment is for the writer ("self") or for someone else ("other"); null if unsaid. */
+export function detectWhom(text: string): "self" | "other" | null {
+  const normalized = normalize(text);
+  if (FOR_OTHER.test(normalized)) return "other";
+  return FOR_SELF.test(normalized) ? "self" : null;
+}
