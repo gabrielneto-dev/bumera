@@ -107,7 +107,7 @@
   {
     "message": "quero marcar uma limpeza para minha filha",
     "context": "none",
-    "expect": "OTHER"
+    "expect": "BOOK"
   },
   {
     "message": "fiquei insatisfeito com o atendimento da última vez",
