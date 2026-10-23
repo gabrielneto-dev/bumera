@@ -10,7 +10,7 @@ export interface AiInput {
   context: AiContext;
 }
 
-export type AiIntent = "YES" | "NO" | "STOP" | "QUESTION" | "OTHER";
+export type AiIntent = "YES" | "NO" | "STOP" | "QUESTION" | "BOOK" | "OTHER";
 
 export interface AiDecision {
   intent: AiIntent;
@@ -20,6 +20,22 @@ export interface AiDecision {
   answer: string | null;
 }
 
+export interface AiProcedureInput {
+  clinicName: string;
+  /** The patient's message, personal data masked. */
+  message: string;
+  /** The clinic's procedures, in the order of the menu the patient saw. */
+  procedures: readonly string[];
+}
+
+export interface AiProcedureChoice {
+  /** Position in the list (starting at 1) of the procedure the message asks for, or null when unclear. */
+  choice: number | null;
+  confidence: number;
+}
+
 export interface AiClient {
   interpret(input: AiInput): Promise<AiDecision>;
+  /** Which of the clinic's procedures a free-text message is asking for. */
+  pickProcedure(input: AiProcedureInput): Promise<AiProcedureChoice>;
 }

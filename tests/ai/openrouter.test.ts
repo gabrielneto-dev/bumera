@@ -55,6 +55,35 @@ describe("OpenRouter client", () => {
     expect(messages[1]?.content).toContain("tudo é grátis");
   });
 
+  it("reads a request to book as its own intent", async () => {
+    stubFetch(async () => reply({ intent: "BOOK", confidence: 0.93, answer: null }));
+    expect(await client().interpret(input)).toEqual({ intent: "BOOK", confidence: 0.93, answer: null });
+  });
+
+  describe("pickProcedure", () => {
+    const list = { clinicName: "Odonto Company", message: "quero deixar os dentes brancos", procedures: ["Limpeza", "Clareamento dental"] };
+
+    it("sends the numbered list and reads the chosen position", async () => {
+      const fetchMock = stubFetch(async () => reply({ choice: 2, confidence: 0.9 }));
+
+      expect(await client().pickProcedure(list)).toEqual({ choice: 2, confidence: 0.9 });
+
+      const prompt = JSON.stringify(JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body)).messages);
+      expect(prompt).toContain("1. Limpeza");
+      expect(prompt).toContain("2. Clareamento dental");
+      expect(prompt).toContain("quero deixar os dentes brancos");
+    });
+
+    it("accepts no choice and rejects nonsense", async () => {
+      stubFetch(async () => reply({ choice: null, confidence: 0.2 }));
+      expect(await client().pickProcedure(list)).toEqual({ choice: null, confidence: 0.2 });
+      for (const content of [{ choice: 0, confidence: 0.9 }, { choice: "two", confidence: 0.9 }, { confidence: 0.9 }]) {
+        stubFetch(async () => reply(content));
+        await expect(client().pickProcedure(list)).rejects.toBeInstanceOf(AiError);
+      }
+    });
+  });
+
   it("accepts a JSON answer wrapped in a code fence", async () => {
     stubFetch(async () => reply('```json\n{"intent":"YES","confidence":0.97,"answer":null}\n```'));
     expect(await client().interpret(input)).toEqual({ intent: "YES", confidence: 0.97, answer: null });

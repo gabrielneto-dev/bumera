@@ -1,4 +1,7 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
+import { clinicAi } from "@/lib/ai/clinic";
+import type { AiClient } from "@/lib/ai/types";
+import { maskPersonalData } from "@/lib/ai/mask";
 import { cleanName, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
 import * as say from "@/lib/booking/messages";
 import { findNextSlots, type SlotOption } from "@/lib/booking/slots";
@@ -26,6 +29,28 @@ type Conversation = Prisma.ConversationGetPayload<object>;
 interface StoredSlots {
   items: SlotOption[];
   hasMore: boolean;
+}
+
+const AI_PROCEDURE_CONFIDENCE = 0.8;
+
+/** When the words do not name a procedure, the clinic's AI (if it opted in) may recognise what was meant. */
+async function aiProcedure(
+  prisma: PrismaClient,
+  organizationId: string,
+  override: AiClient | null | undefined,
+  text: string,
+  procedures: ReadonlyArray<{ id: string; name: string }>,
+  clinic: string,
+): Promise<string | null> {
+  const ai = await clinicAi(prisma, organizationId, override);
+  if (!ai) return null;
+  try {
+    const picked = await ai.pickProcedure({ clinicName: clinic, message: maskPersonalData(text, []).slice(0, 400), procedures: procedures.map((procedure) => procedure.name) });
+    if (picked.choice === null || picked.confidence < AI_PROCEDURE_CONFIDENCE) return null;
+    return procedures[picked.choice - 1]?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 const normalize = (text: string): string => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -56,13 +81,16 @@ async function clinicName(prisma: PrismaClient, organizationId: string): Promise
 }
 
 /** Starts a conversation with a first contact (patient null) or with a patient who asked to book. */
-export async function startConversation(prisma: PrismaClient, message: ClinicMessage, patient: { id: string } | null, now: Date): Promise<InboundOutcome> {
+export async function startConversation(prisma: PrismaClient, message: ClinicMessage, patient: { id: string } | null, now: Date, ai?: AiClient | null): Promise<InboundOutcome> {
   const { organizationId } = message;
   const startedToday = await prisma.conversation.count({ where: { organizationId, createdAt: { gte: startOfLocalDay(now) } } });
   if (startedToday >= DAILY_NEW_CONVERSATIONS) return { outcome: "IGNORED" };
 
   const procedures = await prisma.procedure.findMany({ where: { organizationId, active: true }, orderBy: { name: "asc" }, take: MENU_LIMIT });
-  const only = procedures.length === 1 ? procedures[0] : undefined;
+  // One procedure to offer, or the first message already names exactly one: no need to show the menu.
+  const clinic = await clinicName(prisma, organizationId);
+  const named = procedures.length > 1 ? (matchProcedure(message.text, procedures) ?? (await aiProcedure(prisma, organizationId, ai, message.text, procedures, clinic))) : null;
+  const only = procedures.length === 1 ? procedures[0] : procedures.find((procedure) => procedure.id === named);
   let created: Conversation;
   try {
     created = await prisma.conversation.create({
@@ -81,14 +109,14 @@ export async function startConversation(prisma: PrismaClient, message: ClinicMes
     if (isUniqueViolation(error)) return { outcome: "IGNORED" };
     throw error;
   }
-  const name = await clinicName(prisma, organizationId);
+  const name = clinic;
   if (procedures.length === 0) return handOff(prisma, created, message, now, name, "Pediu para marcar uma consulta (sem procedimentos cadastrados)");
   if (!only) return reply(prisma, created, message, now, say.procedureMenu(name, procedures));
   return created.step === "NAME" ? reply(prisma, created, message, now, say.askName()) : offerSlots(prisma, created, message, now, name, 0);
 }
 
 /** Applies one more message to an open conversation. */
-export async function continueConversation(prisma: PrismaClient, message: ClinicMessage, conversation: Conversation, now: Date): Promise<InboundOutcome> {
+export async function continueConversation(prisma: PrismaClient, message: ClinicMessage, conversation: Conversation, now: Date, ai?: AiClient | null): Promise<InboundOutcome> {
   if (conversation.lastMessageId === message.messageId) return { outcome: "IGNORED" };
   const name = await clinicName(prisma, conversation.organizationId);
   const text = message.text;
@@ -98,7 +126,7 @@ export async function continueConversation(prisma: PrismaClient, message: Clinic
 
   switch (conversation.step) {
     case "PROCEDURE":
-      return onProcedure(prisma, conversation, message, now, name, choice);
+      return onProcedure(prisma, conversation, message, now, name, choice, ai);
     case "NAME":
       return onName(prisma, conversation, message, now, name);
     case "SLOT":
@@ -108,9 +136,12 @@ export async function continueConversation(prisma: PrismaClient, message: Clinic
   }
 }
 
-async function onProcedure(prisma: PrismaClient, conv: Conversation, message: ClinicMessage, now: Date, name: string, choice: number | null): Promise<InboundOutcome> {
+async function onProcedure(prisma: PrismaClient, conv: Conversation, message: ClinicMessage, now: Date, name: string, choice: number | null, ai?: AiClient | null): Promise<InboundOutcome> {
   const procedures = await prisma.procedure.findMany({ where: { organizationId: conv.organizationId, active: true }, orderBy: { name: "asc" }, take: MENU_LIMIT });
-  const chosen = choice && choice >= 1 && choice <= procedures.length ? procedures[choice - 1]?.id : matchProcedure(message.text, procedures);
+  const chosen =
+    choice && choice >= 1 && choice <= procedures.length
+      ? procedures[choice - 1]?.id
+      : (matchProcedure(message.text, procedures) ?? (await aiProcedure(prisma, conv.organizationId, ai, message.text, procedures, name)));
   if (!chosen) return miss(prisma, conv, message, now, name, say.procedureMenu(name, procedures, false));
   const next = await advance(prisma, conv, message, { procedureId: chosen, step: conv.patientId ? "SLOT" : "NAME" }, now);
   return next.step === "NAME" ? reply(prisma, next, message, now, say.askName()) : offerSlots(prisma, next, message, now, name, 0);

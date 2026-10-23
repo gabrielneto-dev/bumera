@@ -62,7 +62,7 @@ export async function handleInboundMessage(
     }
     if (!bookingEnabled) return { outcome: "UNKNOWN_PATIENT" };
     const open = await findOpenConversation(prisma, message.organizationId, phones, now);
-    return open ? continueConversation(prisma, message, open, now) : startConversation(prisma, message, null, now);
+    return open ? continueConversation(prisma, message, open, now, deps.ai) : startConversation(prisma, message, null, now, deps.ai);
   }
   const patientIds = patients.map((patient) => patient.id);
 
@@ -74,18 +74,19 @@ export async function handleInboundMessage(
 
   // An open booking conversation owns the numbers: "1" is a menu choice there, not a confirmation.
   const open = bookingEnabled ? await findOpenConversation(prisma, message.organizationId, phones, now) : null;
-  if (open) return continueConversation(prisma, message, open, now);
+  if (open) return continueConversation(prisma, message, open, now, deps.ai);
 
   if (intent === "UNKNOWN") {
     // Free text: a request to book starts the dialog; anything else is kept for the secretary, unless the
     // patient asked not to be contacted at all.
     const reachable = patients.find((patient) => !patient.doNotContact);
     if (!reachable) return { outcome: "IGNORED" };
-    if (bookingEnabled && looksLikeBookingRequest(message.text)) return startConversation(prisma, message, reachable, now);
+    if (bookingEnabled && looksLikeBookingRequest(message.text)) return startConversation(prisma, message, reachable, now, deps.ai);
     return receiveFreeText(prisma, message, reachable.id, now, {
       ai: deps.ai,
       apply: (aiIntent) => applyIntent(prisma, message, aiIntent, patientIds, now),
       context: () => describeContext(prisma, patientIds, now),
+      startBooking: () => (bookingEnabled ? startConversation(prisma, message, reachable, now, deps.ai) : Promise.resolve({ outcome: "HANDOFF" as const })),
     });
   }
 

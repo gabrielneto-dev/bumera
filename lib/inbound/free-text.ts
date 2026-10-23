@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@/generated/prisma/client";
-import { resolveAiClient } from "@/lib/ai";
+import { clinicAi } from "@/lib/ai/clinic";
 import type { AiClient, AiContext, AiDecision } from "@/lib/ai/types";
 import { maskPersonalData } from "@/lib/ai/mask";
 import { recordAudit } from "@/lib/audit";
@@ -33,6 +33,8 @@ export interface FreeTextHelpers {
   /** Does what a keyword reply would have done. */
   apply: (intent: ReplyIntent) => Promise<InboundOutcome>;
   context: () => Promise<AiContext>;
+  /** The patient asked to book: start the booking dialog for them. */
+  startBooking: () => Promise<InboundOutcome>;
 }
 
 /**
@@ -94,6 +96,13 @@ export async function receiveFreeText(
     return outcome;
   }
 
+  if (decision.intent === "BOOK") {
+    if (decision.confidence < ACT_CONFIDENCE.YES) return handOff("AI_UNSURE", "BOOK");
+    const outcome = await helpers.startBooking();
+    await finish("BOOK");
+    return outcome;
+  }
+
   if (decision.intent === "QUESTION") {
     const answer = sanitizeParagraphs(decision.answer ?? "");
     if (decision.confidence < ANSWER_CONFIDENCE || !answer) return handOff("AI_UNSURE", "QUESTION");
@@ -116,10 +125,8 @@ async function askAi(
 ): Promise<AiDecision | "off" | "unavailable"> {
   const { organizationId } = message;
   const settings = await prisma.clinicSettings.findUnique({ where: { organizationId } });
-  if (!settings?.aiEnabled) return "off";
-  const encryptionKey = process.env.CPF_ENCRYPTION_KEY;
-  const ai = helpers.ai !== undefined ? helpers.ai : encryptionKey ? resolveAiClient({ encryptedKey: settings.aiApiKeyEncrypted, encryptionKey }) : null;
-  if (!ai) return "off";
+  const ai = await clinicAi(prisma, organizationId, helpers.ai);
+  if (!settings || !ai) return "off";
 
   const usedToday = await prisma.inboundMessage.count({
     where: { organizationId, aiIntent: { not: null }, createdAt: { gte: startOfLocalDay(now) } },

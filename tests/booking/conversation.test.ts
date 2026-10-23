@@ -270,3 +270,36 @@ describe("booking conversation", () => {
     });
   });
 });
+
+describe("booking conversation: the first message already says what the person wants", () => {
+  let clinic: string;
+  let counter = 0;
+
+  beforeEach(async () => {
+    counter = 0;
+    await prisma.$executeRawUnsafe('TRUNCATE TABLE "organization" CASCADE');
+    clinic = await createClinic(prisma, "a");
+    await connectWhatsapp(prisma, clinic);
+    await createDentist(prisma, clinic, "Dra. Ana");
+    await createProcedure(prisma, clinic, "Avaliação");
+    await createProcedure(prisma, clinic, "Clareamento dental");
+  });
+
+  const say = (text: string, ai: Parameters<typeof handleInboundMessage>[3] = { ai: null }) =>
+    handleInboundMessage(prisma, { instance: "x", organizationId: clinic, phoneE164: STRANGER, text, messageId: `n${++counter}` }, NOW, ai);
+
+  it("skips the procedure menu when the first message names a procedure", async () => {
+    await say("Oi, quero fazer um clareamento");
+
+    const conv = await prisma.conversation.findFirstOrThrow();
+    expect(conv.step).toBe("NAME");
+    expect(conv.procedureId).not.toBeNull();
+    const reply = await prisma.reminder.findFirstOrThrow({ where: { kind: "REPLY_FLOW" } });
+    expect(reply.text).toContain("nome");
+  });
+
+  it("still shows the menu when the message does not name one clearly", async () => {
+    await say("Oi, quero marcar uma consulta");
+    expect((await prisma.conversation.findFirstOrThrow()).step).toBe("PROCEDURE");
+  });
+});
