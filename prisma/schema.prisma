@@ -573,6 +573,8 @@ model Conversation {
   chosenDentistId String?
   /// Wrong answers in a row: after a few the person is handed to the secretary.
   misses          Int                @default(0)
+  /// AI calls spent on this conversation (reading answers, writing questions).
+  aiCalls         Int                @default(0)
   lastMessageId   String?
   appointmentId   String?
   expiresAt       DateTime

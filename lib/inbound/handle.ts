@@ -6,6 +6,7 @@ import { closeOpenConversations, continueConversation, findOpenConversation, sta
 import { looksLikeBookingRequest } from "@/lib/booking/text";
 import { receiveFreeText } from "@/lib/inbound/free-text";
 import { parseIntent } from "@/lib/inbound/intent";
+import { isUrgent } from "@/lib/inbound/urgent";
 import { queueReply, type ReplyKind } from "@/lib/inbound/reply";
 import { toClinicSettings } from "@/lib/reminders/settings";
 import { syncQuoteReminders, syncReminders } from "@/lib/reminders/sync";
@@ -82,7 +83,7 @@ export async function handleInboundMessage(
     // The adult who owns the phone, not a dependent that shares it.
     const reachable = patients.find((patient) => !patient.doNotContact && !patient.guardianName) ?? patients.find((patient) => !patient.doNotContact);
     if (!reachable) return { outcome: "IGNORED" };
-    if (bookingEnabled && looksLikeBookingRequest(message.text)) return startConversation(prisma, message, reachable, now, deps.ai);
+    if (bookingEnabled && !isUrgent(message.text) && looksLikeBookingRequest(message.text)) return startConversation(prisma, message, reachable, now, deps.ai);
     return receiveFreeText(prisma, message, reachable.id, now, {
       ai: deps.ai,
       apply: (aiIntent) => applyIntent(prisma, message, aiIntent, patientIds, now),

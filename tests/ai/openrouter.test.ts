@@ -37,7 +37,7 @@ describe("OpenRouter client", () => {
     expect(url).toBe("https://openrouter.ai/api/v1/chat/completions");
     expect((init.headers as Record<string, string>).authorization).toBe(`Bearer ${"k".repeat(40)}`);
     const body = JSON.parse(String(init.body));
-    expect(body).toMatchObject({ model: "provider/model-x", temperature: 0, provider: { data_collection: "deny" } });
+    expect(body).toMatchObject({ model: "provider/model-x", temperature: 0, provider: { data_collection: "deny" }, reasoning: { enabled: false } });
     const prompt = JSON.stringify(body.messages);
     expect(prompt).toContain("Que horas vocês abrem?");
     expect(prompt).toContain("Abrimos de segunda a sexta");
@@ -60,26 +60,61 @@ describe("OpenRouter client", () => {
     expect(await client().interpret(input)).toEqual({ intent: "BOOK", confidence: 0.93, answer: null });
   });
 
-  describe("pickProcedure", () => {
-    const list = { clinicName: "Odonto Company", message: "quero deixar os dentes brancos", procedures: ["Limpeza", "Clareamento dental"] };
+  describe("understandTurn", () => {
+    const turn = {
+      clinicName: "Odonto Company",
+      clinicInfo: "Abrimos às 8h.",
+      step: "SLOT" as const,
+      message: "pode ser terça de manhã",
+      procedures: ["Limpeza", "Clareamento dental"],
+      slots: ["terça-feira, 20/10 às 09:00 com Dra. Ana", "quarta-feira, 21/10 às 14:00 com Dra. Ana"],
+      hasMoreSlots: true,
+      chosenProcedure: "Limpeza",
+      forSelf: true,
+    };
 
-    it("sends the numbered list and reads the chosen position", async () => {
-      const fetchMock = stubFetch(async () => reply({ choice: 2, confidence: 0.9 }));
+    it("sends the numbered lists apart from the instructions and reads the fields", async () => {
+      const fetchMock = stubFetch(async () => reply({ procedure: null, whom: null, slot: 1, confirm: null, human: false, answer: null, confidence: 0.9 }));
 
-      expect(await client().pickProcedure(list)).toEqual({ choice: 2, confidence: 0.9 });
+      expect(await client().understandTurn(turn)).toEqual({ procedure: null, whom: null, slot: 1, confirm: null, human: false, answer: null, confidence: 0.9 });
 
-      const prompt = JSON.stringify(JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body)).messages);
-      expect(prompt).toContain("1. Limpeza");
-      expect(prompt).toContain("2. Clareamento dental");
-      expect(prompt).toContain("quero deixar os dentes brancos");
+      const messages = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body)).messages as Array<{ role: string; content: string }>;
+      expect(messages[0]?.content).not.toContain("terça de manhã");
+      expect(messages[1]?.content).toContain("2. quarta-feira, 21/10 às 14:00 com Dra. Ana");
+      expect(messages[1]?.content).toContain("1. Limpeza");
+      expect(messages[1]?.content).toContain("<mensagem_da_pessoa>\npode ser terça de manhã");
     });
 
-    it("accepts no choice and rejects nonsense", async () => {
-      stubFetch(async () => reply({ choice: null, confidence: 0.2 }));
-      expect(await client().pickProcedure(list)).toEqual({ choice: null, confidence: 0.2 });
-      for (const content of [{ choice: 0, confidence: 0.9 }, { choice: "two", confidence: 0.9 }, { confidence: 0.9 }]) {
+    it("fills what the model leaves out and accepts 'more' times", async () => {
+      stubFetch(async () => reply({ slot: "more", confidence: 0.85 }));
+      expect(await client().understandTurn(turn)).toEqual({ procedure: null, whom: null, slot: "more", confirm: null, human: false, answer: null, confidence: 0.85 });
+    });
+
+    it("rejects nonsense", async () => {
+      for (const content of [{ slot: 0, confidence: 0.9 }, { confirm: "maybe", confidence: 0.9 }, { whom: "me", confidence: 0.9 }, { procedure: 1 }]) {
         stubFetch(async () => reply(content));
-        await expect(client().pickProcedure(list)).rejects.toBeInstanceOf(AiError);
+        await expect(client().understandTurn(turn)).rejects.toBeInstanceOf(AiError);
+      }
+    });
+  });
+
+  describe("phrase", () => {
+    const input = { clinicName: "Odonto Company", goal: "offer_slots" as const, facts: ["terça-feira, 20/10 às 09:00 com Dra. Ana"], required: ["terça-feira, 20/10 às 09:00"], greet: true, retry: false, slotTaken: false, hasPatient: false };
+
+    it("asks for the wording with some variety and returns the text", async () => {
+      const fetchMock = stubFetch(async () => reply({ reply: "Tenho terça-feira, 20/10 às 09:00. Serve?" }));
+
+      expect(await client().phrase(input)).toBe("Tenho terça-feira, 20/10 às 09:00. Serve?");
+
+      const body = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body));
+      expect(body.temperature).toBeGreaterThan(0);
+      expect(JSON.stringify(body.messages)).toContain("terça-feira, 20/10 às 09:00");
+    });
+
+    it("rejects an empty or malformed answer", async () => {
+      for (const content of [{ reply: "" }, { texto: "oi" }, "oi, tudo bem?"]) {
+        stubFetch(async () => reply(content));
+        await expect(client().phrase(input)).rejects.toBeInstanceOf(AiError);
       }
     });
   });

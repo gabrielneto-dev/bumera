@@ -1,34 +1,16 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiClient, AiDecision, AiInput, AiProcedureChoice, AiProcedureInput } from "@/lib/ai/types";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import type { AiClient } from "@/lib/ai/types";
 import { handleInboundMessage } from "@/lib/inbound/handle";
 import { createPrismaClient } from "@/lib/prisma";
 import { claimDueReminders } from "@/lib/reminders/dispatch";
 import { connectWhatsapp, createClinic, createDentist, createPatient, createProcedure } from "../helpers/factories";
+import { fakeAi } from "../helpers/fake-ai";
 import { NOW } from "../helpers/service-context";
 
 const prisma = createPrismaClient(process.env.DATABASE_URL as string);
 const HOUR = 3_600_000;
 const PHONE = "+5511987654321";
 const INFO = "Rua das Flores, 100. Abrimos de segunda a sexta, das 8h às 18h. Aceitamos cartão e Pix.";
-
-function fakeAi(decision: AiDecision | Error, procedure: AiProcedureChoice | Error = { choice: null, confidence: 0 }): AiClient & { calls: AiInput[]; procedureCalls: AiProcedureInput[] } {
-  const calls: AiInput[] = [];
-  const procedureCalls: AiProcedureInput[] = [];
-  return {
-    calls,
-    procedureCalls,
-    interpret: vi.fn(async (input: AiInput) => {
-      calls.push(input);
-      if (decision instanceof Error) throw decision;
-      return decision;
-    }),
-    pickProcedure: vi.fn(async (input: AiProcedureInput) => {
-      procedureCalls.push(input);
-      if (procedure instanceof Error) throw procedure;
-      return procedure;
-    }),
-  };
-}
 
 describe("AI assistant on free-text messages", () => {
   let clinic: string;
@@ -252,32 +234,33 @@ describe("AI assistant on free-text messages", () => {
       await createProcedure(prisma, clinic, "Clareamento dental");
     });
 
-    it("maps free words to the menu entry, hiding personal data from the AI", async () => {
-      const ai = fakeAi({ intent: "OTHER", confidence: 0.9, answer: null }, { choice: 1, confidence: 0.92 });
+    it("maps free words to the procedure, hiding personal data from the AI", async () => {
+      const ai = fakeAi(undefined, { turn: { procedure: 1, confidence: 0.92 } });
 
       await handleInboundMessage(prisma, { instance: "x", organizationId: clinic, phoneE164: "+5511933334444", text: "Oi, sou eu, 11 93333-4444, quero deixar os dentes mais branquinhos", messageId: "w1" }, NOW, { ai });
 
-      expect((await prisma.conversation.findFirstOrThrow({ where: { phoneE164: "+5511933334444" } })).step).toBe("NAME");
-      expect(ai.procedureCalls[0]?.procedures).toEqual(procedureNames);
-      expect(JSON.stringify(ai.procedureCalls[0])).not.toContain("93333");
+      expect((await prisma.conversation.findFirstOrThrow({ where: { phoneE164: "+5511933334444" } })).step).toBe("NAME"); // "sou eu" already says it is for the writer
+      expect(ai.turnCalls[0]?.procedures).toEqual(procedureNames);
+      expect(JSON.stringify(ai.turnCalls[0])).not.toContain("93333");
     });
 
-    it("shows the menu when the AI is unsure or fails", async () => {
-      const cases = [{ choice: 1, confidence: 0.4 }, { choice: null, confidence: 0.9 }, new Error("down")];
-      for (const [index, procedure] of cases.entries()) {
+    it("asks which procedure when the AI is unsure or fails", async () => {
+      const cases = [{ procedure: 1, confidence: 0.4 }, { procedure: null, confidence: 0.9 }, new Error("down")];
+      for (const [index, turn] of cases.entries()) {
         const phone = `+551193333440${index}`;
-        await handleInboundMessage(prisma, { instance: "x", organizationId: clinic, phoneE164: phone, text: "bom dia, queria ver uma coisa", messageId: `u${index}` }, NOW, { ai: fakeAi({ intent: "OTHER", confidence: 0.9, answer: null }, procedure) });
+        await handleInboundMessage(prisma, { instance: "x", organizationId: clinic, phoneE164: phone, text: "bom dia, queria ver uma coisa", messageId: `u${index}` }, NOW, { ai: fakeAi(undefined, { turn }) });
         expect((await prisma.conversation.findFirstOrThrow({ where: { phoneE164: phone } })).step).toBe("PROCEDURE");
       }
     });
 
     it("never asks the AI when the clinic did not opt in", async () => {
       await prisma.clinicSettings.update({ where: { organizationId: clinic }, data: { aiEnabled: false } });
-      const ai = fakeAi({ intent: "OTHER", confidence: 0.9, answer: null }, { choice: 1, confidence: 0.99 });
+      const ai = fakeAi(undefined, { turn: { procedure: 1, confidence: 0.99 } });
 
       await handleInboundMessage(prisma, { instance: "x", organizationId: clinic, phoneE164: "+5511933334444", text: "quero deixar os dentes brancos", messageId: "w9" }, NOW, { ai });
 
-      expect(ai.procedureCalls).toHaveLength(0);
+      expect(ai.turnCalls).toHaveLength(0);
+      expect(ai.phraseCalls).toHaveLength(0);
     });
   });
 });

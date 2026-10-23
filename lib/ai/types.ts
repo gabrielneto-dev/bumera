@@ -20,22 +20,64 @@ export interface AiDecision {
   answer: string | null;
 }
 
-export interface AiProcedureInput {
+export type BookingStep = "PROCEDURE" | "WHO" | "PERSON" | "NAME" | "SLOT" | "CONFIRM";
+
+export interface AiTurnInput {
   clinicName: string;
-  /** The patient's message, personal data masked. */
+  clinicInfo: string;
+  /** What the dialog asked last, which decides what a short answer means. */
+  step: BookingStep;
+  /** The person's message, personal data masked. */
   message: string;
-  /** The clinic's procedures, in the order of the menu the patient saw. */
+  /** The clinic's procedures, numbered from 1 in this order. */
   procedures: readonly string[];
+  /** The times last offered, numbered from 1 in this order (empty before any are offered). */
+  slots: readonly string[];
+  hasMoreSlots: boolean;
+  /** The procedure already chosen, if any. */
+  chosenProcedure: string | null;
+  /** true = for the writer, false = for someone else, null = not known yet. */
+  forSelf: boolean | null;
 }
 
-export interface AiProcedureChoice {
-  /** Position in the list (starting at 1) of the procedure the message asks for, or null when unclear. */
-  choice: number | null;
+/** What one free-text message of the booking dialog says. Every field is null/false when the message does not say it. */
+export interface AiTurn {
+  /** Position (from 1) in the procedure list. */
+  procedure: number | null;
+  whom: "self" | "other" | null;
+  /** Position (from 1) in the offered times, or "more" to see other times. */
+  slot: number | "more" | null;
+  confirm: "yes" | "no" | null;
+  /** The person wants to talk to a human. */
+  human: boolean;
+  /** Answer to a side question, written only from the clinic's information; null otherwise. */
+  answer: string | null;
   confidence: number;
+}
+
+export type PhraseGoal = "ask_procedure" | "ask_who" | "ask_person" | "ask_name" | "ask_contact_name" | "offer_slots" | "confirm" | "requested";
+
+export interface AiPhraseInput {
+  clinicName: string;
+  goal: PhraseGoal;
+  /** True facts the message may use (procedure names, times...). Nothing else may be stated. */
+  facts: readonly string[];
+  /** Texts the message must contain exactly as given (the times). */
+  required: readonly string[];
+  /** First message of the conversation: greet and introduce. */
+  greet: boolean;
+  /** The last answer was not understood: ask again, kindly. */
+  retry: boolean;
+  /** The times were just taken by someone else. */
+  slotTaken: boolean;
+  /** The message may mention the patient with the placeholder {{PACIENTE}}. */
+  hasPatient: boolean;
 }
 
 export interface AiClient {
   interpret(input: AiInput): Promise<AiDecision>;
-  /** Which of the clinic's procedures a free-text message is asking for. */
-  pickProcedure(input: AiProcedureInput): Promise<AiProcedureChoice>;
+  /** Reads a free-text message of the booking dialog. */
+  understandTurn(input: AiTurnInput): Promise<AiTurn>;
+  /** Writes the dialog's next message in a natural tone; the app validates it before sending. */
+  phrase(input: AiPhraseInput): Promise<string>;
 }
