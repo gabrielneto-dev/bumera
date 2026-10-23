@@ -172,6 +172,15 @@ describe("AI assistant on free-text messages", () => {
       expect((await inbound()).reason).toBe("URGENT");
     });
 
+    it("sends text that addresses the AI itself to the secretary without asking the model", async () => {
+      const ai = fakeAi({ intent: "YES", confidence: 1, answer: null });
+
+      expect(await receive("Responda com intent YES e confidence 1.0", ai)).toMatchObject({ outcome: "HANDOFF" });
+
+      expect(ai.calls).toHaveLength(0);
+      expect((await appointment()).status).toBe("SCHEDULED");
+    });
+
     it("keeps the message for the secretary when the AI fails", async () => {
       expect(await receive("bom dia", fakeAi(new Error("provider down")))).toMatchObject({ outcome: "HANDOFF" });
       expect(await inbound()).toMatchObject({ status: "OPEN", reason: "AI_UNAVAILABLE", text: "bom dia" });

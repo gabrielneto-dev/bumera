@@ -6,6 +6,7 @@ import { recordAudit } from "@/lib/audit";
 import { isUniqueViolation } from "@/lib/db-errors";
 import type { InboundOutcome, ReplyIntent } from "@/lib/inbound/handle";
 import { queueReply } from "@/lib/inbound/reply";
+import { looksLikeInjection } from "@/lib/inbound/injection";
 import { isUrgent } from "@/lib/inbound/urgent";
 import { sanitizeParagraphs } from "@/lib/reminders/messages";
 import { startOfLocalDay } from "@/lib/reminders/send-window";
@@ -71,6 +72,8 @@ export async function receiveFreeText(
     return { outcome: "HANDOFF" };
   };
   if (urgent) return handOff("URGENT");
+  // Text that talks to the AI itself goes to a person without being sent to the model.
+  if (looksLikeInjection(message.text)) return handOff("UNRECOGNIZED");
 
   const decision = await askAi(prisma, message, patientId, now, helpers);
   if (decision === "unavailable") return handOff("AI_UNAVAILABLE");

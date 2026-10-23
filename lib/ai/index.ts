@@ -4,8 +4,8 @@ import { decryptField } from "@/lib/crypto";
 
 const MIN_KEY_LENGTH = 20;
 
-/** The model used unless the server sets AI_MODEL: chosen by measuring candidates on Portuguese patient messages. */
-export const DEFAULT_AI_MODEL = "openai/gpt-4o-mini";
+/** The model used unless the server sets AI_MODEL: chosen on 2026-10-23 by `scripts/ai-eval.ts` (30 pt-BR messages): 30/30, about 1.1 s, resisted prompt injection. */
+export const DEFAULT_AI_MODEL = "anthropic/claude-haiku-5.5";
 
 /** A key shared by the whole server (optional). A clinic's own key takes precedence over it. */
 function serverKey(): string | null {
