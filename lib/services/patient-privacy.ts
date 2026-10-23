@@ -60,7 +60,7 @@ export async function exportPatientData(ctx: ServiceContext, id: string): Promis
     }),
     ctx.db.quote.findMany({ where: { patientId: id }, orderBy: { createdAt: "asc" } }),
     ctx.db.reminder.findMany({
-      where: { OR: [{ appointment: { patientId: id } }, { quote: { patientId: id } }, { inboundMessage: { patientId: id } }] },
+      where: { OR: [{ appointment: { patientId: id } }, { quote: { patientId: id } }, { inboundMessage: { patientId: id } }, { conversation: { patientId: id } }] },
       orderBy: { createdAt: "asc" },
     }),
     ctx.db.inboundMessage.findMany({ where: { patientId: id }, orderBy: { createdAt: "asc" } }),

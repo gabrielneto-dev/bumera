@@ -127,10 +127,11 @@ describe("handleInboundMessage", () => {
     expect(await receive("1")).toEqual({ outcome: "NO_APPOINTMENT" });
   });
 
-  it("ignores unknown phones and unclear replies", async () => {
+  it("welcomes unknown phones and keeps unclear replies for the secretary", async () => {
     await appointment(24);
 
-    expect(await receive("1", "+5511900000000")).toEqual({ outcome: "UNKNOWN_PATIENT" });
+    // Someone we hold no record of is welcomed and guided (booking dialog), not ignored.
+    expect(await receive("1", "+5511900000000")).toEqual({ outcome: "CONVERSATION" });
     expect(await receive("talvez")).toEqual({ outcome: "HANDOFF" });
   });
 

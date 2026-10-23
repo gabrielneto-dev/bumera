@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { AppError } from "@/lib/errors";
 import { evaluateGuard, evaluateQuoteGuard, isReplyKind, MAX_ATTEMPTS, retryDelayMs } from "@/lib/reminders/guard";
+import { expireStaleConversations } from "@/lib/booking/conversation";
 import { isQuietNow, nextDayWindowStart, nextQuietEnd, startOfLocalDay } from "@/lib/reminders/send-window";
 import { type ClinicSettings, toClinicSettings } from "@/lib/reminders/settings";
 import { firstName, renderReminderMessage } from "@/lib/reminders/messages";
@@ -42,6 +43,11 @@ const detailInclude = {
       patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true } },
     },
   },
+  conversation: {
+    include: {
+      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true } },
+    },
+  },
 } satisfies Prisma.ReminderInclude;
 
 type ReminderDetail = Prisma.ReminderGetPayload<{ include: typeof detailInclude }>;
@@ -66,9 +72,25 @@ export interface ClaimOptions {
   limit?: number;
 }
 
+/** A conversation with a first contact has no patient record: the phone and the name given so far stand in for one. */
+function conversationPatient(row: ReminderDetail) {
+  const { conversation } = row;
+  if (!conversation) return null;
+  return (
+    conversation.patient ?? {
+      id: conversation.id,
+      name: conversation.name ?? "",
+      phoneE164: conversation.phoneE164,
+      consentAt: conversation.createdAt,
+      doNotContact: false,
+      status: "CONFIRMED" as const,
+    }
+  );
+}
+
 /** Who the reminder is about: the patient of its appointment or of its quote. */
 function patientOf(row: ReminderDetail) {
-  const patient = row.appointment?.patient ?? row.quote?.patient ?? row.inboundMessage?.patient;
+  const patient = row.appointment?.patient ?? row.quote?.patient ?? row.inboundMessage?.patient ?? conversationPatient(row);
   if (!patient) throw new AppError("VALIDATION", "Lembrete sem consulta, orçamento nem mensagem", { id: row.id });
   return patient;
 }
@@ -155,6 +177,8 @@ const byPriority = (a: ReminderDetail, b: ReminderDetail): number =>
 /** Hands due reminders to n8n, marking them claimed. Stale or disallowed ones are closed instead of returned. */
 export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEFAULT_LIMIT }: ClaimOptions): Promise<DueReminder[]> {
   const capped = Math.min(Math.max(Math.trunc(limit), 1), MAX_LIMIT);
+  // Housekeeping on every poll: a booking conversation nobody answered for a day loses the name it held.
+  await expireStaleConversations(prisma, now);
   return prisma.$transaction(async (tx) => {
     const ids = await lockClaimable(tx, now, capped);
     if (ids.length === 0) return [];
@@ -214,11 +238,17 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
 
 /** Retrying after this moment is pointless: the appointment started, or the quote expired. */
 function retryDeadline(
-  row: { appointment: { startsAt: Date } | null; quote: { createdAt: Date } | null; inboundMessage: { createdAt: Date } | null },
+  row: {
+    appointment: { startsAt: Date } | null;
+    quote: { createdAt: Date } | null;
+    inboundMessage: { createdAt: Date } | null;
+    conversation: { createdAt: Date } | null;
+  },
   quoteValidDays: number,
 ): Date {
   if (row.appointment) return row.appointment.startsAt;
-  if (row.inboundMessage) return new Date(row.inboundMessage.createdAt.getTime() + INBOUND_RETRY_WINDOW_MS);
+  const written = row.inboundMessage ?? row.conversation;
+  if (written) return new Date(written.createdAt.getTime() + INBOUND_RETRY_WINDOW_MS);
   const created = row.quote?.createdAt ?? new Date(0);
   return new Date(created.getTime() + quoteValidDays * 86_400_000);
 }
@@ -255,6 +285,7 @@ export async function recordReminderResult(
         appointment: { select: { startsAt: true } },
         quote: { select: { createdAt: true } },
         inboundMessage: { select: { createdAt: true } },
+        conversation: { select: { createdAt: true } },
       },
     });
     if (row.status !== "CLAIMED" || row.attempts !== result.attempt) return { id, status: row.status };

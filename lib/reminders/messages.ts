@@ -19,6 +19,7 @@ export interface MessageInput {
 const MAX_NAME_LENGTH = 60;
 const MAX_QUOTE_LENGTH = 120;
 const MAX_FREE_TEXT_LENGTH = 800;
+const MAX_FLOW_TEXT_LENGTH = 1000;
 
 /**
  * Names are typed by people (or arrive from WhatsApp) and end up inside a message sent from the
@@ -57,6 +58,12 @@ function when(iso: string): { day: string; time: string } {
     hour12: false,
   }).format(date);
   return { day: `${weekday}, ${dayMonth}`, time };
+}
+
+/** "terça-feira, 20/10 às 10:00": how a slot is shown to a patient. */
+export function formatSlot(iso: string): string {
+  const { day, time } = when(iso);
+  return `${day} às ${time}`;
 }
 
 export function firstName(patientName: string): string {
@@ -146,6 +153,9 @@ export function renderReminderMessage(raw: MessageInput): string {
       );
     case "REPLY_HANDOFF":
       return handoffMessage(hello, clinic);
+    case "REPLY_FLOW":
+      // Built by the booking dialog from sanitized parts (names, procedures); its own *bold* must survive.
+      return (raw.freeText ?? "").trim().slice(0, MAX_FLOW_TEXT_LENGTH) || handoffMessage(hello, clinic);
     case "REPLY_AI": {
       const answer = sanitizeParagraphs(raw.freeText ?? "");
       return answer ? join(hello, answer) : handoffMessage(hello, clinic);

@@ -30,6 +30,7 @@ describe("defaults", () => {
       quietStartHour: 21,
       quietEndHour: 8,
       dailySendLimit: 150,
+      bookingEnabled: true,
     });
   });
 

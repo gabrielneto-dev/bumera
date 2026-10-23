@@ -138,6 +138,7 @@ export const clinicSettingsSchema = z
     quietStartHour: wholeNumber("Início do silêncio (hora)", 0, 23),
     quietEndHour: wholeNumber("Fim do silêncio (hora)", 0, 23),
     dailySendLimit: wholeNumber("Limite diário de mensagens", 10, 1000),
+    bookingEnabled: z.boolean(),
   })
   .superRefine((value, ctx) => {
     if (value.reminder1Enabled && value.reminder2Enabled && value.reminder1HoursBefore <= value.reminder2HoursBefore) {

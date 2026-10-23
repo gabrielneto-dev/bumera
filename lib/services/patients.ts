@@ -1,4 +1,4 @@
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { recordAudit } from "@/lib/audit";
 import { assertCan } from "@/lib/authz";
 import { isValidCpf, maskCpf } from "@/lib/cpf";
@@ -82,7 +82,8 @@ function birthDateToDate(value: string, ctx: ServiceContext): Date {
   return date;
 }
 
-export async function createPatient(ctx: ServiceContext, rawInput: unknown): Promise<PatientDto> {
+/** `whatsapp`: registered by the booking dialog: pending the secretary's confirmation, consent given in the chat. */
+export async function createPatient(ctx: ServiceContext, rawInput: unknown, options: { whatsapp?: boolean } = {}): Promise<PatientDto> {
   assertCan(ctx.role, "patient", "create");
   const input = parseInput(patientInputSchema, rawInput);
   const cpfHash = input.cpf ? hashField(input.cpf, ctx.keys.hash) : null;
@@ -99,7 +100,8 @@ export async function createPatient(ctx: ServiceContext, rawInput: unknown): Pro
           phoneE164: input.phone,
           birthDate: input.birthDate ? birthDateToDate(input.birthDate, ctx) : null,
           consentAt: input.consent ? ctx.now() : null,
-          consentSource: input.consent ? "secretary" : null,
+          consentSource: input.consent ? (options.whatsapp ? "whatsapp_booking" : "secretary") : null,
+          ...(options.whatsapp ? { status: "PENDING" as const, source: "WHATSAPP" as const } : {}),
         },
       });
       await recordAudit(tx, ctx, { action: "PATIENT_CREATED", patientId: created.id, entityId: created.id });
@@ -216,13 +218,20 @@ export async function anonymizePatient(ctx: ServiceContext, id: string): Promise
     await tx.reminder.updateMany({
       where: {
         status: { in: ["PENDING", "CLAIMED"] },
-        OR: [{ appointment: { patientId: id } }, { quote: { patientId: id } }, { inboundMessage: { patientId: id } }],
+        OR: [
+          { appointment: { patientId: id } },
+          { quote: { patientId: id } },
+          { inboundMessage: { patientId: id } },
+          { conversation: { patientId: id } },
+        ],
       },
       data: { status: "CANCELLED", note: "patient data erased" },
     });
     await tx.quote.updateMany({ where: { patientId: id, status: "OPEN" }, data: { status: "DECLINED", closedAt: now } });
     await tx.quote.updateMany({ where: { patientId: id }, data: { description: ERASED_TEXT } });
     await tx.inboundMessage.updateMany({ where: { patientId: id }, data: { text: null, status: "HANDLED", handledAt: now } });
+    await tx.conversation.updateMany({ where: { patientId: id, status: "OPEN" }, data: { status: "EXPIRED" } });
+    await tx.conversation.updateMany({ where: { patientId: id }, data: { name: null, slotOptions: Prisma.DbNull } });
     await recordAudit(tx, ctx, { action: "PATIENT_ANONYMIZED", patientId: id, entityId: id });
     return erased;
   });

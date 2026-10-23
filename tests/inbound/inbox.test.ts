@@ -69,11 +69,13 @@ describe("messages the keywords do not explain", () => {
     expect(await prisma.reminder.count({ where: { kind: "REPLY_HANDOFF" } })).toBe(1);
   });
 
-  it("ignores a stranger's message: nothing is stored about people who are not patients", async () => {
+  it("welcomes a stranger and keeps no patient record for them until they ask for an appointment", async () => {
     const result = await handleInboundMessage(prisma, { instance: "x", organizationId: clinicA, phoneE164: "+5511900000000", text: "Oi", messageId: "s1" }, NOW);
 
-    expect(result).toEqual({ outcome: "UNKNOWN_PATIENT" });
-    expect(await prisma.inboundMessage.count()).toBe(0);
+    // The clinic in this test has no procedures, so the dialog hands the contact to the secretary with their phone.
+    expect(result).toEqual({ outcome: "HANDOFF" });
+    expect(await prisma.patient.count({ where: { phoneE164: "+5511900000000" } })).toBe(0);
+    expect(await prisma.inboundMessage.findFirstOrThrow({ where: { phoneE164: "+5511900000000" } })).toMatchObject({ patientId: null, status: "OPEN" });
   });
 
   it("does not answer a patient who opted out", async () => {
@@ -104,7 +106,7 @@ describe("messages the keywords do not explain", () => {
 
       expect(list.map((item) => item.text)).toEqual(["Primeira", "Segunda"]);
       expect(list[0]).toMatchObject({ reason: "UNRECOGNIZED", patient: { id: patientId, name: "Maria Souza", phoneE164: PHONE } });
-      expect((await listInbox(secretary(clinicB))).map((item) => item.patient.id)).toEqual([other.id]);
+      expect((await listInbox(secretary(clinicB))).map((item) => item.patient?.id)).toEqual([other.id]);
     });
 
     it("marks a message as answered and clears its text, leaving a trace in the activity log", async () => {

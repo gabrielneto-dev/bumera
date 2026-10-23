@@ -74,6 +74,13 @@ export function SettingsForm({ settings, action }: { settings: ClinicSettings; a
         </Group>
 
         <Group
+          title="Atendimento por WhatsApp"
+          description="Quando alguém escreve para o número da clínica pedindo um horário, o sistema acolhe, mostra os horários livres e registra um pedido pendente para a secretária aprovar."
+        >
+          <CheckboxField name="bookingEnabled" label="Acolher quem escreve pela primeira vez e conduzir o pedido de agendamento" defaultChecked={settings.bookingEnabled} />
+        </Group>
+
+        <Group
           title="Horário de silêncio e limite diário"
           description="Protege os pacientes e o número de WhatsApp da clínica. Respostas a quem acabou de escrever (1, 2, SAIR) saem sempre, a qualquer hora."
         >

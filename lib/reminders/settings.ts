@@ -24,6 +24,8 @@ export interface ClinicSettings {
   quietEndHour: number;
   /** Messages handed to n8n per local day; replies are counted but never blocked. */
   dailySendLimit: number;
+  /** Welcome first contacts on WhatsApp and guide them to a booking request (module 4). */
+  bookingEnabled: boolean;
 }
 
 export const DEFAULT_CLINIC_SETTINGS: ClinicSettings = {
@@ -41,6 +43,7 @@ export const DEFAULT_CLINIC_SETTINGS: ClinicSettings = {
   quietStartHour: 21,
   quietEndHour: 8,
   dailySendLimit: 150,
+  bookingEnabled: true,
 };
 
 /** Picks the settings fields out of a database row; no row means the defaults. */
@@ -61,5 +64,6 @@ export function toClinicSettings(row: ClinicSettings | null | undefined): Clinic
     quietStartHour: row.quietStartHour,
     quietEndHour: row.quietEndHour,
     dailySendLimit: row.dailySendLimit,
+    bookingEnabled: row.bookingEnabled,
   };
 }

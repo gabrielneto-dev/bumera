@@ -31,6 +31,7 @@ export const REMINDER_KIND_LABEL: Record<ReminderKind, string> = {
   QUOTE_FOLLOWUP_2: "Orçamento: 2º contato",
   REPLY_HANDOFF: "Resposta: mensagem recebida",
   REPLY_AI: "Resposta do assistente",
+  REPLY_FLOW: "Atendimento: agendamento",
 };
 
 export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {

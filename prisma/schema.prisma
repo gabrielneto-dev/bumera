@@ -95,6 +95,7 @@ model Organization {
   clinicSettings  ClinicSettings?
   auditLogs       AuditLog[]
   inboundMessages InboundMessage[]
+  conversations   Conversation[]
 
   @@unique([slug])
   @@map("organization")
@@ -218,6 +219,7 @@ model Patient {
   appointments    Appointment[]
   quotes          Quote[]
   inboundMessages InboundMessage[]
+  conversations   Conversation[]
 
   @@unique([id, organizationId])
   @@unique([organizationId, cpfHash])
@@ -278,6 +280,8 @@ enum ReminderKind {
   /// Module 4: answers to a free-text message from a patient.
   REPLY_HANDOFF
   REPLY_AI
+  /// Module 4: one turn of the booking conversation (text built by the app).
+  REPLY_FLOW
 }
 
 /// What the patient answered to a campaign message (reactivation).
@@ -304,13 +308,17 @@ model Reminder {
   id               String          @id @default(uuid())
   organizationId   String
   organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  /// Exactly one of appointmentId / quoteId / inboundMessageId is set (CHECK constraint in the migration).
+  /// Exactly one of appointmentId / quoteId / inboundMessageId / conversationId is set (CHECK constraint in the migration).
   appointmentId    String?
   appointment      Appointment?    @relation(fields: [appointmentId, organizationId], references: [id, organizationId], onDelete: NoAction)
   quoteId          String?
   quote            Quote?          @relation(fields: [quoteId, organizationId], references: [id, organizationId], onDelete: NoAction)
   inboundMessageId String?
   inboundMessage   InboundMessage? @relation(fields: [inboundMessageId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  conversationId   String?
+  conversation     Conversation?   @relation(fields: [conversationId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  /// REPLY_FLOW: the inbound message this turn answers, so a repeated delivery is answered once.
+  replyToMessageId String?
   /// Free text of an AI answer (REPLY_AI only); every other kind is rendered from a fixed template.
   text             String?
   kind             ReminderKind
@@ -332,6 +340,7 @@ model Reminder {
   @@unique([appointmentId, kind])
   @@unique([quoteId, kind])
   @@unique([inboundMessageId, kind])
+  @@unique([conversationId, replyToMessageId])
   @@index([status, dueAt])
   @@index([organizationId, status])
   @@map("reminder")
@@ -399,6 +408,8 @@ model ClinicSettings {
   /// Name of the clinic's Evolution API instance (its WhatsApp number). Unique: it identifies the clinic of an
   /// inbound message, and tells n8n which instance to send through. Null = WhatsApp not connected yet.
   whatsappInstance     String?      @unique
+  /// Welcome first contacts and guide them to a booking request (module 4); off = unknown numbers are ignored.
+  bookingEnabled       Boolean      @default(true)
   /// Module 4 (opt-in): the clinic accepted that patients' messages go, masked, to an external AI provider.
   aiEnabled            Boolean      @default(false)
   aiEnabledAt          DateTime?
@@ -487,8 +498,11 @@ model InboundMessage {
   id             String        @id @default(uuid())
   organizationId String
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  patientId      String
-  patient        Patient       @relation(fields: [patientId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  /// Null for a first contact who is not a patient yet.
+  patientId      String?
+  patient        Patient?      @relation(fields: [patientId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  /// Who wrote, when there is no patient to point at.
+  phoneE164      String?
   /// Evolution's message id: the same delivery repeated is recognized and ignored.
   messageId      String
   /// Null once handled or erased.
@@ -505,4 +519,58 @@ model InboundMessage {
   @@unique([organizationId, messageId])
   @@index([organizationId, status])
   @@map("inbound_message")
+}
+
+// ---------------------------------------------------------------------------
+// Module 4: the booking conversation. A first contact (or a patient asking to book) is guided through
+// procedure -> name -> slot -> confirmation; the app drives the dialog and offers only real free slots, the AI
+// at most reads free text. The result is a PENDING appointment the secretary approves. Everything personal
+// in here (name, offered slots) is cleared when the conversation ends or expires.
+// ---------------------------------------------------------------------------
+
+enum ConversationStep {
+  PROCEDURE
+  NAME
+  SLOT
+  CONFIRM
+}
+
+enum ConversationStatus {
+  OPEN
+  DONE
+  HANDED_OFF
+  EXPIRED
+}
+
+model Conversation {
+  id              String             @id @default(uuid())
+  organizationId  String
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  phoneE164       String
+  /// Set when the person is already a patient, or once the request created one.
+  patientId       String?
+  patient         Patient?           @relation(fields: [patientId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  step            ConversationStep   @default(PROCEDURE)
+  status          ConversationStatus @default(OPEN)
+  procedureId     String?
+  /// What the person said their name is; cleared when the conversation ends.
+  name            String?
+  /// The slots last offered: [{ startsAt, dentistId }]; cleared when the conversation ends.
+  slotOptions     Json?
+  slotOffset      Int                @default(0)
+  chosenStartsAt  DateTime?
+  chosenDentistId String?
+  /// Wrong answers in a row: after a few the person is handed to the secretary.
+  misses          Int                @default(0)
+  lastMessageId   String?
+  appointmentId   String?
+  expiresAt       DateTime
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  reminders       Reminder[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, status])
+  @@index([status, expiresAt])
+  @@map("conversation")
 }

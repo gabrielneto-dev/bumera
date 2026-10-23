@@ -25,6 +25,7 @@ export async function updateSettingsAction(_previous: ActionState, formData: For
       quietStartHour: number(formData, "quietStartHour"),
       quietEndHour: number(formData, "quietEndHour"),
       dailySendLimit: number(formData, "dailySendLimit"),
+      bookingEnabled: formBoolean(formData, "bookingEnabled"),
     });
     return "Configurações salvas. Os lembretes ainda não enviados já seguem os novos horários.";
   });

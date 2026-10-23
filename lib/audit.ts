@@ -3,6 +3,9 @@ import type { ScopedPrisma } from "@/lib/tenant-scope";
 
 type AuditDb = Pick<ScopedPrisma, "auditLog">;
 
+/** The id the app uses for itself when it acts without a signed-in member (e.g. a booking made over WhatsApp). */
+export const SYSTEM_USER_ID = "system:whatsapp";
+
 /** Who is acting: a signed-in member, or the app itself (userId null) on a patient's WhatsApp message. */
 export interface AuditActor {
   organizationId: string;
@@ -25,8 +28,8 @@ export async function recordAudit(db: AuditDb, actor: AuditActor, entry: AuditEn
   await db.auditLog.create({
     data: {
       organizationId: actor.organizationId,
-      actorType: actor.userId ? "USER" : "SYSTEM",
-      actorUserId: actor.userId,
+      actorType: actor.userId && actor.userId !== SYSTEM_USER_ID ? "USER" : "SYSTEM",
+      actorUserId: actor.userId === SYSTEM_USER_ID ? null : actor.userId,
       action: entry.action,
       patientId: entry.patientId ?? null,
       entityId: entry.entityId ?? null,

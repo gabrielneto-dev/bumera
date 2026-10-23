@@ -11,7 +11,9 @@ export interface InboxItemDto {
   text: string;
   reason: InboundReason;
   createdAt: string;
-  patient: { id: string; name: string; phoneE164: string };
+  /** Null for a first contact who is not a patient yet: the phone is then the only way to answer. */
+  patient: { id: string; name: string; phoneE164: string } | null;
+  phoneE164: string;
 }
 
 /** Messages from patients that wait for a person to answer, oldest first. */
@@ -29,6 +31,7 @@ export async function listInbox(ctx: ServiceContext): Promise<InboxItemDto[]> {
     reason: row.reason,
     createdAt: row.createdAt.toISOString(),
     patient: row.patient,
+    phoneE164: row.patient?.phoneE164 ?? row.phoneE164 ?? "",
   }));
 }
 
@@ -40,6 +43,6 @@ export async function markInboxHandled(ctx: ServiceContext, id: string): Promise
   if (row.status === "HANDLED") return;
   await ctx.db.$transaction(async (tx) => {
     await tx.inboundMessage.update({ where: { id }, data: { status: "HANDLED", handledAt: ctx.now(), text: null } });
-    await recordAudit(tx, ctx, { action: "INBOUND_MESSAGE_HANDLED", patientId: row.patientId, entityId: id });
+    await recordAudit(tx, ctx, { action: "INBOUND_MESSAGE_HANDLED", patientId: row.patientId ?? undefined, entityId: id });
   });
 }

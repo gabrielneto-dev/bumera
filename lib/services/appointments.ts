@@ -82,7 +82,8 @@ async function loadBookingTargets(ctx: ServiceContext, ids: { patientId: string;
   return { dentist, procedure };
 }
 
-export async function bookAppointment(ctx: ServiceContext, rawInput: unknown): Promise<AppointmentDto> {
+/** `pending`: a request from the WhatsApp dialog, held on the agenda until the secretary approves it. */
+export async function bookAppointment(ctx: ServiceContext, rawInput: unknown, options: { pending?: boolean } = {}): Promise<AppointmentDto> {
   assertCan(ctx.role, "appointment", "create");
   const input = parseInput(appointmentInputSchema, rawInput);
   const { dentist, procedure } = await loadBookingTargets(ctx, input);
@@ -110,6 +111,7 @@ export async function bookAppointment(ctx: ServiceContext, rawInput: unknown): P
           startsAt,
           endsAt,
           createdById: ctx.userId,
+          ...(options.pending ? { status: "PENDING" as const, source: "WHATSAPP" as const } : {}),
         },
         include,
       });
@@ -144,6 +146,11 @@ export async function changeAppointmentStatus(
   const updated = await ctx.db.$transaction(async (tx) => {
     const row = await tx.appointment.update({ where: { id }, data: { status: to }, include });
     await syncReminders(tx, { ...row, reactivateAfterMonths: row.procedure.reactivateAfterMonths }, ctx.now(), settings);
+    // Approving a request that came over WhatsApp also confirms the new patient, or no reminder could reach them.
+    if (current.status === "PENDING" && to === "SCHEDULED") {
+      const confirmed = await tx.patient.updateMany({ where: { id: row.patient.id, status: "PENDING" }, data: { status: "CONFIRMED" } });
+      if (confirmed.count > 0) await recordAudit(tx, ctx, { action: "PATIENT_CONFIRMED", patientId: row.patient.id, entityId: row.patient.id });
+    }
     await recordAudit(tx, ctx, {
       action: "APPOINTMENT_STATUS_CHANGED",
       patientId: row.patient.id,

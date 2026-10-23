@@ -78,11 +78,11 @@ export default async function PendentesPage() {
                 <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${item.reason === "URGENT" ? "bg-destructive" : "bg-warning"}`} />
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2 font-medium">
-                    <span className="truncate">{item.patient.name}</span>
+                    <span className="truncate">{item.patient?.name ?? "Contato novo"}</span>
                     {item.reason === "URGENT" ? <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-semibold text-destructive">Urgente</span> : null}
                   </p>
                   <p className="text-sm break-words whitespace-pre-wrap">{item.text}</p>
-                  <p className="text-sm text-muted-foreground tabular-nums">Responda por aqui ou ligue: {formatBrPhone(item.patient.phoneE164)}</p>
+                  <p className="text-sm text-muted-foreground tabular-nums">Responda por aqui ou ligue: {formatBrPhone(item.phoneE164)}</p>
                 </div>
                 <ConfirmButton label="Marcar como respondida" action={markInboxHandledAction.bind(null, item.id)} />
               </StaggerItem>
@@ -190,6 +190,9 @@ export default async function PendentesPage() {
                     {formatDayLong(appointment.startsAt.slice(0, 10))} · {formatTime(appointment.startsAt)} ·{" "}
                     {appointment.dentist.name} · {appointment.procedure.name}
                   </p>
+                  {appointment.source === "WHATSAPP" ? (
+                    <p className="text-sm text-muted-foreground tabular-nums">Pedido pelo WhatsApp: {formatBrPhone(appointment.patient.phoneE164)}</p>
+                  ) : null}
                 </div>
                 <div className="flex gap-2">
                   <ConfirmButton label="Recusar" variant="ghost" action={rejectAppointmentAction.bind(null, appointment.id)} />

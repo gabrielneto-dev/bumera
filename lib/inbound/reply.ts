@@ -7,7 +7,8 @@ export type ReplyKind =
   | "REPLY_INTERESTED"
   | "REPLY_DECLINED"
   | "REPLY_HANDOFF"
-  | "REPLY_AI";
+  | "REPLY_AI"
+  | "REPLY_FLOW";
 type ReplyDb = Pick<ScopedPrisma, "reminder">;
 /** What a reply is about: an appointment, a quote or a patient's own message, inside one clinic. */
 export type ReplySubject = { organizationId: string } & ({ appointmentId: string } | { quoteId: string } | { inboundMessageId: string });
@@ -43,5 +44,19 @@ export async function queueReply(db: ReplyDb, subject: ReplySubject, kind: Reply
     where: { inboundMessageId_kind: { inboundMessageId, kind } },
     update: {},
     create: { organizationId, inboundMessageId, kind, dueAt: now, ...body },
+  });
+}
+
+/** One turn of the booking conversation, answering one inbound message (a repeated delivery is answered once). */
+export async function queueFlowReply(
+  db: ReplyDb,
+  turn: { organizationId: string; conversationId: string; replyToMessageId: string; text: string },
+  now: Date,
+): Promise<void> {
+  const { organizationId, conversationId, replyToMessageId, text } = turn;
+  await db.reminder.upsert({
+    where: { conversationId_replyToMessageId: { conversationId, replyToMessageId } },
+    update: {},
+    create: { organizationId, conversationId, replyToMessageId, kind: "REPLY_FLOW", dueAt: now, text },
   });
 }

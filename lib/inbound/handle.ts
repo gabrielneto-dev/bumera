@@ -2,6 +2,8 @@ import type { PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { recordAudit } from "@/lib/audit";
 import { phoneCandidates, type InboundMessage } from "@/lib/inbound/evolution";
 import type { AiClient, AiContext } from "@/lib/ai/types";
+import { closeOpenConversations, continueConversation, findOpenConversation, startConversation } from "@/lib/booking/conversation";
+import { looksLikeBookingRequest } from "@/lib/booking/text";
 import { receiveFreeText } from "@/lib/inbound/free-text";
 import { parseIntent } from "@/lib/inbound/intent";
 import { queueReply, type ReplyKind } from "@/lib/inbound/reply";
@@ -17,7 +19,8 @@ export interface ClinicMessage extends InboundMessage {
 export type InboundOutcome =
   | { outcome: "CONFIRMED" | "RESCHEDULE_REQUESTED" | "INTERESTED" | "DECLINED"; appointmentId?: string; quoteId?: string }
   | { outcome: "OPTED_OUT"; patients: number }
-  | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "UNKNOWN_INSTANCE" | "IGNORED" | "HANDOFF" | "ANSWERED_BY_AI" };
+  | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "UNKNOWN_INSTANCE" | "IGNORED" | "HANDOFF" | "ANSWERED_BY_AI" | "CONVERSATION" }
+  | { outcome: "BOOKING_REQUESTED"; appointmentId: string };
 
 /** Injected in tests; by default the AI client is built from the clinic's saved key (none = no AI). */
 export interface InboundDeps {
@@ -47,13 +50,38 @@ export async function handleInboundMessage(
     select: { id: true, doNotContact: true },
     orderBy: { createdAt: "asc" },
   });
-  if (patients.length === 0) return { outcome: "UNKNOWN_PATIENT" };
+  const phones = phoneCandidates(message.phoneE164);
+  const settings = await prisma.clinicSettings.findUnique({ where: { organizationId: message.organizationId }, select: { bookingEnabled: true } });
+  const bookingEnabled = settings?.bookingEnabled ?? true;
+
+  if (patients.length === 0) {
+    // A first contact. Opting out means nothing for someone we hold no record of; anyone else is welcomed.
+    if (intent === "OPT_OUT") {
+      await closeOpenConversations(prisma, message.organizationId, phones);
+      return { outcome: "UNKNOWN_PATIENT" };
+    }
+    if (!bookingEnabled) return { outcome: "UNKNOWN_PATIENT" };
+    const open = await findOpenConversation(prisma, message.organizationId, phones, now);
+    return open ? continueConversation(prisma, message, open, now) : startConversation(prisma, message, null, now);
+  }
   const patientIds = patients.map((patient) => patient.id);
 
+  if (intent === "OPT_OUT") {
+    const result = await optOut(prisma, message.organizationId, patientIds, now);
+    await closeOpenConversations(prisma, message.organizationId, phones);
+    return result;
+  }
+
+  // An open booking conversation owns the numbers: "1" is a menu choice there, not a confirmation.
+  const open = bookingEnabled ? await findOpenConversation(prisma, message.organizationId, phones, now) : null;
+  if (open) return continueConversation(prisma, message, open, now);
+
   if (intent === "UNKNOWN") {
-    // Free text: kept for the secretary, unless the patient asked not to be contacted at all.
+    // Free text: a request to book starts the dialog; anything else is kept for the secretary, unless the
+    // patient asked not to be contacted at all.
     const reachable = patients.find((patient) => !patient.doNotContact);
     if (!reachable) return { outcome: "IGNORED" };
+    if (bookingEnabled && looksLikeBookingRequest(message.text)) return startConversation(prisma, message, reachable, now);
     return receiveFreeText(prisma, message, reachable.id, now, {
       ai: deps.ai,
       apply: (aiIntent) => applyIntent(prisma, message, aiIntent, patientIds, now),
