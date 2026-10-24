@@ -96,6 +96,7 @@ model Organization {
   auditLogs       AuditLog[]
   inboundMessages InboundMessage[]
   conversations   Conversation[]
+  inboundBuffers  InboundBuffer[]
 
   @@unique([slug])
   @@map("organization")
@@ -586,4 +587,21 @@ model Conversation {
   @@index([organizationId, status])
   @@index([status, expiresAt])
   @@map("conversation")
+}
+
+/// Messages waiting a few seconds so a person who writes several in a row gets one answer; deleted when processed.
+model InboundBuffer {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  instance       String
+  phoneE164      String
+  /// Evolution's message id: the same delivery repeated is recognized and ignored.
+  messageId      String
+  text           String
+  receivedAt     DateTime     @default(now())
+
+  @@unique([organizationId, messageId])
+  @@index([receivedAt])
+  @@map("inbound_buffer")
 }

@@ -7,12 +7,12 @@
           "interval": [
             {
               "field": "minutes",
-              "minutesInterval": 5
+              "minutesInterval": 1
             }
           ]
         }
       },
-      "name": "A cada 5 minutos",
+      "name": "A cada minuto",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
@@ -161,7 +161,7 @@
     }
   ],
   "connections": {
-    "A cada 5 minutos": {
+    "A cada minuto": {
       "main": [
         [
           {

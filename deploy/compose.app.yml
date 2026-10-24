@@ -49,6 +49,8 @@ services:
       # Module 4 (optional): without both of these the AI assistant does not exist and free text goes to the secretary.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-}
+      # A person who writes several messages in a row is answered once, after this many ms of quiet.
+      INBOUND_BUFFER_MS: "8000"
     ports:
       - "127.0.0.1:3000:3000"
     mem_limit: 512m

@@ -64,6 +64,29 @@ describe("POST /api/webhooks/evolution/[token]", () => {
     expect((await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } })).status).toBe("CONFIRMED");
   });
 
+  it("holds the message while the buffer is on, and answers it when the timer runs", async () => {
+    vi.stubEnv("INBOUND_BUFFER_MS", "8000");
+    const delays: number[] = [];
+    const realSetTimeout = globalThis.setTimeout;
+    const timeout = vi.spyOn(globalThis, "setTimeout").mockImplementation(((callback: () => void, delay?: number) => {
+      // The flush is held back; anything else (database drivers) runs as usual.
+      if (delay === 8250) {
+        delays.push(delay);
+        return 0 as unknown as ReturnType<typeof setTimeout>;
+      }
+      return realSetTimeout(callback, delay);
+    }) as typeof setTimeout);
+
+    const response = await call(payload("1"));
+
+    expect(await response.json()).toMatchObject({ success: true, data: { outcome: "BUFFERED" } });
+    expect((await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } })).status).toBe("SCHEDULED");
+    expect(await prisma.inboundBuffer.count()).toBe(1);
+    expect(delays).toEqual([8250]);
+    timeout.mockRestore();
+    vi.stubEnv("INBOUND_BUFFER_MS", "");
+  });
+
   it("acknowledges events it ignores so Evolution does not retry them", async () => {
     const response = await call({ event: "connection.update", data: {} });
     expect(response.status).toBe(200);

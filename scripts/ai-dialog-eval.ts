@@ -56,6 +56,8 @@ const TURN_CASES: TurnCase[] = [
 ];
 
 const PHRASE_CASES: Array<Omit<AiPhraseInput, "clinicName" | "retry" | "slotTaken"> & { retry?: boolean; slotTaken?: boolean; person?: string }> = [
+  { goal: "ask_open", facts: ["A atendente também responde dúvidas sobre endereço, horários e formas de pagamento"], required: [], greet: true, hasPatient: false },
+  { goal: "ask_open", facts: [], required: [], greet: false, hasPatient: false },
   { goal: "ask_procedure", facts: [`Procedimentos oferecidos: ${PROCEDURES.join("; ")}`], required: [], greet: true, hasPatient: false },
   { goal: "ask_who", facts: [], required: [], greet: false, hasPatient: false },
   { goal: "ask_person", facts: [], required: [], greet: false, hasPatient: false },

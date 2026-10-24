@@ -1,10 +1,12 @@
 import { fail, failFrom, ok } from "@/lib/api-response";
 import { parseEvolutionMessage } from "@/lib/inbound/evolution";
+import { bufferMessage, bufferQuietMs, flushBuffered } from "@/lib/inbound/buffer";
 import { handleInboundMessage } from "@/lib/inbound/handle";
 import { prisma } from "@/lib/prisma";
 import { checkWebhookToken, configuredWebhookToken } from "@/lib/webhook-auth";
 
 const MAX_BODY_BYTES = 64 * 1024;
+const FLUSH_MARGIN_MS = 250;
 
 /**
  * Evolution API delivers WhatsApp events here. The secret in the URL identifies the sender.
@@ -35,7 +37,17 @@ export async function POST(request: Request, context: { params: Promise<{ token:
       select: { organizationId: true },
     });
     if (!clinic) return ok({ outcome: "UNKNOWN_INSTANCE" });
-    return ok(await handleInboundMessage(prisma, { ...message, organizationId: clinic.organizationId }, new Date()));
+    const clinicMessage = { ...message, organizationId: clinic.organizationId };
+    const quietMs = bufferQuietMs();
+    if (quietMs === 0) return ok(await handleInboundMessage(prisma, clinicMessage, new Date()));
+
+    // Wait for the person to stop writing, then answer everything at once. The poll in /due also flushes, so a
+    // restart between now and then loses nothing.
+    await bufferMessage(prisma, clinicMessage, new Date());
+    setTimeout(() => {
+      flushBuffered(prisma, new Date(), quietMs).catch((error: unknown) => console.error("inbound buffer flush failed", error instanceof Error ? error.message : error));
+    }, quietMs + FLUSH_MARGIN_MS);
+    return ok({ outcome: "BUFFERED" });
   } catch (error) {
     return failFrom(error);
   }

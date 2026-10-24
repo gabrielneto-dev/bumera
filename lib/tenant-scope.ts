@@ -24,6 +24,7 @@ const TENANT_MODELS: ReadonlySet<string> = new Set([
   "AuditLog",
   "InboundMessage",
   "Conversation",
+  "InboundBuffer",
 ]);
 
 const FILTER_OPERATIONS: ReadonlySet<string> = new Set([
