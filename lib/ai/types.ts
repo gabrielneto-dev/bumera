@@ -66,7 +66,7 @@ export interface AiTurn {
   confidence: number;
 }
 
-export type PhraseGoal = "ask_procedure" | "ask_who" | "ask_person" | "ask_name" | "ask_contact_name" | "offer_slots" | "confirm" | "requested";
+export type PhraseGoal = "ask_open" | "ask_procedure" | "ask_who" | "ask_person" | "ask_name" | "ask_contact_name" | "offer_slots" | "confirm" | "requested";
 
 export interface AiPhraseInput {
   clinicName: string;

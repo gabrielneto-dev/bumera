@@ -103,6 +103,7 @@ Proibido: oferecer opções numeradas, pedir "responda com o número", usar díg
 Use apenas os "fatos" fornecidos. Copie cada item de "textos_obrigatorios" exatamente como está. Para citar o paciente use {{PACIENTE}} (só quando permitido).`;
 
 const GOAL_TEXT: Record<PhraseGoal, string> = {
+  ask_open: "A pessoa só cumprimentou. Cumprimente de volta, apresente-se e pergunte de forma aberta em que pode ajudar, indicando os caminhos: marcar uma consulta e (somente se os fatos disserem) tirar dúvidas. Não peça procedimento nem nome ainda.",
   ask_procedure: "Pergunte qual procedimento a pessoa procura, citando as opções dos fatos de forma natural (sem numerar).",
   ask_who: "Pergunte se a consulta é para a própria pessoa ou para outra (por exemplo um filho ou familiar).",
   ask_person: "Pergunte o nome completo de quem será atendido.",

@@ -5,7 +5,7 @@ import type { AiClient, SlotPreference, AiPhraseInput, AiTurn, AiTurnInput } fro
 import { trusted, validateAnswer, validatePhrase } from "@/lib/booking/fluid";
 import * as say from "@/lib/booking/messages";
 import { findNextSlots, type SlotOption } from "@/lib/booking/slots";
-import { cleanName, detectWhom, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
+import { cleanName, detectWhom, isGreeting, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { AppError } from "@/lib/errors";
 import { phoneCandidates } from "@/lib/inbound/evolution";
@@ -151,9 +151,11 @@ export async function startConversation(prisma: PrismaClient, message: ClinicMes
   const procedures = await listProcedures(prisma, organizationId);
   const turn = await openTurn(prisma, message, now, ai, null);
   // One procedure to offer, or the first message already names exactly one: no need to ask.
-  let procedureId = procedures.length === 1 ? (procedures[0]?.id ?? null) : matchProcedure(message.text, procedures);
-  let whom = detectWhom(message.text);
-  if (procedures.length > 0 && (procedureId === null || whom === null)) {
+  // A plain hello asks nothing yet: it gets an open question, not the first step of a form.
+  const greeting = isGreeting(message.text);
+  let procedureId = greeting ? null : procedures.length === 1 ? (procedures[0]?.id ?? null) : matchProcedure(message.text, procedures);
+  let whom = greeting ? null : detectWhom(message.text);
+  if (!greeting && procedures.length > 0 && (procedureId === null || whom === null)) {
     const hint = await understand(turn, { step: "PROCEDURE", forSelf: null }, { procedures: procedures.map((item) => item.name), chosenProcedure: null, slots: { items: [], hasMore: false } });
     procedureId ??= hintedProcedure(hint, procedures);
     whom ??= hint?.whom ?? null;
@@ -180,6 +182,7 @@ export async function startConversation(prisma: PrismaClient, message: ClinicMes
   }
   if (isUrgent(message.text)) return handOff(turn, created, "Pediu para marcar, mas a mensagem parece urgente", undefined, "URGENT");
   if (procedures.length === 0) return handOff(turn, created, "Pediu para marcar uma consulta (sem procedimentos cadastrados)");
+  if (greeting) return reply(turn, created, await speak(turn, created, { open: true }));
   return prompt(turn, created);
 }
 
@@ -198,6 +201,12 @@ export async function continueConversation(prisma: PrismaClient, message: Clinic
 
   if (choice === 0 || HUMAN_REQUEST.test(normalize(text))) return handOff(turn, conversation, "Pediu para falar com a equipe durante o agendamento");
   if (isUrgent(text)) return handOff(turn, conversation, "Escreveu algo urgente durante o agendamento", undefined, "URGENT");
+
+  // Another hello is not a wrong answer: ask the same thing again, kindly, without counting a miss.
+  if (choice === null && isGreeting(text)) {
+    const next = await turn.prisma.conversation.update({ where: { id: conversation.id }, data: { lastMessageId: message.messageId, expiresAt: new Date(now.getTime() + CONVERSATION_TTL_MS) } });
+    return reply(turn, next, await speak(turn, next, { open: next.step === "PROCEDURE" && next.procedureId === null }));
+  }
 
   // A bare number answers a menu; a plain name answers a name question. Anything else is read by the AI, if the clinic has one.
   const isPlainName = (conversation.step === "PERSON" || conversation.step === "NAME") && cleanName(text) !== null && !QUESTION_WORD.test(normalize(text));
@@ -230,6 +239,11 @@ async function onProcedure(turn: Turn, conv: Conversation, procedures: Array<{ i
   const procedureId = choice && choice >= 1 && choice <= procedures.length ? procedures[choice - 1]?.id : (matchProcedure(text, procedures as Array<{ id: string; name: string }>) ?? hintedProcedure(hint, procedures));
   const whom = conv.forSelf === null ? (detectWhom(text) ?? hint?.whom ?? null) : null;
   const patch: Prisma.ConversationUncheckedUpdateInput = {};
+  // "Quero marcar" with nothing else: the one procedure the clinic offers, or the list to pick from.
+  if (!procedureId && choice === null && looksLikeBookingRequest(text)) {
+    if (procedures.length === 1) patch.procedureId = (procedures[0] as { id: string }).id;
+    else return prompt(turn, await advance(turn, conv, {}));
+  }
   if (procedureId) patch.procedureId = procedureId;
   if (whom) patch.forSelf = whom === "self";
   if (Object.keys(patch).length === 0) return stuck(turn, conv);
@@ -397,7 +411,7 @@ interface Spoken {
 }
 
 /** The next message of the dialog for the conversation's current step: written by the AI when possible, fixed otherwise. */
-async function speak(turn: Turn, conv: Conversation, options: { retry?: boolean; slotTaken?: boolean; unmatched?: boolean; done?: boolean; person?: string } = {}): Promise<string> {
+async function speak(turn: Turn, conv: Conversation, options: { retry?: boolean; slotTaken?: boolean; unmatched?: boolean; done?: boolean; open?: boolean; person?: string } = {}): Promise<string> {
   const spoken = await spokenFor(turn, conv, options);
   const fallback = options.retry ? `${say.notUnderstood()}\n\n${spoken.fallback}` : spoken.fallback;
   let text = fallback;
@@ -423,9 +437,13 @@ async function speak(turn: Turn, conv: Conversation, options: { retry?: boolean;
   return turn.aside ? `${turn.aside}\n\n${text}` : text;
 }
 
-async function spokenFor(turn: Turn, conv: Conversation, options: { slotTaken?: boolean; unmatched?: boolean; done?: boolean; person?: string }): Promise<Spoken> {
+async function spokenFor(turn: Turn, conv: Conversation, options: { slotTaken?: boolean; unmatched?: boolean; done?: boolean; open?: boolean; person?: string }): Promise<Spoken> {
   if (options.done) {
     return { goal: "requested", facts: options.person ? ["O pedido é para outra pessoa: o paciente é {{PACIENTE}}"] : [], fallback: say.requested(turn.clinic, options.person), person: options.person };
+  }
+  if (options.open) {
+    const canAnswer = turn.ai !== null && turn.info.trim() !== "";
+    return { goal: "ask_open", facts: canAnswer ? ["A atendente também responde dúvidas sobre endereço, horários e formas de pagamento"] : [], fallback: say.openQuestion(turn.clinic, canAnswer) };
   }
   switch (conv.step) {
     case "PROCEDURE": {

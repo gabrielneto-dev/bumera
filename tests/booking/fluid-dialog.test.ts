@@ -14,6 +14,8 @@ const INFO = "Rua das Flores, 100. Abrimos de segunda a sexta, das 8h às 18h.";
 const writer = (input: AiPhraseInput): string => {
   const times = input.required.map((time) => `• *${time}*`).join("\n");
   switch (input.goal) {
+    case "ask_open":
+      return "Oi! Aqui é o atendimento da clínica 😊 Em que posso te ajudar?";
     case "ask_procedure":
       return "Oi! Aqui é o atendimento da clínica 😊 Você procura avaliação ou clareamento?";
     case "ask_who":
@@ -131,6 +133,30 @@ describe("fluid booking dialog (AI reads and writes)", () => {
     expect(await lastReply()).toContain("Não encontrei horário livre nesse dia ou período");
     expect(await conversation()).toMatchObject({ step: "SLOT" });
     expect(((await conversation()).slotOptions as { prefer?: unknown }).prefer).toBeUndefined();
+  });
+
+  it("answers a plain hello with an open question, then moves on when the person says what they want", async () => {
+    const ai = fakeAi(undefined, { phrase: writer, turn: { procedure: 1, whom: "self" } });
+    await say("Oi, boa noite", ai);
+    expect(await conversation()).toMatchObject({ step: "PROCEDURE", procedureId: null, forSelf: null, misses: 0 });
+    expect(await lastReply()).toBe("Oi! Aqui é o atendimento da clínica 😊 Em que posso te ajudar?");
+
+    await say("Oi", ai);
+    expect(await conversation()).toMatchObject({ step: "PROCEDURE", misses: 0 });
+    expect(await lastReply()).toContain("Em que posso te ajudar?");
+
+    await say("queria agendar uma avaliação", ai);
+    expect(await conversation()).toMatchObject({ step: "NAME", forSelf: true });
+  });
+
+  it("uses a fixed open question when there is no AI, and shows the procedures after 'agendar'", async () => {
+    await say("Olá", null);
+    expect(await lastReply()).toContain("Em que posso te ajudar?");
+    expect(await lastReply()).toContain("*agendar*");
+
+    await say("agendar", null);
+    expect(await conversation()).toMatchObject({ step: "PROCEDURE", misses: 0 });
+    expect(await lastReply()).toContain("Qual procedimento você procura?");
   });
 
   it("does not read a name with the AI, and keeps the patient's name away from it", async () => {

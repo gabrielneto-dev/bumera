@@ -243,7 +243,7 @@ describe("booking conversation", () => {
 
   describe("delivery and approval", () => {
     it("hands each turn to n8n as the text the app built", async () => {
-      await say("oi");
+      await say("quero agendar");
 
       const [due] = await claimDueReminders(prisma, { now: NOW });
 

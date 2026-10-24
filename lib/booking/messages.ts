@@ -13,6 +13,14 @@ export function procedureMenu(clinicName: string, procedures: ReadonlyArray<{ na
   return join(...[welcome, `Qual procedimento você procura?\n${options}`, OPTION_TALK].filter(Boolean));
 }
 
+/** The first answer to a plain hello: an open question that points to what the clinic can do. */
+export function openQuestion(clinicName: string, canAnswer: boolean): string {
+  const help = canAnswer
+    ? "Posso te ajudar a marcar uma consulta ou tirar dúvidas sobre endereço, horários e formas de pagamento."
+    : "Para marcar uma consulta, é só escrever *agendar*. Para falar com a equipe, escreva *0*.";
+  return join(`Olá! Aqui é o atendimento da *${clean(clinicName)}* 😊`, "Em que posso te ajudar?", help);
+}
+
 export const askWho = (): string =>
   join("A consulta é para você ou para outra pessoa?", "*1* Para mim\n*2* Para outra pessoa (filho, familiar…)", OPTION_TALK);
 

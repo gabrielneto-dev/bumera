@@ -62,15 +62,15 @@ describe("messages the keywords do not explain", () => {
   });
 
   it("recognizes the same delivery repeated and does not answer twice", async () => {
-    await receive("Oi", "dup");
-    expect(await receive("Oi", "dup")).toEqual({ outcome: "IGNORED" });
+    await receive("vai demorar?", "dup");
+    expect(await receive("vai demorar?", "dup")).toEqual({ outcome: "IGNORED" });
 
     expect(await prisma.inboundMessage.count()).toBe(1);
     expect(await prisma.reminder.count({ where: { kind: "REPLY_HANDOFF" } })).toBe(1);
   });
 
   it("welcomes a stranger and keeps no patient record for them until they ask for an appointment", async () => {
-    const result = await handleInboundMessage(prisma, { instance: "x", organizationId: clinicA, phoneE164: "+5511900000000", text: "Oi", messageId: "s1" }, NOW);
+    const result = await handleInboundMessage(prisma, { instance: "x", organizationId: clinicA, phoneE164: "+5511900000000", text: "vai demorar?", messageId: "s1" }, NOW);
 
     // The clinic in this test has no procedures, so the dialog hands the contact to the secretary with their phone.
     expect(result).toEqual({ outcome: "HANDOFF" });
@@ -86,7 +86,7 @@ describe("messages the keywords do not explain", () => {
   });
 
   it("hands the acknowledgement to n8n with a fixed, polite text", async () => {
-    await receive("Oi, tudo bem?");
+    await receive("vai demorar para atender?");
 
     const [due] = await claimDueReminders(prisma, { now: NOW });
 

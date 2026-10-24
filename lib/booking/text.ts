@@ -73,3 +73,14 @@ export function detectWhom(text: string): "self" | "other" | null {
   if (FOR_OTHER.test(normalized)) return "other";
   return FOR_SELF.test(normalized) ? "self" : null;
 }
+
+const GREETING_WORDS = new Set(["oi", "oii", "oiii", "oie", "ola", "opa", "eae", "e", "ai", "bom", "boa", "dia", "tarde", "noite", "tudo", "bem", "td", "tranquilo", "hey", "hello", "salve", "fala", "como", "vai", "voce", "vcs", "ola"]);
+const GREETING_CORE = new Set(["oi", "oii", "oiii", "oie", "ola", "opa", "eae", "bom", "boa", "hey", "hello", "salve", "tudo", "td"]);
+const MAX_GREETING_WORDS = 5;
+
+/** A message that only says hello ("Oi", "Olá, boa noite", "tudo bem?"): nothing is being asked yet. */
+export function isGreeting(text: string): boolean {
+  const words = wordsOf(text);
+  if (words.length === 0 || words.length > MAX_GREETING_WORDS) return false;
+  return words.every((word) => GREETING_WORDS.has(word)) && words.some((word) => GREETING_CORE.has(word));
+}

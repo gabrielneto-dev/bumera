@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanName, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
+import { cleanName, isGreeting, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
 
 const procedures = [
   { id: "p1", name: "Avaliação" },
@@ -68,5 +68,15 @@ describe("cleanName", () => {
 
   it("removes formatting and links a person could smuggle in", () => {
     expect(cleanName("*Ana* _Souza_ www.evil.example")).toBe("Ana Souza");
+  });
+});
+
+describe("isGreeting", () => {
+  it.each(["Oi", "oi!", "Olá", "Oi, boa noite", "bom dia", "boa tarde, tudo bem?", "e aí, tudo bem", "opa"])("sees %j as only a hello", (text) => {
+    expect(isGreeting(text)).toBe(true);
+  });
+
+  it.each(["", "oi, quero marcar uma limpeza", "boa noite, vocês atendem sábado?", "bem", "quero agendar", "1", "sim"])("does not treat %j as only a hello", (text) => {
+    expect(isGreeting(text)).toBe(false);
   });
 });

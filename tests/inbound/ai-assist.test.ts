@@ -171,8 +171,8 @@ describe("AI assistant on free-text messages", () => {
     });
 
     it("keeps the message for the secretary when the AI fails", async () => {
-      expect(await receive("bom dia", fakeAi(new Error("provider down")))).toMatchObject({ outcome: "HANDOFF" });
-      expect(await inbound()).toMatchObject({ status: "OPEN", reason: "AI_UNAVAILABLE", text: "bom dia" });
+      expect(await receive("vai demorar?", fakeAi(new Error("provider down")))).toMatchObject({ outcome: "HANDOFF" });
+      expect(await inbound()).toMatchObject({ status: "OPEN", reason: "AI_UNAVAILABLE", text: "vai demorar?" });
       expect(await prisma.reminder.count({ where: { kind: "REPLY_HANDOFF" } })).toBe(1);
     });
 
@@ -189,8 +189,8 @@ describe("AI assistant on free-text messages", () => {
 
     it("asks the AI once for a message delivered twice", async () => {
       const ai = fakeAi({ intent: "OTHER", confidence: 0.9, answer: null });
-      await receive("bom dia", ai, "dup");
-      expect(await receive("bom dia", ai, "dup")).toEqual({ outcome: "IGNORED" });
+      await receive("vai demorar?", ai, "dup");
+      expect(await receive("vai demorar?", ai, "dup")).toEqual({ outcome: "IGNORED" });
       expect(ai.calls).toHaveLength(1);
     });
 
