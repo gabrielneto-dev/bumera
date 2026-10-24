@@ -31,3 +31,10 @@ related: [CTX-NTE-20261024-ai-assistant-and-inbox, CTX-DEC-20261024-ai-booking-r
 - A regex de "falar com humano" tratava "outra pessoa" como pedido de atendente.
 - Enum do Postgres criado e usado na mesma migration (CHECK com `REPLY_AI`): CHECK simplificado, regra no código.
 - Com `reasoning` ligado o Haiku cortava o JSON por falta de tokens: desligado nas chamadas.
+
+## Preferência de dia/período (commits 856d606, 938bb8f, df864dd)
+- `understandTurn` devolve também `prefer` (`SlotPreference`: `weekdays` 0-6 com 0=domingo, `period` morning|afternoon, `fromHour` 0-23). A IA só diz o que a pessoa pediu; quem escolhe horários é `findNextSlots(..., preference)` com `matchesPreference` (`lib/booking/slots.ts`), sempre sobre horários livres reais.
+- Em `conversation.ts`: no passo SLOT, sem horário escolhido e com `prefer`, oferece de novo (offset 0) filtrado; no CONFIRM, "não, prefiro de manhã" volta aos horários filtrados. A preferência fica em `slotOptions.prefer` (JSON, sem migration) para "ver outros" continuar dentro dela. Sem horário livre como pedido: texto `noMatch` e os mais próximos sem filtro (facts avisam a IA).
+- Regra do prompt: se a mensagem aponta UM horário oferecido ("terça de manhã" com um só horário assim), vale `slot`, `prefer` fica nulo. Sem isso o Haiku tratava como preferência.
+- Avaliação real (Haiku 5.5, `scripts/ai-dialog-eval.ts`, 29 casos de leitura): 29/29 e escrita 36/36. Rodar: `export OPENROUTER_API_KEY` (a chave é do usuário, nunca guardar no repositório) e `npx tsx scripts/ai-dialog-eval.ts --models anthropic/claude-haiku-5.5`; ou no servidor com `--from-db` (chave salva da clínica).
+- Deploy em produção do df864dd em 2026-10-24 (sem migration). 723 testes, ~96,9% de cobertura.
