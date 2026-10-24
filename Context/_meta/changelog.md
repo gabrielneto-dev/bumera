@@ -59,3 +59,6 @@
 
 ## 2026-10-22 (LGPD features save)
 - LGPD features note, checklist update, checkpoint, STATE, plan and indexes.
+
+## 2026-10-24 (module 4 save)
+- AI assistant/inbox note, booking dialog note, AI booking rules decision, checkpoint, STATE and indexes.
