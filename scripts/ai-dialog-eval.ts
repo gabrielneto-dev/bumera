@@ -20,7 +20,7 @@ const atConfirm = { slots: SLOTS, hasMoreSlots: true, chosenProcedure: "Limpeza"
 
 interface TurnCase {
   input: Partial<AiTurnInput> & Pick<AiTurnInput, "step" | "message">;
-  expect: Partial<AiTurn> & { answered?: boolean };
+  expect: Partial<Omit<AiTurn, "prefer">> & { answered?: boolean; prefer?: AiTurn["prefer"] };
 }
 
 const TURN_CASES: TurnCase[] = [
@@ -37,7 +37,14 @@ const TURN_CASES: TurnCase[] = [
   { input: { step: "SLOT", message: "o das 15h", ...atSlots }, expect: { slot: 2 } },
   { input: { step: "SLOT", message: "terça", ...atSlots }, expect: { slot: null } },
   { input: { step: "SLOT", message: "tem outros horários?", ...atSlots }, expect: { slot: "more" } },
-  { input: { step: "SLOT", message: "nenhum serve, só posso sexta", ...atSlots }, expect: { slot: "more" } },
+  { input: { step: "SLOT", message: "nenhum serve, só posso sexta", ...atSlots }, expect: { slot: null, prefer: { weekdays: [5] } } },
+  { input: { step: "SLOT", message: "só consigo à tarde", ...atSlots }, expect: { slot: null, prefer: { period: "afternoon" } } },
+  { input: { step: "SLOT", message: "tem de manhã na quinta ou na sexta?", ...atSlots }, expect: { slot: null, prefer: { weekdays: [4, 5], period: "morning" } } },
+  { input: { step: "SLOT", message: "só depois das 17h", ...atSlots }, expect: { slot: null, prefer: { fromHour: 17 } } },
+  { input: { step: "SLOT", message: "prefiro sábado de manhã", ...atSlots }, expect: { slot: null, prefer: { weekdays: [6], period: "morning" } } },
+  { input: { step: "CONFIRM", message: "melhor outro dia, de preferência à tarde", ...atConfirm }, expect: { prefer: { period: "afternoon" } } },
+  { input: { step: "SLOT", message: "pode ser a terça de manhã", ...atSlots }, expect: { slot: 1, prefer: null } },
+  { input: { step: "SLOT", message: "tem outros horários?", ...atSlots }, expect: { slot: "more", prefer: null } },
   { input: { step: "CONFIRM", message: "pode marcar", ...atConfirm }, expect: { confirm: "yes" } },
   { input: { step: "CONFIRM", message: "fechado, obrigada!", ...atConfirm }, expect: { confirm: "yes" } },
   { input: { step: "CONFIRM", message: "melhor não, deixa pra depois", ...atConfirm }, expect: { confirm: "no" } },
@@ -82,11 +89,19 @@ async function loadKey(): Promise<string> {
   return process.env.OPENROUTER_API_KEY;
 }
 
+const sameList = (a: readonly number[] = [], b: readonly number[] = []): boolean => [...a].sort().join() === [...b].sort().join();
+
+function samePreference(read: AiTurn["prefer"], wanted: AiTurn["prefer"]): boolean {
+  if (!read || !wanted) return read === wanted;
+  return sameList(read.weekdays, wanted.weekdays) && read.period === wanted.period && read.fromHour === wanted.fromHour;
+}
+
 function mismatches(read: AiTurn, expected: TurnCase["expect"]): string[] {
   const wrong: string[] = [];
   for (const key of ["procedure", "whom", "slot", "confirm", "human"] as const) {
     if (key in expected && read[key] !== expected[key]) wrong.push(`${key}: esperado ${String(expected[key])}, veio ${String(read[key])}`);
   }
+  if ("prefer" in expected && !samePreference(read.prefer, expected.prefer ?? null)) wrong.push(`prefer: esperado ${JSON.stringify(expected.prefer)}, veio ${JSON.stringify(read.prefer)}`);
   if (expected.answered !== undefined && Boolean(read.answer) !== expected.answered) wrong.push(`answer: esperado ${expected.answered ? "resposta" : "sem resposta"}, veio ${JSON.stringify(read.answer)}`);
   if (read.confidence < 0.8 && Object.keys(expected).some((key) => expected[key as keyof typeof expected] !== null && key !== "answered")) wrong.push(`confiança baixa (${read.confidence})`);
   return wrong;
