@@ -1,7 +1,7 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { clinicAi } from "@/lib/ai/clinic";
 import { maskPersonalData } from "@/lib/ai/mask";
-import type { AiClient, AiPhraseInput, AiTurn, AiTurnInput } from "@/lib/ai/types";
+import type { AiClient, SlotPreference, AiPhraseInput, AiTurn, AiTurnInput } from "@/lib/ai/types";
 import { trusted, validateAnswer, validatePhrase } from "@/lib/booking/fluid";
 import * as say from "@/lib/booking/messages";
 import { findNextSlots, type SlotOption } from "@/lib/booking/slots";
@@ -39,6 +39,8 @@ type Step = Conversation["step"];
 interface StoredSlots {
   items: SlotOption[];
   hasMore: boolean;
+  /** The day/time of day the person asked for; kept so "ver outros" stays within it. */
+  prefer?: SlotPreference;
 }
 
 /** Everything one incoming message needs while it is handled. */
@@ -267,7 +269,7 @@ async function onSlot(turn: Turn, conv: Conversation, choice: number | null, hin
   const offered = readSlots(conv);
   const picked = pickedSlot(offered, choice, hint, true);
   if (picked === "more") return offerSlots(turn, conv, conv.slotOffset + PAGE_SIZE);
-  if (picked === null) return stuck(turn, conv);
+  if (picked === null) return hint?.prefer ? offerSlots(turn, conv, 0, { prefer: hint.prefer }) : stuck(turn, conv);
   return confirmSlot(turn, conv, offered.items[picked - 1] as SlotOption);
 }
 
@@ -282,6 +284,7 @@ async function onConfirm(turn: Turn, conv: Conversation, choice: number | null, 
   // Naming another of the offered times instead of answering changes the choice.
   const other = decision === null ? pickedSlot(readSlots(conv), null, hint, false) : null;
   if (typeof other === "number") return confirmSlot(turn, conv, readSlots(conv).items[other - 1] as SlotOption);
+  if (typeof other !== "number" && hint?.prefer) return offerSlots(turn, conv, 0, { prefer: hint.prefer });
   if (decision === "no") {
     const next = await advance(turn, conv, { step: "SLOT", chosenStartsAt: null, chosenDentistId: null });
     return reply(turn, next, await speak(turn, next));
@@ -327,7 +330,7 @@ async function book(turn: Turn, conv: Conversation): Promise<InboundOutcome> {
   } catch (error) {
     if (error instanceof AppError && ["SLOT_TAKEN", "PAST_APPOINTMENT", "OUTSIDE_WORKING_HOURS"].includes(error.code)) {
       const refreshed = await prisma.conversation.update({ where: { id: conv.id }, data: { step: "SLOT", chosenStartsAt: null, chosenDentistId: null } });
-      return offerSlots(turn, refreshed, 0, true);
+      return offerSlots(turn, refreshed, 0, { slotTaken: true });
     }
     throw error;
   }
@@ -338,14 +341,23 @@ function readSlots(conv: Conversation): StoredSlots {
   return stored ?? { items: [], hasMore: false };
 }
 
-async function offerSlots(turn: Turn, conv: Conversation, offset: number, slotTaken = false): Promise<InboundOutcome> {
+async function offerSlots(turn: Turn, conv: Conversation, offset: number, options: { slotTaken?: boolean; prefer?: SlotPreference } = {}): Promise<InboundOutcome> {
   const system = makeSystemContext(turn.prisma, conv.organizationId, turn.now);
-  const page = await findNextSlots(system, { procedureId: conv.procedureId as string, offset, limit: PAGE_SIZE });
+  const asked = options.prefer ?? readSlots(conv).prefer;
+  const procedureId = conv.procedureId as string;
+  let prefer = asked;
+  let page = await findNextSlots(system, { procedureId, offset, limit: PAGE_SIZE, preference: prefer });
+  // Nothing free as asked: say so and show the nearest times instead of leaving the person with nothing.
+  const unmatched = page.slots.length === 0 && prefer !== undefined && offset === 0;
+  if (unmatched) {
+    prefer = undefined;
+    page = await findNextSlots(system, { procedureId, offset: 0, limit: PAGE_SIZE });
+  }
   if (page.slots.length === 0) {
     return handOff(turn, conv, "Pediu um horário, mas não há horários livres nos próximos dias", say.noSlots(turn.clinic));
   }
-  const next = await advance(turn, conv, { step: "SLOT", slotOffset: offset, slotOptions: { items: page.slots, hasMore: page.hasMore } as unknown as Prisma.InputJsonValue });
-  return reply(turn, next, await speak(turn, next, { slotTaken }));
+  const next = await advance(turn, conv, { step: "SLOT", slotOffset: offset, chosenStartsAt: null, chosenDentistId: null, slotOptions: { items: page.slots, hasMore: page.hasMore, ...(prefer ? { prefer } : {}) } as unknown as Prisma.InputJsonValue });
+  return reply(turn, next, await speak(turn, next, { slotTaken: options.slotTaken, unmatched }));
 }
 
 /** Saves the new state of the conversation and counts this message as seen. */
@@ -385,7 +397,7 @@ interface Spoken {
 }
 
 /** The next message of the dialog for the conversation's current step: written by the AI when possible, fixed otherwise. */
-async function speak(turn: Turn, conv: Conversation, options: { retry?: boolean; slotTaken?: boolean; done?: boolean; person?: string } = {}): Promise<string> {
+async function speak(turn: Turn, conv: Conversation, options: { retry?: boolean; slotTaken?: boolean; unmatched?: boolean; done?: boolean; person?: string } = {}): Promise<string> {
   const spoken = await spokenFor(turn, conv, options);
   const fallback = options.retry ? `${say.notUnderstood()}\n\n${spoken.fallback}` : spoken.fallback;
   let text = fallback;
@@ -411,7 +423,7 @@ async function speak(turn: Turn, conv: Conversation, options: { retry?: boolean;
   return turn.aside ? `${turn.aside}\n\n${text}` : text;
 }
 
-async function spokenFor(turn: Turn, conv: Conversation, options: { slotTaken?: boolean; done?: boolean; person?: string }): Promise<Spoken> {
+async function spokenFor(turn: Turn, conv: Conversation, options: { slotTaken?: boolean; unmatched?: boolean; done?: boolean; person?: string }): Promise<Spoken> {
   if (options.done) {
     return { goal: "requested", facts: options.person ? ["O pedido é para outra pessoa: o paciente é {{PACIENTE}}"] : [], fallback: say.requested(turn.clinic, options.person), person: options.person };
   }
@@ -432,9 +444,9 @@ async function spokenFor(turn: Turn, conv: Conversation, options: { slotTaken?: 
       const offered = readSlots(conv);
       return {
         goal: "offer_slots",
-        facts: [...offered.items.map(slotFact), offered.hasMore ? "Há mais horários, se nenhum desses servir." : "Não há outros horários além destes."],
+        facts: [...(options.unmatched ? ["Não havia horário livre no dia ou período pedido: estes são os mais próximos."] : []), ...offered.items.map(slotFact), offered.hasMore ? "Há mais horários, se nenhum desses servir." : "Não há outros horários além destes."],
         required: offered.items.map((slot) => formatSlot(slot.startsAt)),
-        fallback: say.slotMenu(offered.items, offered.hasMore, options.slotTaken ? say.slotTaken() : undefined),
+        fallback: say.slotMenu(offered.items, offered.hasMore, options.slotTaken ? say.slotTaken() : options.unmatched ? say.noMatch() : undefined),
         slotTaken: options.slotTaken,
       };
     }

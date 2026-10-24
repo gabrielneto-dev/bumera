@@ -74,9 +74,9 @@ describe("OpenRouter client", () => {
     };
 
     it("sends the numbered lists apart from the instructions and reads the fields", async () => {
-      const fetchMock = stubFetch(async () => reply({ procedure: null, whom: null, slot: 1, confirm: null, human: false, answer: null, confidence: 0.9 }));
+      const fetchMock = stubFetch(async () => reply({ procedure: null, whom: null, slot: 1, prefer: null, confirm: null, human: false, answer: null, confidence: 0.9 }));
 
-      expect(await client().understandTurn(turn)).toEqual({ procedure: null, whom: null, slot: 1, confirm: null, human: false, answer: null, confidence: 0.9 });
+      expect(await client().understandTurn(turn)).toEqual({ procedure: null, whom: null, slot: 1, prefer: null, confirm: null, human: false, answer: null, confidence: 0.9 });
 
       const messages = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body)).messages as Array<{ role: string; content: string }>;
       expect(messages[0]?.content).not.toContain("terça de manhã");
@@ -87,11 +87,18 @@ describe("OpenRouter client", () => {
 
     it("fills what the model leaves out and accepts 'more' times", async () => {
       stubFetch(async () => reply({ slot: "more", confidence: 0.85 }));
-      expect(await client().understandTurn(turn)).toEqual({ procedure: null, whom: null, slot: "more", confirm: null, human: false, answer: null, confidence: 0.85 });
+      expect(await client().understandTurn(turn)).toEqual({ procedure: null, whom: null, slot: "more", prefer: null, confirm: null, human: false, answer: null, confidence: 0.85 });
+    });
+
+    it("reads a day or period preference and drops an empty one", async () => {
+      stubFetch(async () => reply({ prefer: { weekdays: [4, 5, 4], period: "afternoon", fromHour: null }, confidence: 0.9 }));
+      expect((await client().understandTurn(turn)).prefer).toEqual({ weekdays: [4, 5], period: "afternoon", fromHour: undefined });
+      stubFetch(async () => reply({ prefer: { weekdays: [], period: null, fromHour: null }, confidence: 0.9 }));
+      expect((await client().understandTurn(turn)).prefer).toBeNull();
     });
 
     it("rejects nonsense", async () => {
-      for (const content of [{ slot: 0, confidence: 0.9 }, { confirm: "maybe", confidence: 0.9 }, { whom: "me", confidence: 0.9 }, { procedure: 1 }]) {
+      for (const content of [{ prefer: { weekdays: [9] }, confidence: 0.9 }, { slot: 0, confidence: 0.9 }, { confirm: "maybe", confidence: 0.9 }, { whom: "me", confidence: 0.9 }, { procedure: 1 }]) {
         stubFetch(async () => reply(content));
         await expect(client().understandTurn(turn)).rejects.toBeInstanceOf(AiError);
       }

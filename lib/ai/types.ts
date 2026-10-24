@@ -40,6 +40,15 @@ export interface AiTurnInput {
   forSelf: boolean | null;
 }
 
+/** Which of the free times a person would rather have. Every field is optional; an empty preference is null. */
+export interface SlotPreference {
+  /** Days of the week, 0 = Sunday ... 6 = Saturday. */
+  weekdays?: number[];
+  period?: "morning" | "afternoon";
+  /** Not before this hour (0-23), e.g. "depois das 16h". */
+  fromHour?: number;
+}
+
 /** What one free-text message of the booking dialog says. Every field is null/false when the message does not say it. */
 export interface AiTurn {
   /** Position (from 1) in the procedure list. */
@@ -48,6 +57,8 @@ export interface AiTurn {
   /** Position (from 1) in the offered times, or "more" to see other times. */
   slot: number | "more" | null;
   confirm: "yes" | "no" | null;
+  /** The day or time of day the person asks for instead of the times offered; null when they say none. */
+  prefer: SlotPreference | null;
   /** The person wants to talk to a human. */
   human: boolean;
   /** Answer to a side question, written only from the clinic's information; null otherwise. */

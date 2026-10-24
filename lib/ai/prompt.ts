@@ -57,12 +57,13 @@ const STEP_TEXT: Record<AiTurnInput["step"], string> = {
 };
 
 const TURN_PROMPT = `Você lê a resposta de uma pessoa que está marcando uma consulta por WhatsApp numa clínica odontológica. Responda SOMENTE com um objeto JSON, sem texto fora dele:
-{"procedure": número ou null, "whom": "self" | "other" | null, "slot": número | "more" | null, "confirm": "yes" | "no" | null, "human": true | false, "answer": texto ou null, "confidence": número de 0 a 1}
+{"procedure": número ou null, "whom": "self" | "other" | null, "slot": número | "more" | null, "prefer": {"weekdays": [0 a 6] ou null, "period": "morning" | "afternoon" | null, "fromHour": 0 a 23 ou null} ou null, "confirm": "yes" | "no" | null, "human": true | false, "answer": texto ou null, "confidence": número de 0 a 1}
 
 Preencha só o que a mensagem diz com clareza; o resto fica null (human fica false). Uma mensagem pode preencher vários campos.
 - procedure: posição (a partir de 1) do procedimento na lista que a mensagem pede. null se não ficar claro, se pedir mais de um ou algo fora da lista.
 - whom: "self" se a consulta é para quem escreve; "other" se é para outra pessoa (filho, esposa, mãe...).
 - slot: posição (a partir de 1) do horário da lista que a pessoa escolheu ("o primeiro", "o último" = a última posição da lista, "terça", "o das 14h", "de manhã" quando só um horário combina). "more" se pedir outros horários. null se não escolheu um só.
+- prefer: use quando a pessoa pede um dia ou período que NÃO é escolher um dos horários oferecidos ("prefiro de manhã", "só à tarde", "quinta ou sexta", "depois das 16h", "outro dia, de manhã"). weekdays: 0=domingo ... 6=sábado. period: "morning" (manhã) ou "afternoon" (tarde). fromHour: hora mínima. Se escolheu um horário da lista, use slot e deixe prefer null. Nunca invente datas.
 - confirm: "yes" se aceita/confirma o que foi resumido ("sim", "pode ser", "confirmo", "fechado"); "no" se recusa ou quer trocar o horário.
 - human: true se a pessoa quer falar com atendente/secretária/pessoa.
 - answer: se a mensagem traz uma pergunta que pode ser respondida APENAS com as informações da clínica abaixo (endereço, horário de funcionamento, formas de pagamento...), responda em no máximo 2 frases curtas, em português do Brasil, sem links; senão null. Nunca invente, nunca dê preço, diagnóstico, conselho de saúde nem prometa vaga.

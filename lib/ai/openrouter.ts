@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { buildMessages, buildPhraseMessages, buildTurnMessages, type ChatMessage } from "@/lib/ai/prompt";
-import type { AiClient, AiDecision, AiInput, AiPhraseInput, AiTurn, AiTurnInput } from "@/lib/ai/types";
+import type { SlotPreference, AiClient, AiDecision, AiInput, AiPhraseInput, AiTurn, AiTurnInput } from "@/lib/ai/types";
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_TIMEOUT_MS = 8_000;
@@ -21,10 +21,27 @@ const decisionSchema = z.object({
   answer: z.string().nullable().optional().transform((value) => value ?? null),
 });
 
+function normalizePreference(value: { weekdays?: number[] | null; period?: "morning" | "afternoon" | null; fromHour?: number | null } | null | undefined): SlotPreference | null {
+  if (!value) return null;
+  const weekdays = value.weekdays?.length ? [...new Set(value.weekdays)] : undefined;
+  const period = value.period ?? undefined;
+  const fromHour = value.fromHour ?? undefined;
+  return weekdays || period || fromHour !== undefined ? { weekdays, period, fromHour } : null;
+}
+
 const turnSchema = z.object({
   procedure: z.number().int().min(1).nullable().optional().transform((value) => value ?? null),
   whom: z.enum(["self", "other"]).nullable().optional().transform((value) => value ?? null),
   slot: z.union([z.number().int().min(1), z.literal("more")]).nullable().optional().transform((value) => value ?? null),
+  prefer: z
+    .object({
+      weekdays: z.array(z.number().int().min(0).max(6)).max(7).nullable().optional(),
+      period: z.enum(["morning", "afternoon"]).nullable().optional(),
+      fromHour: z.number().int().min(0).max(23).nullable().optional(),
+    })
+    .nullable()
+    .optional()
+    .transform((value) => normalizePreference(value)),
   confirm: z.enum(["yes", "no"]).nullable().optional().transform((value) => value ?? null),
   human: z.boolean().optional().transform((value) => value ?? false),
   answer: z.string().nullable().optional().transform((value) => value ?? null),

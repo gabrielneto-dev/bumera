@@ -50,6 +50,8 @@ export const requested = (clinicName: string, person?: string): string =>
 
 export const slotTaken = (): string => "Esse horário acabou de ser ocupado. Veja outras opções:";
 
+export const noMatch = (): string => "Não encontrei horário livre nesse dia ou período. Estes são os mais próximos:";
+
 export const noSlots = (clinicName: string): string =>
   join("No momento não encontrei horários livres nos próximos dias.", `A equipe da *${clean(clinicName)}* vai entrar em contato para combinar o melhor horário.`);
 

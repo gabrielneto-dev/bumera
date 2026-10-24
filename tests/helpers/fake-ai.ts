@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import type { AiClient, AiDecision, AiInput, AiPhraseInput, AiTurn, AiTurnInput } from "@/lib/ai/types";
 
-const NOTHING: AiTurn = { procedure: null, whom: null, slot: null, confirm: null, human: false, answer: null, confidence: 0.95 };
+const NOTHING: AiTurn = { procedure: null, whom: null, slot: null, prefer: null, confirm: null, human: false, answer: null, confidence: 0.95 };
 
 export interface FakeAi extends AiClient {
   calls: AiInput[];

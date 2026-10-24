@@ -88,6 +88,51 @@ describe("fluid booking dialog (AI reads and writes)", () => {
     expect(await prisma.patient.findFirstOrThrow()).toMatchObject({ name: "Ana Souza" });
   });
 
+  it("offers only afternoon times when the person asks for the afternoon, and keeps that for 'more'", async () => {
+    const ai = fakeAi(undefined, {
+      phrase: writer,
+      turn: (input) => {
+        if (input.step === "PROCEDURE") return { procedure: 1, whom: "self" };
+        if (input.step === "SLOT") return input.message.includes("tarde") ? { prefer: { period: "afternoon" } } : { slot: "more" };
+        return {};
+      },
+    });
+    await say("Quero uma avaliação, é pra mim", ai);
+    await say("Ana Souza", ai);
+
+    await say("Só consigo à tarde", ai);
+    const slots = ((await conversation()).slotOptions as { items: Array<{ startsAt: string }>; prefer?: unknown }) ;
+    expect(slots.items.length).toBeGreaterThan(0);
+    for (const item of slots.items) {
+      expect(Number(new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", hour12: false }).format(new Date(item.startsAt)))).toBeGreaterThanOrEqual(13);
+    }
+    expect(slots.prefer).toEqual({ period: "afternoon" });
+
+    await say("outros horários", ai);
+    const more = (await conversation()).slotOptions as { items: Array<{ startsAt: string }>; prefer?: unknown };
+    expect(more.prefer).toEqual({ period: "afternoon" });
+    expect(more.items.length).toBeGreaterThan(0);
+  });
+
+  it("says so and shows the nearest times when nothing is free as asked", async () => {
+    const ai = fakeAi(undefined, {
+      phrase: new Error("fixed text"),
+      turn: (input) => {
+        if (input.step === "PROCEDURE") return { procedure: 1, whom: "self" };
+        if (input.step === "SLOT") return { prefer: { weekdays: [0] } };
+        return {};
+      },
+    });
+    await say("Quero uma avaliação, é pra mim", ai);
+    await say("Ana Souza", ai);
+
+    await say("só aos domingos", ai);
+
+    expect(await lastReply()).toContain("Não encontrei horário livre nesse dia ou período");
+    expect(await conversation()).toMatchObject({ step: "SLOT" });
+    expect(((await conversation()).slotOptions as { prefer?: unknown }).prefer).toBeUndefined();
+  });
+
   it("does not read a name with the AI, and keeps the patient's name away from it", async () => {
     const ai = fakeAi(undefined, { phrase: writer, turn: { procedure: 2, whom: "other" } });
     await say("Quero clarear os dentes do meu filho", ai);
