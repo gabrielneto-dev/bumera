@@ -182,6 +182,17 @@ describe("fluid booking dialog (AI reads and writes)", () => {
     expect(await lastReply()).not.toContain("Não entendi");
   });
 
+  it("takes 'pode ser' as a yes to the only procedure on offer, but not when there are several", async () => {
+    await say("Oi", null);
+    await say("pode ser", null);
+    expect(await conversation()).toMatchObject({ step: "PROCEDURE", procedureId: null, misses: 1 });
+
+    await prisma.procedure.deleteMany({ where: { name: "Clareamento dental" } });
+    await say("pode ser", null);
+    expect(await conversation()).toMatchObject({ step: "WHO", misses: 0 });
+    expect((await conversation()).procedureId).not.toBeNull();
+  });
+
   it("does not read a name with the AI, and keeps the patient's name away from it", async () => {
     const ai = fakeAi(undefined, { phrase: writer, turn: { procedure: 2, whom: "other" } });
     await say("Quero clarear os dentes do meu filho", ai);

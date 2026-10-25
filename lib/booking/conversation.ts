@@ -6,7 +6,7 @@ import type { AiClient, SlotPreference, AiPhraseInput, AiTurn, AiTurnInput } fro
 import { trusted, validateAnswer, validatePhrase } from "@/lib/booking/fluid";
 import * as say from "@/lib/booking/messages";
 import { findNextSlots, type SlotOption } from "@/lib/booking/slots";
-import { cleanName, detectWhom, isGreeting, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
+import { cleanName, detectWhom, isAffirmation, isGreeting, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { AppError } from "@/lib/errors";
 import { phoneCandidates } from "@/lib/inbound/evolution";
@@ -247,8 +247,9 @@ async function onProcedure(turn: Turn, conv: Conversation, procedures: Array<{ i
   const procedureId = choice && choice >= 1 && choice <= procedures.length ? procedures[choice - 1]?.id : (matchProcedure(text, procedures as Array<{ id: string; name: string }>) ?? hintedProcedure(hint, procedures));
   const whom = conv.forSelf === null ? (detectWhom(text) ?? hint?.whom ?? null) : null;
   const patch: Prisma.ConversationUncheckedUpdateInput = {};
-  // "Quero marcar" with nothing else: the one procedure the clinic offers, or the list to pick from.
-  if (!procedureId && choice === null && looksLikeBookingRequest(text)) {
+  // "Quero marcar" or a plain yes to the one procedure on offer: that procedure. With several, the list to pick from.
+  const saidYes = isAffirmation(text) || hint?.confirm === "yes";
+  if (!procedureId && choice === null && (looksLikeBookingRequest(text) || (saidYes && procedures.length === 1))) {
     if (procedures.length === 1) patch.procedureId = (procedures[0] as { id: string }).id;
     else return prompt(turn, await advance(turn, conv, {}));
   }

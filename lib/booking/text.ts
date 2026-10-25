@@ -91,3 +91,14 @@ const RESET_COMMAND = /^(recomecar|reiniciar|comecar de novo|comecar novamente|l
 export function isResetCommand(text: string): boolean {
   return RESET_COMMAND.test(normalize(text).trim());
 }
+
+const AFFIRMATION_WORDS = new Set(["sim", "pode", "ser", "claro", "quero", "ok", "okay", "beleza", "bora", "vamos", "isso", "mesmo", "certo", "fechado", "com", "certeza", "combinado", "ta", "bom", "aceito", "topo", "por", "favor", "gostaria", "otimo", "perfeito", "uhum", "aham", "pode", "sim"]);
+const AFFIRMATION_CORE = new Set(["sim", "pode", "claro", "quero", "ok", "okay", "beleza", "bora", "vamos", "isso", "certo", "fechado", "certeza", "combinado", "aceito", "topo", "uhum", "aham", "gostaria"]);
+const MAX_AFFIRMATION_WORDS = 5;
+
+/** A message that only says yes ("pode ser", "sim, quero", "claro!"), to what the clinic just proposed. */
+export function isAffirmation(text: string): boolean {
+  const words = wordsOf(text);
+  if (words.length === 0 || words.length > MAX_AFFIRMATION_WORDS) return false;
+  return words.every((word) => AFFIRMATION_WORDS.has(word)) && words.some((word) => AFFIRMATION_CORE.has(word));
+}
