@@ -1,7 +1,7 @@
 # Project State
 
 Last updated: 2026-10-24
-Latest checkpoint: Context/checkpoints/CP-20261024-1800-slot-preference.md
+Latest checkpoint: Context/checkpoints/CP-20261025-0100-open-question-buffer.md
 
 ## Current objective
 Ship the pilot: confirmação/lembrete over WhatsApp for 1–3 dental clinics (modules 1–3, no AI), hosted on the user's server. M4 (inbound replies and hardening) in progress.
@@ -25,6 +25,7 @@ Ship the pilot: confirmação/lembrete over WhatsApp for 1–3 dental clinics (m
 - LGPD: append-only activity log with the admin Atividades screen, export of a patient's data (JSON download) and erasure by anonymization ("Apagar dados", admin only). `CTX-NTE-20261022-lgpd-audit-export-erasure`.
 
 - Module 4 (AI), deployed at 20ce1f3: message inbox for free text; per-clinic opt-in AI assistant (encrypted key entered in the Assistente screen, model claude-haiku-5.5, injection pre-filter, masking); WhatsApp booking dialog for new contacts and patients that ends in a PENDING appointment the secretary approves; appointments for someone else (dependent records, notices addressed to the guardian); fluid conversation where the AI reads free answers and writes the questions while the app validates everything (numbered menu as fallback). 715 tests, ~96.8%. Details: `CTX-NTE-20261024-ai-assistant-and-inbox`, `CTX-NTE-20261024-booking-dialog`, rules `CTX-DEC-20261024-ai-booking-rules`.
+  A plain hello gets an open question ("em que posso te ajudar?"); messages written in a row are buffered 8 s and answered once (`INBOUND_BUFFER_MS`); n8n polls every minute; deployed at 8c8e347, 749 tests. Production clinic AI had to be switched on in the Assistente screen (needs the clinic info text).
   Day/period preference ("só à tarde", "quinta de manhã", "depois das 17h") filters the real free slots; deployed at df864dd, 723 tests, eval 29/29 reading and 36/36 writing.
 
 ## Not built yet
