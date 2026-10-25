@@ -37,3 +37,4 @@ M3 no longer uses an n8n flow: reminders are sent by the worker outbox (`CTX-DEC
 - 2026-10-25: 0.2 docs part done (`CTX-RES-20261025-evolution-webhook-contract`, pin Evolution v2.3.7); real payload capture waits for Evolution on the server.
 - 2026-10-25: 0.3 done in code — `lib/queue/{boss,queues,worker,health}.ts`, `lib/log.ts`, `worker/{main,queues}.ts`, scripts `worker`/`worker:dev`, tests in `tests/queue/`. Compose service/Dockerfile wait for `CTX-QUE-20261018-app-deployment`.
 - 2026-10-25: gap analysis done (`CTX-RES-20261025-module4-gap-analysis`, `docs/ai-gap-analysis.md`); the phase table above is replaced by its roadmap F1–F6 once the user approves.
+- 2026-10-25: roadmap F1–F6 approved (`CTX-DEC-20261025-migration-roadmap`); F1 started.

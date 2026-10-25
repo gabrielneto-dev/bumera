@@ -17,6 +17,7 @@ Three loops (turn · conversation · learning); conversation = append-only event
 - AI cost cap ≤ 30% of the clinic fee — `CTX-DEC-20261025-ai-cost-cap`
 - Autonomy ladder and thresholds — `CTX-DEC-20261025-autonomy-ladder`
 - Virtual-assistant disclosure in the first message — `CTX-DEC-20261025-assistant-disclosure`
+- Migration roadmap F1–F6 and its 4 decisions (outbox = `reminder`, 90-day message retention, human takeover until release or 12 h, n8n cut by switch) — `CTX-DEC-20261025-migration-roadmap`
 - Queue: pg-boss 12 in polling mode with heartbeat (spike evidence) — `CTX-DEC-20261025-queue-pg-boss`
 
 ## Research
