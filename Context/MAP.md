@@ -16,6 +16,11 @@ Path: `branches/architecture/` — Status: active (direction decided)
 Tags: stack, nextjs, n8n, evolution-api, whatsapp, database, hosting, infrastructure, auth, security, lgpd, multi-tenancy
 Routes: stack/WhatsApp/data/compliance/server/code map → `branches/architecture/_index.md` (start with `CTX-NTE-20261020-m1-implementation` to find code)
 
+### ai-agent
+Path: `branches/ai-agent/` — Status: active (plan approved, being re-based on the merged module 4 code)
+Tags: ai-assistant, whatsapp, llm, outbox, webhook, evolution-api
+Routes: WhatsApp AI architecture, worker/queue (pg-boss), cyclic turns, autonomy → `branches/ai-agent/_index.md` (full plan: `docs/ai-whatsapp-architecture.md`)
+
 ## Global records
 `global/questions/` (answered bootstrap questions); other `global/` folders empty. Sources: `sources/` (OpenRouter pricing articles).
 

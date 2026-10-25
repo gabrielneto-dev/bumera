@@ -1,7 +1,7 @@
 # Project State
 
 Last updated: 2026-10-24
-Latest checkpoint: Context/checkpoints/CP-20261025-1000-quality-panel-clear-conversation.md
+Latest checkpoint: Context/checkpoints/CP-20261025-1900-ai-plan-merge-rebase.md
 
 ## Current objective
 Ship the pilot: confirmação/lembrete over WhatsApp for 1–3 dental clinics (modules 1–3, no AI), hosted on the user's server. M4 (inbound replies and hardening) in progress.
@@ -30,6 +30,8 @@ Ship the pilot: confirmação/lembrete over WhatsApp for 1–3 dental clinics (m
   Day/period preference ("só à tarde", "quinta de manhã", "depois das 17h") filters the real free slots; deployed at df864dd, 723 tests, eval 29/29 reading and 36/36 writing.
 
 - Generic infra reference copy in `deploy/infra/` (per-project databases via `~/infra/scripts/new-db.sh`) and `npm run ui:tunnel` came from `main` (commit 304eb46, merged 2026-10-25): `CTX-DEC-20261021-generic-shared-infra`, `CTX-FCT-20261021-server-infra-state`.
+
+- **AI architecture work** (branch `claude/ai-cyclic-architecture`, 2026-10-25): approved plan for a cyclic WhatsApp AI (`docs/ai-whatsapp-architecture.md`, `branches/ai-agent/_index.md`) and a pg-boss worker process foundation (`lib/queue/*`, `worker/main.ts`). The plan predates the merge of module 4 and is being re-based on it (gap analysis next).
 
 ## Not built yet
 Creating a clinic's Evolution instance and QR code from the app (manual runbook in `deploy/README.md`), erasure inside Evolution and a retention policy, Editable message texts, AI improvements (reschedule by chat, short memory, audio), off-machine encrypted backup copy, webhook setup for new Evolution instances (manual today), audit log and patient data export/deletion, protection of public n8n/Evolution hostnames, LGPD checklist, e-mail provider, password reset, cleaning test data in `bumera_prod` (Gabriel Teste, Teste Falha).
