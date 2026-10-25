@@ -8,7 +8,8 @@ export type ReplyKind =
   | "REPLY_DECLINED"
   | "REPLY_HANDOFF"
   | "REPLY_AI"
-  | "REPLY_FLOW";
+  | "REPLY_FLOW"
+  | "REPLY_MEDIA";
 type ReplyDb = Pick<ScopedPrisma, "reminder">;
 /** What a reply is about: an appointment, a quote or a patient's own message, inside one clinic. */
 export type ReplySubject = { organizationId: string } & ({ appointmentId: string } | { quoteId: string } | { inboundMessageId: string });

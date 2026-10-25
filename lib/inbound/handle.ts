@@ -6,6 +6,7 @@ import { closeOpenConversations, continueConversation, findOpenConversation, sta
 import { isGreeting, isResetCommand, looksLikeBookingRequest } from "@/lib/booking/text";
 import { receiveFreeText } from "@/lib/inbound/free-text";
 import { parseIntent } from "@/lib/inbound/intent";
+import { receiveMedia } from "@/lib/inbound/media";
 import { isUrgent } from "@/lib/inbound/urgent";
 import { queueReply, type ReplyKind } from "@/lib/inbound/reply";
 import { toClinicSettings } from "@/lib/reminders/settings";
@@ -20,7 +21,7 @@ export interface ClinicMessage extends InboundMessage {
 export type InboundOutcome =
   | { outcome: "CONFIRMED" | "RESCHEDULE_REQUESTED" | "INTERESTED" | "DECLINED"; appointmentId?: string; quoteId?: string }
   | { outcome: "OPTED_OUT"; patients: number }
-  | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "UNKNOWN_INSTANCE" | "IGNORED" | "HANDOFF" | "ANSWERED_BY_AI" | "CONVERSATION" }
+  | { outcome: "NO_APPOINTMENT" | "UNKNOWN_PATIENT" | "UNKNOWN_INSTANCE" | "IGNORED" | "HANDOFF" | "ANSWERED_BY_AI" | "CONVERSATION" | "MEDIA_RECEIVED" }
   | { outcome: "BOOKING_REQUESTED"; appointmentId: string };
 
 /** Injected in tests; by default the AI client is built from the clinic's saved key (none = no AI). */
@@ -54,6 +55,15 @@ export async function handleInboundMessage(
   const phones = phoneCandidates(message.phoneE164);
   const settings = await prisma.clinicSettings.findUnique({ where: { organizationId: message.organizationId }, select: { bookingEnabled: true } });
   const bookingEnabled = settings?.bookingEnabled ?? true;
+
+  // Audio or media without text: ask the person to write and leave it for the secretary. An open booking
+  // conversation is left as it is (the next written answer continues it).
+  if (message.mediaKind && !message.text.trim()) {
+    const reachable = patients.find((patient) => !patient.doNotContact && !patient.guardianName) ?? patients.find((patient) => !patient.doNotContact);
+    if (patients.length > 0 && !reachable) return { outcome: "IGNORED" };
+    const outcome = await receiveMedia(prisma, { ...message, mediaKind: message.mediaKind }, reachable?.id ?? null, now);
+    return { outcome };
+  }
 
   // "Recomeçar": the person starts the conversation over. A repeated delivery of the same message does nothing.
   if (isResetCommand(message.text) && intent === "UNKNOWN") {

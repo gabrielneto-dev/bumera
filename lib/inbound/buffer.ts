@@ -20,7 +20,15 @@ export function bufferQuietMs(): number {
 export async function bufferMessage(prisma: PrismaClient, message: ClinicMessage, now: Date): Promise<void> {
   try {
     await prisma.inboundBuffer.create({
-      data: { organizationId: message.organizationId, instance: message.instance, phoneE164: message.phoneE164, messageId: message.messageId, text: message.text, receivedAt: now },
+      data: {
+        organizationId: message.organizationId,
+        instance: message.instance,
+        phoneE164: message.phoneE164,
+        messageId: message.messageId,
+        text: message.text,
+        mediaKind: message.mediaKind ?? null,
+        receivedAt: now,
+      },
     });
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
@@ -28,6 +36,22 @@ export async function bufferMessage(prisma: PrismaClient, message: ClinicMessage
 }
 
 class ClaimLost extends Error {}
+
+type BufferedRow = { instance: string; messageId: string; text: string; mediaKind: string | null };
+
+/**
+ * One message for the whole burst. Written texts are joined and answered (an audio sent along with text is
+ * then left to the text); a burst of media only is answered as media. The id is the last message's.
+ */
+export function joinBurst(organizationId: string, phoneE164: string, rows: readonly BufferedRow[]): ClinicMessage {
+  const last = rows.at(-1);
+  if (!last) throw new Error("empty burst");
+  const texts = rows.map((row) => row.text).filter((text) => text.trim() !== "");
+  const base = { organizationId, phoneE164, instance: last.instance, messageId: last.messageId };
+  if (texts.length > 0) return { ...base, text: texts.join(JOIN_SEPARATOR) };
+  const mediaKind = rows.findLast((row) => row.mediaKind)?.mediaKind as ClinicMessage["mediaKind"];
+  return { ...base, text: "", ...(mediaKind ? { mediaKind } : {}) };
+}
 
 type Handler = (prisma: PrismaClient, message: ClinicMessage, now: Date) => Promise<InboundOutcome>;
 
@@ -59,11 +83,11 @@ export async function flushBuffered(prisma: PrismaClient, now: Date, quietMs: nu
     }
 
     try {
-      await handler(prisma, { organizationId, instance: last.instance, phoneE164, messageId: last.messageId, text: rows.map((row) => row.text).join(JOIN_SEPARATOR) }, now);
+      await handler(prisma, joinBurst(organizationId, phoneE164, rows), now);
       answered += 1;
     } catch (error) {
       if (now.getTime() - last.receivedAt.getTime() < RETRY_WINDOW_MS) {
-        await prisma.inboundBuffer.createMany({ data: rows.map((row) => ({ organizationId: row.organizationId, instance: row.instance, phoneE164: row.phoneE164, messageId: row.messageId, text: row.text, receivedAt: row.receivedAt })), skipDuplicates: true });
+        await prisma.inboundBuffer.createMany({ data: rows.map((row) => ({ organizationId: row.organizationId, instance: row.instance, phoneE164: row.phoneE164, messageId: row.messageId, text: row.text, mediaKind: row.mediaKind, receivedAt: row.receivedAt })), skipDuplicates: true });
       }
       throw error;
     }

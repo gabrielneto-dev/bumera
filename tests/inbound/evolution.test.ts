@@ -36,10 +36,28 @@ describe("parseEvolutionMessage", () => {
     ["group chats", { key: { remoteJid: "1203@g.us", fromMe: false, id: "1" }, message: { conversation: "1" } }],
     ["status broadcasts", { key: { remoteJid: "status@broadcast", fromMe: false, id: "1" }, message: { conversation: "1" } }],
     ["a hidden @lid without the number", { key: { remoteJid: "99@lid", fromMe: false, id: "1" }, message: { conversation: "1" } }],
-    ["media without text", { key: { remoteJid: "5517997822073@s.whatsapp.net", fromMe: false, id: "1" }, message: { imageMessage: {} } }],
+    ["stickers", { key: { remoteJid: "5517997822073@s.whatsapp.net", fromMe: false, id: "1" }, message: { stickerMessage: {} } }],
+    ["messages with no content we know", { key: { remoteJid: "5517997822073@s.whatsapp.net", fromMe: false, id: "1" }, message: { reactionMessage: { text: "👍" } } }],
     ["a non-Brazilian number", { key: { remoteJid: "14155550123@s.whatsapp.net", fromMe: false, id: "1" }, message: { conversation: "1" } }],
   ])("ignores %s", (_name, data) => {
     expect(parseEvolutionMessage(base(data))).toBeNull();
+  });
+
+  it("keeps audio and media without caption, with empty text and the kind of media", () => {
+    const key = { remoteJid: "5517997822073@s.whatsapp.net", fromMe: false, id: "M" };
+    expect(parseEvolutionMessage(base({ key, message: { audioMessage: { seconds: 4 } } }))).toEqual({
+      instance: "bumera-teste",
+      phoneE164: "+5517997822073",
+      text: "",
+      messageId: "M",
+      mediaKind: "audio",
+    });
+    expect(parseEvolutionMessage(base({ key, message: { documentMessage: {} } }))?.mediaKind).toBe("document");
+  });
+
+  it("reads the caption of an image as its text", () => {
+    const key = { remoteJid: "5517997822073@s.whatsapp.net", fromMe: false, id: "I" };
+    expect(parseEvolutionMessage(base({ key, message: { imageMessage: { caption: "é esse dente" } } }))).toMatchObject({ text: "é esse dente", mediaKind: "image" });
   });
 
   it("ignores a payload that does not name the instance", () => {

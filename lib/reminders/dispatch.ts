@@ -89,9 +89,26 @@ function conversationPatient(row: ReminderDetail) {
   );
 }
 
+/** A message from a first contact has no patient record: the number that wrote stands in for one. */
+function senderPatient(row: ReminderDetail) {
+  const { inboundMessage } = row;
+  if (!inboundMessage?.phoneE164) return null;
+  return (
+    inboundMessage.patient ?? {
+      id: inboundMessage.id,
+      name: "",
+      phoneE164: inboundMessage.phoneE164,
+      consentAt: inboundMessage.createdAt,
+      doNotContact: false,
+      status: "CONFIRMED" as const,
+      guardianName: null,
+    }
+  );
+}
+
 /** Who the reminder is about: the patient of its appointment or of its quote. */
 function patientOf(row: ReminderDetail) {
-  const patient = row.appointment?.patient ?? row.quote?.patient ?? row.inboundMessage?.patient ?? conversationPatient(row);
+  const patient = row.appointment?.patient ?? row.quote?.patient ?? row.inboundMessage?.patient ?? senderPatient(row) ?? conversationPatient(row);
   if (!patient) throw new AppError("VALIDATION", "Lembrete sem consulta, orçamento nem mensagem", { id: row.id });
   return patient;
 }

@@ -287,6 +287,8 @@ enum ReminderKind {
   REPLY_AI
   /// Module 4: one turn of the booking conversation (text built by the app).
   REPLY_FLOW
+  /// Audio or media without text: asks the person to write (the secretary also sees it on Pendentes).
+  REPLY_MEDIA
 }
 
 /// What the patient answered to a campaign message (reactivation).
@@ -310,37 +312,39 @@ enum ReminderStatus {
 }
 
 model Reminder {
-  id               String          @id @default(uuid())
-  organizationId   String
-  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                String          @id @default(uuid())
+  organizationId    String
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   /// Exactly one of appointmentId / quoteId / inboundMessageId / conversationId is set (CHECK constraint in the migration).
-  appointmentId    String?
-  appointment      Appointment?    @relation(fields: [appointmentId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  quoteId          String?
-  quote            Quote?          @relation(fields: [quoteId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  inboundMessageId String?
-  inboundMessage   InboundMessage? @relation(fields: [inboundMessageId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  conversationId   String?
-  conversation     Conversation?   @relation(fields: [conversationId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  appointmentId     String?
+  appointment       Appointment?    @relation(fields: [appointmentId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  quoteId           String?
+  quote             Quote?          @relation(fields: [quoteId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  inboundMessageId  String?
+  inboundMessage    InboundMessage? @relation(fields: [inboundMessageId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  conversationId    String?
+  conversation      Conversation?   @relation(fields: [conversationId, organizationId], references: [id, organizationId], onDelete: NoAction)
   /// REPLY_FLOW: the inbound message this turn answers, so a repeated delivery is answered once.
-  replyToMessageId String?
+  replyToMessageId  String?
   /// Free text of an AI answer (REPLY_AI only); every other kind is rendered from a fixed template.
-  text             String?
-  kind             ReminderKind
-  status           ReminderStatus  @default(PENDING)
+  text              String?
+  kind              ReminderKind
+  status            ReminderStatus  @default(PENDING)
   /// Earliest moment n8n may pick it up; moved forward on retries.
-  dueAt            DateTime
-  attempts         Int             @default(0)
-  claimedAt        DateTime?
-  sentAt           DateTime?
+  dueAt             DateTime
+  attempts          Int             @default(0)
+  claimedAt         DateTime?
+  sentAt            DateTime?
   /// Patient's answer to a campaign message, when it was given, and when the secretary dealt with it.
-  answer           ReminderAnswer?
-  answeredAt       DateTime?
-  handledAt        DateTime?
+  answer            ReminderAnswer?
+  answeredAt        DateTime?
+  handledAt         DateTime?
+  /// WhatsApp id of the delivered message (lets the app tell its own messages from the clinic's, phase F2).
+  providerMessageId String?
   /// Why it was cancelled/skipped, or the last delivery error. Never holds message text or PII.
-  note             String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  note              String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@unique([appointmentId, kind])
   @@unique([quoteId, kind])
@@ -600,7 +604,10 @@ model InboundBuffer {
   phoneE164      String
   /// Evolution's message id: the same delivery repeated is recognized and ignored.
   messageId      String
+  /// Empty for audio/media without caption (see mediaKind).
   text           String
+  /// audio, image, video or document; null for text.
+  mediaKind      String?
   receivedAt     DateTime     @default(now())
 
   @@unique([organizationId, messageId])
