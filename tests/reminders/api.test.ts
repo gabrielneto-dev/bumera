@@ -27,6 +27,8 @@ describe("reminders API (service key)", () => {
     await prisma.$executeRawUnsafe('TRUNCATE TABLE "organization" CASCADE');
     const clinic = await createClinic(prisma, "a");
     await connectWhatsapp(prisma, clinic);
+    // These tests are about the API, not the clinic's quiet hours: they must pass at any time of day.
+    await prisma.clinicSettings.update({ where: { organizationId: clinic }, data: { quietEnabled: false } });
     const dentist = await createDentist(prisma, clinic, "Dra. Ana");
     const procedure = await createProcedure(prisma, clinic);
     const patient = await createPatient(prisma, clinic, { name: "Maria Souza" });

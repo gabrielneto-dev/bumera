@@ -97,6 +97,7 @@ model Organization {
   inboundMessages InboundMessage[]
   conversations   Conversation[]
   inboundBuffers  InboundBuffer[]
+  aiEvents        AiEvent[]
 
   @@unique([slug])
   @@map("organization")
@@ -604,4 +605,35 @@ model InboundBuffer {
   @@unique([organizationId, messageId])
   @@index([receivedAt])
   @@map("inbound_buffer")
+}
+
+enum AiEventKind {
+  /// A free-text answer in the booking dialog was read and sure enough to act on.
+  TURN_READ
+  /// The model read it but was not sure (below the confidence bar).
+  TURN_UNSURE
+  /// The model call failed (provider down, bad output).
+  TURN_FAILED
+  /// A question the model wrote passed validation and was sent.
+  PHRASE_USED
+  /// A question the model wrote was refused by validation: the fixed text went out instead.
+  PHRASE_REJECTED
+  /// The model call to write a question failed: the fixed text went out instead.
+  PHRASE_FAILED
+  /// A side question was answered from the clinic's information.
+  ASIDE_ANSWERED
+  /// A side-question answer was refused by validation.
+  ASIDE_REJECTED
+}
+
+/// One thing the AI did in the booking dialog, for the quality screen. Counts only: never text or people.
+model AiEvent {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  kind           AiEventKind
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@map("ai_event")
 }

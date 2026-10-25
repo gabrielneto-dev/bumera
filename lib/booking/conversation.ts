@@ -1,6 +1,7 @@
-import { Prisma, type PrismaClient } from "@/generated/prisma/client";
+import { type AiEventKind, Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { clinicAi } from "@/lib/ai/clinic";
 import { maskPersonalData } from "@/lib/ai/mask";
+import { recordAiEvent } from "@/lib/ai/events";
 import type { AiClient, SlotPreference, AiPhraseInput, AiTurn, AiTurnInput } from "@/lib/ai/types";
 import { trusted, validateAnswer, validatePhrase } from "@/lib/booking/fluid";
 import * as say from "@/lib/booking/messages";
@@ -108,6 +109,8 @@ async function openTurn(prisma: PrismaClient, message: ClinicMessage, now: Date,
   return { prisma, message, now, clinic: organization.name, info: settings?.clinicInfo ?? "", ai, calls: 0, aside: null, greet: conv === null };
 }
 
+const track = (turn: Turn, kind: AiEventKind): Promise<void> => recordAiEvent(turn.prisma, turn.message.organizationId, kind);
+
 /** Reads a free-text message with the AI. Any failure turns the AI off for the rest of this message. */
 async function understand(turn: Turn, conv: Pick<Conversation, "forSelf"> & { step: Step }, extra: { procedures: readonly string[]; chosenProcedure: string | null; slots: StoredSlots }): Promise<AiTurn | null> {
   if (!turn.ai || looksLikeInjection(turn.message.text)) return null;
@@ -125,11 +128,16 @@ async function understand(turn: Turn, conv: Pick<Conversation, "forSelf"> & { st
   try {
     turn.calls += 1;
     const read = await turn.ai.understandTurn(input);
-    const aside = trusted(read) ? validateAnswer(read.answer, turn.info) : null;
+    const sure = trusted(read);
+    await track(turn, sure ? "TURN_READ" : "TURN_UNSURE");
+    const proposed = sure?.answer ?? null;
+    const aside = sure ? validateAnswer(read.answer, turn.info) : null;
+    if (proposed) await track(turn, aside ? "ASIDE_ANSWERED" : "ASIDE_REJECTED");
     if (aside) turn.aside = aside;
-    return trusted(read) ?? (read.human ? read : null);
+    return sure ?? (read.human ? read : null);
   } catch {
     turn.ai = null;
+    await track(turn, "TURN_FAILED");
     return null;
   }
 }
@@ -429,9 +437,12 @@ async function speak(turn: Turn, conv: Conversation, options: { retry?: boolean;
         hasPatient: Boolean(spoken.person),
       });
       const person = spoken.person ? sanitizeName(spoken.person) : null;
-      text = validatePhrase(raw, { goal: spoken.goal, required: spoken.required ?? [], person, material: [turn.clinic, ...spoken.facts] }) ?? fallback;
+      const valid = validatePhrase(raw, { goal: spoken.goal, required: spoken.required ?? [], person, material: [turn.clinic, ...spoken.facts] });
+      await track(turn, valid ? "PHRASE_USED" : "PHRASE_REJECTED");
+      text = valid ?? fallback;
     } catch {
       turn.ai = null;
+      await track(turn, "PHRASE_FAILED");
     }
   }
   return turn.aside ? `${turn.aside}\n\n${text}` : text;

@@ -159,6 +159,16 @@ describe("fluid booking dialog (AI reads and writes)", () => {
     expect(await lastReply()).toContain("Qual procedimento você procura?");
   });
 
+  it("counts what the AI read and wrote, including text the validation refused", async () => {
+    const ai = fakeAi(undefined, { phrase: (input) => (input.goal === "ask_who" ? "Veja https://exemplo.com" : writer(input)), turn: (input) => (input.step === "PROCEDURE" ? { procedure: 2 } : { confidence: 0.3 }) });
+    await say("Queria clarear os dentes", ai);
+    await say("hmm talvez", ai);
+
+    const counts = Object.fromEntries((await prisma.aiEvent.groupBy({ by: ["kind"], _count: { _all: true } })).map((row) => [row.kind, row._count._all]));
+    expect(counts).toMatchObject({ TURN_READ: 1, TURN_UNSURE: 1, PHRASE_REJECTED: 2 });
+    expect(counts.PHRASE_USED).toBeUndefined();
+  });
+
   it("does not read a name with the AI, and keeps the patient's name away from it", async () => {
     const ai = fakeAi(undefined, { phrase: writer, turn: { procedure: 2, whom: "other" } });
     await say("Quero clarear os dentes do meu filho", ai);
