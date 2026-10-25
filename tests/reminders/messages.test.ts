@@ -18,27 +18,38 @@ describe("renderReminderMessage", () => {
     expect(text).toContain("10:00");
     expect(text).toContain("Dra. Ana Paula");
     expect(text).toContain("Limpeza");
-    expect(text).toMatch(/responda 1 para confirmar/i);
-    expect(text).toMatch(/2 para remarcar/i);
-    expect(text).toMatch(/SAIR/);
+    expect(text).toContain("*1* para confirmar");
+    expect(text).toContain("*2* para remarcar");
+    expect(text).toContain("*SAIR*");
   });
 
   it("asks for confirmation in the 24h reminder", () => {
     const text = renderReminderMessage({ ...input, kind: "REMINDER_24H" });
     expect(text).toMatch(/lembrete/i);
-    expect(text).toMatch(/responda 1 para confirmar/i);
+    expect(text).toContain("*1* para confirmar");
   });
 
   it("is short and does not ask anything in the 2h reminder", () => {
     const text = renderReminderMessage({ ...input, kind: "REMINDER_2H" });
     expect(text).toContain("10:00");
-    expect(text).not.toMatch(/responda 1/i);
+    expect(text).not.toContain("*1*");
   });
 
   it("offers to reschedule after a no-show", () => {
     const text = renderReminderMessage({ ...input, kind: "NO_SHOW_FOLLOWUP" });
     expect(text).toMatch(/sentimos sua falta/i);
-    expect(text).toMatch(/2 para remarcar/i);
+    expect(text).toContain("*2*");
+  });
+
+  it("separates the greeting, the details and the answer options into paragraphs", () => {
+    const text = renderReminderMessage({ ...input, kind: "CONFIRMATION" });
+    expect(text.split("\n\n")).toEqual([
+      "Olá, Maria!",
+      "Sua consulta na *Clínica Sorriso* foi agendada.",
+      "📅 terça-feira, 20/10 às 10:00\n🦷 Limpeza\n👤 Dra. Ana Paula",
+      "Responda:\n*1* para confirmar\n*2* para remarcar",
+      "Para não receber mais mensagens, responda *SAIR*.",
+    ]);
   });
 
   it("falls back to a neutral greeting when the name is blank", () => {
@@ -68,6 +79,7 @@ describe("sanitizeName", () => {
 
   it("keeps a malicious clinic name from adding lines or links to the message", () => {
     const text = renderReminderMessage({ ...input, clinicName: "Sorriso\nhttps://evil.example", kind: "REMINDER_2H" });
-    expect(text).not.toMatch(/evil|\n/);
+    expect(text).not.toMatch(/evil/);
+    expect(text).toContain("na *Sorriso*");
   });
 });

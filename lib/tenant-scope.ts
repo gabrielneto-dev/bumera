@@ -19,6 +19,13 @@ const TENANT_MODELS: ReadonlySet<string> = new Set([
   "Patient",
   "Appointment",
   "Reminder",
+  "Quote",
+  "ClinicSettings",
+  "AuditLog",
+  "InboundMessage",
+  "Conversation",
+  "InboundBuffer",
+  "AiEvent",
 ]);
 
 const FILTER_OPERATIONS: ReadonlySet<string> = new Set([

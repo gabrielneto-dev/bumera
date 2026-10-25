@@ -6,7 +6,7 @@ branch: architecture
 tags: [roadmap, pilot]
 status: in-progress
 created_at: 2026-10-17
-updated_at: 2026-10-21
+updated_at: 2026-10-22
 related: [CTX-DEC-20261017-mvp-simplified]
 supersedes: CTX-PLN-20261017-build-milestones
 ---
@@ -27,4 +27,19 @@ M0 mostly done (see `CTX-NTE-20261018-m0-implementation`). Remaining in M0: brow
 M0 and M1 done (the originally planned M1 was split into M1a-M1f and completed). Next: M2 reminders, M3 first n8n flow, M4 inbound and hardening. App deployment decision needed before M3 (`CTX-QUE-20261018-app-deployment`).
 
 ## Progress 2026-10-21
-M2 done (committed locally as 79bd0e6; push pending): reminders table, sync with appointment changes, due/result API, stale guard, retries, failed-message alert; `CTX-NTE-20261021-m2-implementation`. Also done: UI redesign (`CTX-NTE-20261021-ui-redesign`) and generic shared infra with n8n on its own domain (`CTX-DEC-20261021-generic-shared-infra`). Next: M3 first n8n flow (needs the app deployment decision `CTX-QUE-20261018-app-deployment` and the n8n MCP/access, `CTX-QUE-20261021-n8n-mcp-access`).
+M2 done (commit 79bd0e6). M3 done: app, Evolution and Redis deployed in `~/bumera-app`, workflow `n8n/workflows/reminders-whatsapp.json` published and verified end to end with a real WhatsApp message; `message_log` dropped (the `reminder` table is the log). Also done on main (2026-10-21): UI redesign (`CTX-NTE-20261021-ui-redesign`) and generic shared infra (`CTX-DEC-20261021-generic-shared-infra`). Next: M4 inbound and hardening (see `CTX-NTE-20261021-m2-m3-implementation`).
+
+## Progress 2026-10-21 (M4 slice 1)
+M4 started: inbound webhook, replies 1/2/SAIR, automatic replies, structured messages, auto-refresh (`CTX-NTE-20261021-m4-inbound-replies`). Still in M4: protect n8n/Evolution hostnames, backups (the user wants them last), LGPD checklist, RLS, reactivation of opted-out patients.
+
+## Progress 2026-10-21 (product modules)
+Beyond the original M0-M4, modules 1 (reactivation) and 2 (quotes) were built and deployed (`CTX-NTE-20261021-modules-1-2-reactivation-quotes`). Open: real WhatsApp test of reactivation, per-clinic timings, module 4 (AI, last), e-mail/password reset and off-machine backup (the user wants these at the end).
+
+## Progress 2026-10-21 (clinic settings)
+Per-clinic message timings built and deployed (`CTX-NTE-20261021-clinic-settings`). Remaining: module 4 (AI), then e-mail provider, password reset and off-machine backup.
+
+## Progress 2026-10-22
+Quiet hours, daily send limit and one WhatsApp instance per clinic built and deployed (`CTX-NTE-20261021-clinic-settings`, `CTX-NTE-20261022-whatsapp-per-clinic`). The system is ready for more than one clinic except the manual Evolution instance/QR setup. Remaining: module 4 (AI), LGPD gaps (audit log, patient export/deletion), then e-mail, password reset and off-machine backup.
+
+## Progress 2026-10-22 (LGPD)
+Activity log, patient data export and erasure built and deployed (`CTX-NTE-20261022-lgpd-audit-export-erasure`). Remaining: module 4 (AI), then e-mail, password reset and off-machine backup; erasure in Evolution and a retention policy are open.

@@ -1,6 +1,9 @@
 import type { Prisma, PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { AppError } from "@/lib/errors";
-import { evaluateGuard, MAX_ATTEMPTS, retryDelayMs } from "@/lib/reminders/guard";
+import { evaluateGuard, evaluateQuoteGuard, isReplyKind, MAX_ATTEMPTS, retryDelayMs } from "@/lib/reminders/guard";
+import { expireStaleConversations } from "@/lib/booking/conversation";
+import { isQuietNow, nextDayWindowStart, nextQuietEnd, startOfLocalDay } from "@/lib/reminders/send-window";
+import { type ClinicSettings, toClinicSettings } from "@/lib/reminders/settings";
 import { firstName, renderReminderMessage } from "@/lib/reminders/messages";
 
 /**
@@ -14,6 +17,10 @@ const MAX_LIMIT = 50;
 /** A claim nobody reported on for this long is handed out again (n8n crashed or lost the answer). */
 const CLAIM_TTL_MS = 10 * 60_000;
 const MAX_NOTE_LENGTH = 500;
+/** How long a message waits before the app looks again for a clinic whose WhatsApp is not connected. */
+const NO_WHATSAPP_RETRY_MS = 30 * 60_000;
+/** A reply to a patient's message is worth retrying for a day; after that it would only confuse them. */
+const INBOUND_RETRY_WINDOW_MS = 24 * 3_600_000;
 /** The claim transaction touches up to MAX_LIMIT rows one by one. */
 const TRANSACTION_TIMEOUT_MS = 20_000;
 
@@ -21,9 +28,24 @@ const detailInclude = {
   organization: { select: { id: true, name: true } },
   appointment: {
     include: {
-      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true } },
+      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true, guardianName: true } },
       dentist: { select: { name: true } },
       procedure: { select: { name: true } },
+    },
+  },
+  quote: {
+    include: {
+      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true, guardianName: true } },
+    },
+  },
+  inboundMessage: {
+    include: {
+      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true, guardianName: true } },
+    },
+  },
+  conversation: {
+    include: {
+      patient: { select: { id: true, name: true, phoneE164: true, consentAt: true, doNotContact: true, status: true, guardianName: true } },
     },
   },
 } satisfies Prisma.ReminderInclude;
@@ -38,7 +60,11 @@ export interface DueReminder {
   message: string;
   clinic: { id: string; name: string };
   patient: { id: string; firstName: string; phone: string };
-  appointment: { id: string; startsAt: string; endsAt: string; dentistName: string; procedureName: string };
+  /** Null for quote follow-ups and their replies. */
+  appointment: { id: string; startsAt: string; endsAt: string; dentistName: string; procedureName: string } | null;
+  quote: { id: string; description: string } | null;
+  /** The clinic's WhatsApp (Evolution) instance n8n must send this message through. */
+  whatsapp: { instance: string };
 }
 
 export interface ClaimOptions {
@@ -46,8 +72,33 @@ export interface ClaimOptions {
   limit?: number;
 }
 
-function toDue(row: ReminderDetail, attempt: number): DueReminder {
-  const { appointment } = row;
+/** A conversation with a first contact has no patient record: the phone and the name given so far stand in for one. */
+function conversationPatient(row: ReminderDetail) {
+  const { conversation } = row;
+  if (!conversation) return null;
+  return (
+    conversation.patient ?? {
+      id: conversation.id,
+      name: conversation.name ?? "",
+      phoneE164: conversation.phoneE164,
+      consentAt: conversation.createdAt,
+      doNotContact: false,
+      status: "CONFIRMED" as const,
+      guardianName: null,
+    }
+  );
+}
+
+/** Who the reminder is about: the patient of its appointment or of its quote. */
+function patientOf(row: ReminderDetail) {
+  const patient = row.appointment?.patient ?? row.quote?.patient ?? row.inboundMessage?.patient ?? conversationPatient(row);
+  if (!patient) throw new AppError("VALIDATION", "Lembrete sem consulta, orçamento nem mensagem", { id: row.id });
+  return patient;
+}
+
+function toDue(row: ReminderDetail, attempt: number, instance: string): DueReminder {
+  const { appointment, quote } = row;
+  const patient = patientOf(row);
   return {
     id: row.id,
     kind: row.kind,
@@ -55,24 +106,27 @@ function toDue(row: ReminderDetail, attempt: number): DueReminder {
     message: renderReminderMessage({
       kind: row.kind,
       clinicName: row.organization.name,
-      patientName: appointment.patient.name,
-      startsAt: appointment.startsAt.toISOString(),
-      dentistName: appointment.dentist.name,
-      procedureName: appointment.procedure.name,
+      patientName: patient.name,
+      startsAt: (appointment?.startsAt ?? quote?.createdAt ?? row.createdAt).toISOString(),
+      dentistName: appointment?.dentist.name ?? "",
+      procedureName: appointment?.procedure.name ?? "",
+      quoteDescription: quote?.description,
+      freeText: row.text ?? undefined,
+      guardianName: patient.guardianName ?? undefined,
     }),
     clinic: row.organization,
-    patient: {
-      id: appointment.patient.id,
-      firstName: firstName(appointment.patient.name),
-      phone: appointment.patient.phoneE164,
-    },
-    appointment: {
-      id: appointment.id,
-      startsAt: appointment.startsAt.toISOString(),
-      endsAt: appointment.endsAt.toISOString(),
-      dentistName: appointment.dentist.name,
-      procedureName: appointment.procedure.name,
-    },
+    patient: { id: patient.id, firstName: firstName(patient.name), phone: patient.phoneE164 },
+    appointment: appointment
+      ? {
+          id: appointment.id,
+          startsAt: appointment.startsAt.toISOString(),
+          endsAt: appointment.endsAt.toISOString(),
+          dentistName: appointment.dentist.name,
+          procedureName: appointment.procedure.name,
+        }
+      : null,
+    quote: quote ? { id: quote.id, description: quote.description } : null,
+    whatsapp: { instance },
   };
 }
 
@@ -92,24 +146,64 @@ async function lockClaimable(tx: Prisma.TransactionClient, now: Date, limit: num
   return rows.map((row) => row.id);
 }
 
+/** The clinics' timings for this batch, and how many messages each already handed over today. */
+async function loadSendPolicy(tx: Prisma.TransactionClient, rows: ReminderDetail[], now: Date) {
+  const organizationIds = [...new Set(rows.map((row) => row.organizationId))];
+  const settingRows = await tx.clinicSettings.findMany({ where: { organizationId: { in: organizationIds } } });
+  const settingsByClinic = new Map(settingRows.map((row) => [row.organizationId, toClinicSettings(row)]));
+  const instanceByClinic = new Map(settingRows.map((row) => [row.organizationId, row.whatsappInstance]));
+  const dayStart = startOfLocalDay(now);
+  const counts = await tx.reminder.groupBy({
+    by: ["organizationId"],
+    where: {
+      organizationId: { in: organizationIds },
+      OR: [
+        { status: "SENT", sentAt: { gte: dayStart } },
+        { status: "CLAIMED", claimedAt: { gte: dayStart } },
+      ],
+    },
+    _count: { _all: true },
+  });
+  const handedOverToday = new Map(counts.map((item) => [item.organizationId, item._count._all]));
+  return {
+    settingsOf: (organizationId: string): ClinicSettings => settingsByClinic.get(organizationId) ?? toClinicSettings(null),
+    instanceOf: (organizationId: string): string | null => instanceByClinic.get(organizationId) ?? null,
+    handedOverToday,
+  };
+}
+
+/** Replies to a patient's own message go first and are never held back (a person is waiting for them). */
+const byPriority = (a: ReminderDetail, b: ReminderDetail): number =>
+  Number(isReplyKind(b.kind)) - Number(isReplyKind(a.kind)) || a.dueAt.getTime() - b.dueAt.getTime() || a.id.localeCompare(b.id);
+
 /** Hands due reminders to n8n, marking them claimed. Stale or disallowed ones are closed instead of returned. */
 export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEFAULT_LIMIT }: ClaimOptions): Promise<DueReminder[]> {
   const capped = Math.min(Math.max(Math.trunc(limit), 1), MAX_LIMIT);
+  // Housekeeping on every poll: a booking conversation nobody answered for a day loses the name it held.
+  await expireStaleConversations(prisma, now);
   return prisma.$transaction(async (tx) => {
     const ids = await lockClaimable(tx, now, capped);
     if (ids.length === 0) return [];
-    const rows = await tx.reminder.findMany({
-      where: { id: { in: ids } },
-      include: detailInclude,
-      orderBy: [{ dueAt: "asc" }, { id: "asc" }],
-    });
+    const rows = (await tx.reminder.findMany({ where: { id: { in: ids } }, include: detailInclude })).sort(byPriority);
+    const { settingsOf, instanceOf, handedOverToday } = await loadSendPolicy(tx, rows, now);
+    /** Not now: back to pending, due again when sending is allowed. */
+    const hold = (id: string, dueAt: Date) =>
+      tx.reminder.update({ where: { id }, data: { status: "PENDING", claimedAt: null, dueAt } });
 
     const due: DueReminder[] = [];
     for (const row of rows) {
-      const guard = evaluateGuard(
-        { kind: row.kind, appointment: row.appointment, patient: row.appointment.patient },
-        now,
-      );
+      const patient = patientOf(row);
+      const settings = settingsOf(row.organizationId);
+      const patientHasUpcomingAppointment =
+        row.kind === "REACTIVATION"
+          ? (await tx.appointment.count({
+              where: { patientId: patient.id, status: { in: ["SCHEDULED", "CONFIRMED"] }, startsAt: { gt: now } },
+            })) > 0
+          : undefined;
+      const guard =
+        row.quote && !isReplyKind(row.kind)
+          ? evaluateQuoteGuard({ quote: row.quote, patient }, now, settings.quoteValidDays)
+          : evaluateGuard({ kind: row.kind, appointment: row.appointment ?? undefined, patient, patientHasUpcomingAppointment }, now);
       if (!guard.ok) {
         await tx.reminder.update({ where: { id: row.id }, data: { status: guard.status, note: guard.reason } });
         continue;
@@ -119,12 +213,46 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
         await tx.reminder.update({ where: { id: row.id }, data: { status: "FAILED", note: "no delivery result after the last attempt" } });
         continue;
       }
+      const instance = instanceOf(row.organizationId);
+      if (!instance) {
+        // The clinic has no WhatsApp connected: nothing can be sent. Check again later; the message is not lost.
+        await hold(row.id, new Date(now.getTime() + NO_WHATSAPP_RETRY_MS));
+        continue;
+      }
+      if (!isReplyKind(row.kind)) {
+        if (isQuietNow(now, settings)) {
+          await hold(row.id, nextQuietEnd(now, settings));
+          continue;
+        }
+        if ((handedOverToday.get(row.organizationId) ?? 0) >= settings.dailySendLimit) {
+          await hold(row.id, nextDayWindowStart(now, settings));
+          continue;
+        }
+      }
       const attempt = row.attempts + 1;
       await tx.reminder.update({ where: { id: row.id }, data: { status: "CLAIMED", claimedAt: now, attempts: attempt } });
-      due.push(toDue(row, attempt));
+      handedOverToday.set(row.organizationId, (handedOverToday.get(row.organizationId) ?? 0) + 1);
+      due.push(toDue(row, attempt, instance));
     }
     return due;
   }, { timeout: TRANSACTION_TIMEOUT_MS });
+}
+
+/** Retrying after this moment is pointless: the appointment started, or the quote expired. */
+function retryDeadline(
+  row: {
+    appointment: { startsAt: Date } | null;
+    quote: { createdAt: Date } | null;
+    inboundMessage: { createdAt: Date } | null;
+    conversation: { createdAt: Date } | null;
+  },
+  quoteValidDays: number,
+): Date {
+  if (row.appointment) return row.appointment.startsAt;
+  const written = row.inboundMessage ?? row.conversation;
+  if (written) return new Date(written.createdAt.getTime() + INBOUND_RETRY_WINDOW_MS);
+  const created = row.quote?.createdAt ?? new Date(0);
+  return new Date(created.getTime() + quoteValidDays * 86_400_000);
 }
 
 /** `attempt` is the number received in the due payload: a report about an older try is ignored. */
@@ -155,9 +283,17 @@ export async function recordReminderResult(
 
     const row = await tx.reminder.findUniqueOrThrow({
       where: { id },
-      include: { appointment: { select: { startsAt: true } } },
+      include: {
+        appointment: { select: { startsAt: true } },
+        quote: { select: { createdAt: true } },
+        inboundMessage: { select: { createdAt: true } },
+        conversation: { select: { createdAt: true } },
+      },
     });
     if (row.status !== "CLAIMED" || row.attempts !== result.attempt) return { id, status: row.status };
+    const quoteValidDays = row.quote
+      ? ((await tx.clinicSettings.findUnique({ where: { organizationId: row.organizationId } }))?.quoteValidDays ?? toClinicSettings(null).quoteValidDays)
+      : toClinicSettings(null).quoteValidDays;
 
     if (result.outcome === "sent") {
       await tx.reminder.update({ where: { id }, data: { status: "SENT", sentAt: now, note: null } });
@@ -166,7 +302,7 @@ export async function recordReminderResult(
 
     const delay = retryDelayMs(row.attempts);
     const retryAt = delay === null ? null : new Date(now.getTime() + delay);
-    const beforeStart = row.kind === "NO_SHOW_FOLLOWUP" || (retryAt !== null && retryAt < row.appointment.startsAt);
+    const beforeStart = row.kind === "NO_SHOW_FOLLOWUP" || isReplyKind(row.kind) || (retryAt !== null && retryAt < retryDeadline(row, quoteValidDays));
     const note = truncate(result.error) ?? "delivery failed";
     if (retryAt && beforeStart) {
       await tx.reminder.update({ where: { id }, data: { status: "PENDING", dueAt: retryAt, claimedAt: null, note } });

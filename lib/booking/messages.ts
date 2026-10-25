@@ -1,0 +1,71 @@
+import type { SlotOption } from "@/lib/booking/slots";
+import { formatSlot, sanitizeName } from "@/lib/reminders/messages";
+
+const PARAGRAPH = "\n\n";
+const OPTION_TALK = "*0* Falar com a equipe";
+const join = (...parts: string[]): string => parts.join(PARAGRAPH);
+const clean = (text: string): string => sanitizeName(text);
+
+/** The texts of the booking dialog: fixed wording around sanitized names and real slots. */
+export function procedureMenu(clinicName: string, procedures: ReadonlyArray<{ name: string }>, intro = true): string {
+  const options = procedures.map((procedure, index) => `*${index + 1}* ${clean(procedure.name)}`).join("\n");
+  const welcome = intro ? `Olá! Aqui é o atendimento da *${clean(clinicName)}*. Vou te ajudar a pedir um horário.` : "";
+  return join(...[welcome, `Qual procedimento você procura?\n${options}`, OPTION_TALK].filter(Boolean));
+}
+
+/** The first answer to a plain hello: an open question that points to what the clinic can do. */
+export function openQuestion(clinicName: string, canAnswer: boolean): string {
+  const help = canAnswer
+    ? "Posso te ajudar a marcar uma consulta ou tirar dúvidas sobre endereço, horários e formas de pagamento."
+    : "Para marcar uma consulta, é só escrever *agendar*. Para falar com a equipe, escreva *0*.";
+  return join(`Olá! Aqui é o atendimento da *${clean(clinicName)}* 😊`, "Em que posso te ajudar?", help);
+}
+
+export const askWho = (): string =>
+  join("A consulta é para você ou para outra pessoa?", "*1* Para mim\n*2* Para outra pessoa (filho, familiar…)", OPTION_TALK);
+
+export const askPerson = (): string => "Qual é o nome completo de quem vai ser atendido?";
+
+export const askName = (): string => "Perfeito! Qual é o seu nome completo?";
+
+export const askGuardianName = (): string => "E qual é o seu nome? Você será o contato para os avisos.";
+
+export function slotMenu(slots: readonly SlotOption[], hasMore: boolean, heading = "Estes são os próximos horários livres:"): string {
+  const lines = slots.map((slot, index) => `*${index + 1}* ${formatSlot(slot.startsAt)} (${clean(slot.dentistName)})`);
+  if (hasMore) lines.push(`*${slots.length + 1}* Ver outros horários`);
+  return join(heading, lines.join("\n"), OPTION_TALK);
+}
+
+export function confirmation(slot: SlotOption, procedureName: string, person?: string): string {
+  const lines = [`📅 ${formatSlot(slot.startsAt)}`, `🦷 ${clean(procedureName)}`, `👤 ${clean(slot.dentistName)}`];
+  if (person) lines.push(`🙂 Paciente: ${clean(person)}`);
+  const details = lines.join("\n");
+  return join(
+    "Confere o seu pedido:",
+    details,
+    "Responda:\n*1* para confirmar e aceitar receber lembretes por WhatsApp\n*2* para escolher outro horário",
+    OPTION_TALK,
+  );
+}
+
+export const requested = (clinicName: string, person?: string): string =>
+  join(
+    "Pedido recebido! ✅",
+    person
+      ? `A equipe da *${clean(clinicName)}* vai confirmar o horário de ${clean(person)} em breve e avisamos você por aqui.`
+      : `A equipe da *${clean(clinicName)}* vai confirmar o seu horário em breve e avisamos por aqui.`,
+  );
+
+export const slotTaken = (): string => "Esse horário acabou de ser ocupado. Veja outras opções:";
+
+export const noMatch = (): string => "Não encontrei horário livre nesse dia ou período. Estes são os mais próximos:";
+
+export const noSlots = (clinicName: string): string =>
+  join("No momento não encontrei horários livres nos próximos dias.", `A equipe da *${clean(clinicName)}* vai entrar em contato para combinar o melhor horário.`);
+
+export const handoff = (clinicName: string): string =>
+  join("Tudo bem!", `A equipe da *${clean(clinicName)}* vai falar com você em breve.`);
+
+export const procedureNotFound = (): string => "Não encontrei esse procedimento por aqui. Estes são os que temos:";
+
+export const notUnderstood = (): string => "Não entendi. Responda com o número de uma das opções, por favor.";

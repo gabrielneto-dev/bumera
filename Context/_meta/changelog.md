@@ -41,3 +41,25 @@
 
 ## 2026-10-21 (full save)
 - Added checkpoint, server-infra fact (supersedes the 2026-10-17 inventory), generic-infra decision, reminders consent/stale decision, M2 and UI-redesign notes, service-key risk, n8n-MCP question; updated service-auth question, integration-contracts note, milestones plan, STATE, branch indexes; taxonomy tag `reminders`.
+- M2/M3 note, deployment decision (answers app-deployment), Evolution exposure risk, service-auth partial answer, plan progress, server inventory update, checkpoint, STATE.
+
+## 2026-10-21 (M4 save)
+- M4 note, replies decision, opt-out reactivation question, checkpoint, STATE and plan progress.
+
+## 2026-10-21 (pendencies)
+- Reactivation answered, LGPD checklist note, backup recorded in STATE.
+
+## 2026-10-21 (modules 1-2 save)
+- Notes and decision for reactivation and quotes, checkpoint, STATE, plan and indexes.
+
+## 2026-10-21 (clinic settings save)
+- Clinic settings note, checkpoint, STATE, plan and index updates.
+
+## 2026-10-22 (WhatsApp per clinic save)
+- Quiet hours/limit added to the clinic-settings note, new WhatsApp-per-clinic note, checkpoint, STATE, plan and indexes.
+
+## 2026-10-22 (LGPD features save)
+- LGPD features note, checklist update, checkpoint, STATE, plan and indexes.
+
+## 2026-10-24 (module 4 save)
+- AI assistant/inbox note, booking dialog note, AI booking rules decision, checkpoint, STATE and indexes.

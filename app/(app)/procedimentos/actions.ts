@@ -1,7 +1,7 @@
 "use server";
 
 import type { ActionState } from "@/lib/action-state";
-import { formBoolean, formString } from "@/lib/form-data";
+import { formBoolean, formOptional, formString } from "@/lib/form-data";
 import { runAction } from "@/lib/run-action";
 import { createProcedure, updateProcedure } from "@/lib/services/procedures";
 import { getServiceContext } from "@/lib/services/server";
@@ -10,6 +10,7 @@ function fieldsFrom(formData: FormData) {
   return {
     name: formString(formData, "name"),
     defaultDurationMin: Number(formString(formData, "defaultDurationMin")),
+    reactivateAfterMonths: formOptional(formData, "reactivateAfterMonths") ? Number(formString(formData, "reactivateAfterMonths")) : null,
   };
 }
 

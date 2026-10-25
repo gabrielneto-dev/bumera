@@ -9,7 +9,9 @@ import {
   listFreeSlots,
   zonedDayRange,
 } from "@/lib/schedule";
+import { recordAudit } from "@/lib/audit";
 import { syncReminders } from "@/lib/reminders/sync";
+import { loadClinicSettings } from "@/lib/services/settings";
 import type { ServiceContext } from "@/lib/services/context";
 
 const MS_PER_MINUTE = 60_000;
@@ -27,9 +29,9 @@ const TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]> = {
 };
 
 const include = {
-  patient: { select: { id: true, name: true, phoneE164: true } },
+  patient: { select: { id: true, name: true, phoneE164: true, guardianName: true } },
   dentist: { select: { id: true, name: true } },
-  procedure: { select: { id: true, name: true } },
+  procedure: { select: { id: true, name: true, reactivateAfterMonths: true } },
 } satisfies Prisma.AppointmentInclude;
 
 type AppointmentRow = Prisma.AppointmentGetPayload<{ include: typeof include }>;
@@ -40,7 +42,7 @@ export interface AppointmentDto {
   endsAt: string;
   status: AppointmentStatus;
   source: "SECRETARY" | "WHATSAPP";
-  patient: { id: string; name: string; phoneE164: string };
+  patient: { id: string; name: string; phoneE164: string; guardianName: string | null };
   dentist: { id: string; name: string };
   procedure: { id: string; name: string };
 }
@@ -54,7 +56,7 @@ function toDto(row: AppointmentRow): AppointmentDto {
     source: row.source,
     patient: row.patient,
     dentist: row.dentist,
-    procedure: row.procedure,
+    procedure: { id: row.procedure.id, name: row.procedure.name },
   };
 }
 
@@ -64,11 +66,12 @@ function notFound(resource: string): AppError {
 
 async function loadBookingTargets(ctx: ServiceContext, ids: { patientId: string; dentistId: string; procedureId: string }) {
   const [patient, dentist, procedure] = await Promise.all([
-    ctx.db.patient.findUnique({ where: { id: ids.patientId }, select: { id: true } }),
+    ctx.db.patient.findUnique({ where: { id: ids.patientId }, select: { id: true, anonymizedAt: true } }),
     ctx.db.dentist.findUnique({ where: { id: ids.dentistId } }),
     ctx.db.procedure.findUnique({ where: { id: ids.procedureId } }),
   ]);
   if (!patient) throw notFound("patient");
+  if (patient.anonymizedAt) throw new AppError("ANONYMIZED_PATIENT", "Os dados deste paciente foram apagados a pedido dele");
   if (!dentist) throw notFound("dentist");
   if (!procedure) throw notFound("procedure");
   if (!dentist.active || !procedure.active) {
@@ -79,7 +82,8 @@ async function loadBookingTargets(ctx: ServiceContext, ids: { patientId: string;
   return { dentist, procedure };
 }
 
-export async function bookAppointment(ctx: ServiceContext, rawInput: unknown): Promise<AppointmentDto> {
+/** `pending`: a request from the WhatsApp dialog, held on the agenda until the secretary approves it. */
+export async function bookAppointment(ctx: ServiceContext, rawInput: unknown, options: { pending?: boolean } = {}): Promise<AppointmentDto> {
   assertCan(ctx.role, "appointment", "create");
   const input = parseInput(appointmentInputSchema, rawInput);
   const { dentist, procedure } = await loadBookingTargets(ctx, input);
@@ -95,6 +99,7 @@ export async function bookAppointment(ctx: ServiceContext, rawInput: unknown): P
     throw new AppError("OUTSIDE_WORKING_HOURS", "Fora do horário de atendimento do dentista");
   }
 
+  const settings = await loadClinicSettings(ctx);
   try {
     const row = await ctx.db.$transaction(async (tx) => {
       const created = await tx.appointment.create({
@@ -106,10 +111,12 @@ export async function bookAppointment(ctx: ServiceContext, rawInput: unknown): P
           startsAt,
           endsAt,
           createdById: ctx.userId,
+          ...(options.pending ? { status: "PENDING" as const, source: "WHATSAPP" as const } : {}),
         },
         include,
       });
-      await syncReminders(tx, created, ctx.now());
+      await syncReminders(tx, { ...created, reactivateAfterMonths: created.procedure.reactivateAfterMonths }, ctx.now(), settings);
+      await recordAudit(tx, ctx, { action: "APPOINTMENT_BOOKED", patientId: input.patientId, entityId: created.id });
       return created;
     });
     return toDto(row);
@@ -135,9 +142,21 @@ export async function changeAppointmentStatus(
       to,
     });
   }
+  const settings = await loadClinicSettings(ctx);
   const updated = await ctx.db.$transaction(async (tx) => {
     const row = await tx.appointment.update({ where: { id }, data: { status: to }, include });
-    await syncReminders(tx, row, ctx.now());
+    await syncReminders(tx, { ...row, reactivateAfterMonths: row.procedure.reactivateAfterMonths }, ctx.now(), settings);
+    // Approving a request that came over WhatsApp also confirms the new patient, or no reminder could reach them.
+    if (current.status === "PENDING" && to === "SCHEDULED") {
+      const confirmed = await tx.patient.updateMany({ where: { id: row.patient.id, status: "PENDING" }, data: { status: "CONFIRMED" } });
+      if (confirmed.count > 0) await recordAudit(tx, ctx, { action: "PATIENT_CONFIRMED", patientId: row.patient.id, entityId: row.patient.id });
+    }
+    await recordAudit(tx, ctx, {
+      action: "APPOINTMENT_STATUS_CHANGED",
+      patientId: row.patient.id,
+      entityId: id,
+      details: { from: current.status, to },
+    });
     return row;
   });
   return toDto(updated);
@@ -170,6 +189,17 @@ export async function listPending(ctx: ServiceContext): Promise<AppointmentDto[]
   assertCan(ctx.role, "appointment", "read");
   const rows = await ctx.db.appointment.findMany({
     where: { status: "PENDING" },
+    include,
+    orderBy: { startsAt: "asc" },
+  });
+  return rows.map(toDto);
+}
+
+/** Upcoming appointments whose patient answered "2" (reschedule) on WhatsApp; the secretary calls them. */
+export async function listRescheduleRequests(ctx: ServiceContext): Promise<AppointmentDto[]> {
+  assertCan(ctx.role, "appointment", "read");
+  const rows = await ctx.db.appointment.findMany({
+    where: { rescheduleRequestedAt: { not: null }, status: { in: ["SCHEDULED", "CONFIRMED"] }, startsAt: { gt: ctx.now() } },
     include,
     orderBy: { startsAt: "asc" },
   });

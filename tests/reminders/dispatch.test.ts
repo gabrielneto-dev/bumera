@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { MAX_ATTEMPTS } from "@/lib/reminders/guard";
 import { claimDueReminders, recordReminderResult } from "@/lib/reminders/dispatch";
 import { createPrismaClient } from "@/lib/prisma";
-import { createClinic, createDentist, createPatient, createProcedure } from "../helpers/factories";
+import { connectWhatsapp, createClinic, createDentist, createPatient, createProcedure } from "../helpers/factories";
 import { NOW } from "../helpers/service-context";
 
 const prisma = createPrismaClient(process.env.DATABASE_URL as string);
@@ -19,6 +19,7 @@ describe("reminder dispatch", () => {
   beforeEach(async () => {
     await prisma.$executeRawUnsafe('TRUNCATE TABLE "organization" CASCADE');
     clinic = await createClinic(prisma, "a");
+    await connectWhatsapp(prisma, clinic);
     dentistId = (await createDentist(prisma, clinic, "Dra. Ana Paula")).id;
     procedureId = (await createProcedure(prisma, clinic, "Limpeza")).id;
     patientId = (await createPatient(prisma, clinic, { name: "Maria da Silva", phoneE164: "+5511987654321" })).id;
@@ -156,7 +157,9 @@ describe("reminder dispatch", () => {
       const sneaky = await createPatient(prisma, clinic, { name: "*Dr.* http://evil.example/x Joana" });
       await seed({ patient: sneaky.id });
       const [due] = await claimDueReminders(prisma, { now: NOW });
-      expect(due?.message).not.toMatch(/evil|http|\*/);
+      expect(due?.message).not.toMatch(/evil|http/);
+      // The only formatting left is the app's own: the greeting carries just the cleaned first name.
+      expect(due?.message.split("\n\n")[0]).toBe("Olá, Joana!");
       expect(due?.patient.firstName).toBe("Joana");
     });
 
@@ -187,6 +190,7 @@ describe("reminder dispatch", () => {
     it("serves every clinic in one poll, each reminder tagged with its clinic", async () => {
       await seed();
       const other = await createClinic(prisma, "b");
+      await connectWhatsapp(prisma, other);
       const d = await createDentist(prisma, other);
       const p = await createProcedure(prisma, other);
       const pt = await createPatient(prisma, other, { name: "Outra" });

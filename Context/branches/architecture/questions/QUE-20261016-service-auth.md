@@ -28,4 +28,4 @@ Answer in the questionnaire (user), then record a DEC and mark this answered.
 n8n is temporarily exposed (`CTX-DEC-20261017-network-exposure-phased`); service-to-service authentication (API keys, signed webhooks) is still to be defined.
 
 ## Partial answer (2026-10-21)
-App <- n8n: M2 implemented a Bearer `SERVICE_API_KEY` for `/api/v1/reminders/*` (constant-time check, uniform envelope, per-request env read); see `CTX-NTE-20261021-m2-implementation` and residual risks in `CTX-RSK-20261021-service-key-and-claim-races`. Still open: Evolution -> app inbound authentication (M4), signed app -> n8n webhooks (deferred), key rotation.
+n8n -> app: Bearer `SERVICE_API_KEY` (env var; app answers 503 if unset, 401 if wrong). n8n -> Evolution: `apikey` header with `EVOLUTION_API_KEY`. Both calls stay on the internal docker network. Still open: signed (HMAC) inbound webhooks from Evolution to the app and the app -> n8n forwarder (M4); protection of the public n8n/Evolution hostnames (`CTX-RSK-20261021-evolution-publicly-exposed`).

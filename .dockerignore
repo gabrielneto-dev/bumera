@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.claude
+.env*
+generated
+coverage
+e2e
+tests
+Context
+playwright-report
+test-results

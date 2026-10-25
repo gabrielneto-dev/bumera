@@ -2,8 +2,14 @@
 
 import {
   CalendarDays,
+  ChartColumn,
   ClipboardList,
   LogOut,
+  MessageSquareText,
+  Receipt,
+  ScrollText,
+  Smartphone,
+  Sparkles,
   Stethoscope,
   UserRound,
   Users,
@@ -30,7 +36,7 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { ThemeToggle } from "./theme-toggle";
 
-export type NavIcon = "agenda" | "pacientes" | "pendentes" | "dentistas" | "procedimentos" | "equipe";
+export type NavIcon = "agenda" | "pacientes" | "pendentes" | "dentistas" | "procedimentos" | "equipe" | "orcamentos" | "mensagens" | "whatsapp" | "atividades" | "assistente" | "qualidade";
 export type NavGroup = "Rotina" | "Cadastros" | "Clínica";
 
 export interface NavItem {
@@ -47,6 +53,12 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   dentistas: UserRound,
   procedimentos: Stethoscope,
   equipe: UsersRound,
+  orcamentos: Receipt,
+  mensagens: MessageSquareText,
+  whatsapp: Smartphone,
+  atividades: ScrollText,
+  assistente: Sparkles,
+  qualidade: ChartColumn,
 };
 
 const GROUP_ORDER: NavGroup[] = ["Rotina", "Cadastros", "Clínica"];

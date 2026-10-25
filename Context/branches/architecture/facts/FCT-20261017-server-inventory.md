@@ -35,3 +35,6 @@ Bumera should get its own compose project/directory and its own Postgres; the ho
 
 ## Update 2026-10-18
 All Docker workloads were removed at the user's request; see `CTX-DEC-20261018-no-proxmox-clean-server`. The inventory above describes the server BEFORE the cleanup. After: no containers, volumes, images; RAM use ~0.55 GB; disk 12 GB of 54 GB used.
+
+## Update 2026-10-21
+Layout changed: shared stack in `~/infra` (Postgres, pgAdmin, n8n) plus `~/bumera-app` (app, Evolution, Redis); see `CTX-DEC-20261021-shared-infra-app-deployment`. About 2.4 GB of RAM stayed available with everything running. Public hostnames: n8n, pgAdmin (Cloudflare Access), Evolution, and the app.

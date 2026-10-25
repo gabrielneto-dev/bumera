@@ -74,6 +74,27 @@ export function TextField({ name, label, hint, defaultValue, ...inputProps }: Te
   );
 }
 
+type TextareaFieldProps = { name: string; label: string; hint?: string } & Omit<ComponentProps<"textarea">, "name" | "id">;
+
+export function TextareaField({ name, label, hint, defaultValue, ...textareaProps }: TextareaFieldProps) {
+  const submitted = useSubmitted(name);
+  return (
+    <FieldShell name={name} label={label} hint={hint}>
+      {(describedBy, invalid) => (
+        <textarea
+          id={name}
+          name={name}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
+          defaultValue={typeof submitted === "string" ? submitted : defaultValue}
+          className={`${controlClass} h-auto min-h-32 py-2 leading-relaxed`}
+          {...textareaProps}
+        />
+      )}
+    </FieldShell>
+  );
+}
+
 export interface SelectOption {
   value: string;
   label: string;

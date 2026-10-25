@@ -6,7 +6,7 @@ Scope: modules, pricing, pilots, scheduling app features. Status: active.
 1 Reativação · 2 Follow-up de orçamento · 3 Confirmação/lembrete · 4 IA no WhatsApp (last, 3 paying clients).
 
 ## Decisions
-`CTX-DEC-20261014-module-sequencing`, `CTX-DEC-20261016-webhook-triggers`, `CTX-DEC-20261016-pilot-first-module` (confirmação/lembrete first), `CTX-DEC-20261017-multi-dentist-calendar`, `CTX-DEC-20261017-roles`, `CTX-DEC-20261017-clinic-defined-reminders`, `CTX-DEC-20261017-patient-minimum-fields`, `CTX-DEC-20261017-pending-registration-no-duplicates`, `CTX-DEC-20261017-consent-and-opt-out`, `CTX-DEC-20261017-patient-duplicate-rules`, `CTX-DEC-20261017-default-trigger-timings`, `CTX-DEC-20261017-trigger-delivery-retries`, `CTX-DEC-20261021-reminders-consent-and-stale-guard` (agent-chosen in M2: consent required, never stale)
+`CTX-DEC-20261014-module-sequencing`, `CTX-DEC-20261016-webhook-triggers`, `CTX-DEC-20261016-pilot-first-module` (confirmação/lembrete first), `CTX-DEC-20261017-multi-dentist-calendar`, `CTX-DEC-20261017-roles`, `CTX-DEC-20261017-clinic-defined-reminders`, `CTX-DEC-20261017-patient-minimum-fields`, `CTX-DEC-20261017-pending-registration-no-duplicates`, `CTX-DEC-20261017-consent-and-opt-out`, `CTX-DEC-20261017-patient-duplicate-rules`, `CTX-DEC-20261017-default-trigger-timings`, `CTX-DEC-20261017-trigger-delivery-retries`, `CTX-DEC-20261021-reactivation-and-quotes-rules`, `CTX-DEC-20261024-ai-booking-rules`, `CTX-DEC-20261021-reminders-consent-and-stale-guard` (agent-chosen in M2: consent required, never stale)
 
 ## Assumptions / plans
 - Pricing: `CTX-ASM-20261014-pricing-baseline` (pilot ~R$50/mo; regular ~R$400 + ~R$200/mo)
@@ -14,7 +14,9 @@ Scope: modules, pricing, pilots, scheduling app features. Status: active.
 - Scheduling UI (part of app engine): `CTX-PLN-20261014-simple-scheduling-interface` (completed by M1)
 
 ## Done / next
-M1 delivered (registry, agenda, team, on-screen e-mail, e2e): `CTX-PLN-20261020-m1-registry-and-agenda` (completed; follow-ups listed there). M2 reminders delivered (`CTX-NTE-20261021-m2-implementation`). Next: M3 first n8n flow (`CTX-PLN-20261017-mvp-milestones`).
+Modules 1 (reactivation) and 2 (quotes) are built and deployed with the user's rules: `CTX-DEC-20261021-reactivation-and-quotes-rules`; code map `CTX-NTE-20261021-modules-1-2-reactivation-quotes`. Module 3 reminders and WhatsApp replies are in production. Per-clinic timings are configurable (`CTX-NTE-20261021-clinic-settings`). Module 4 (AI assistant, booking dialog, dependents, fluid conversation) is built and deployed: `CTX-DEC-20261024-ai-booking-rules`. Next: quality dashboard, day/period preference, reschedule by chat.
+
+M1 delivered (registry, agenda, team, on-screen e-mail, e2e): `CTX-PLN-20261020-m1-registry-and-agenda` (completed; follow-ups listed there). M2 reminders delivered (`CTX-NTE-20261021-m2-implementation`).
 
 ## Open questions
 `CTX-QUE-20261016-pilot-first-module-and-clinics` (which clinics), `CTX-QUE-20261016-llm-usage-in-pilot`

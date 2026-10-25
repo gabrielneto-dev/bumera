@@ -1,17 +1,19 @@
 import { Search, Users } from "lucide-react";
 import { AvatarInitials } from "@/components/avatar-initials";
 import { EmptyState } from "@/components/empty-state";
+import { ConfirmButton } from "@/components/form/confirm-button";
 import { ActionDialog } from "@/components/form/action-dialog";
+import { CheckboxField } from "@/components/form/form-state";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { can } from "@/lib/authz";
 import { formatBrPhone } from "@/lib/phone";
 import { listPatients } from "@/lib/services/patients";
 import { getServiceContext } from "@/lib/services/server";
-import { createPatientAction, updatePatientAction } from "./actions";
+import { allowMessagesAgainAction, anonymizePatientAction, clearConversationAction, createPatientAction, updatePatientAction } from "./actions";
 import { PatientFields } from "./patient-fields";
 
 export const metadata = { title: "Pacientes" };
@@ -25,6 +27,7 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
   const { items, total } = await listPatients(ctx, { search });
   const canCreate = can(ctx.role, "patient", "create");
   const canUpdate = can(ctx.role, "patient", "update");
+  const canErase = can(ctx.role, "patient", "delete");
 
   return (
     <section className="space-y-6">
@@ -82,11 +85,47 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
                   {formatBrPhone(patient.phoneE164)}
                   {patient.cpfMasked ? ` · CPF ${patient.cpfMasked}` : ""}
                 </p>
+                {patient.guardianName ? <p className="text-sm text-muted-foreground">Responsável pelos avisos: {patient.guardianName}</p> : null}
               </div>
               <div className="flex items-center gap-2">
                 {patient.status === "PENDING" ? <Badge variant="outline">Aguardando confirmação</Badge> : null}
-                {patient.doNotContact ? <Badge variant="secondary">Não contatar</Badge> : null}
-                {canUpdate && (
+                {patient.anonymized ? <Badge variant="outline">Dados apagados</Badge> : null}
+                {!patient.anonymized && patient.doNotContact ? <Badge variant="secondary">Não contatar</Badge> : null}
+                {canUpdate && !patient.anonymized && patient.doNotContact && (
+                  <ActionDialog
+                    triggerLabel="Permitir mensagens"
+                    triggerVariant="outline"
+                    triggerSize="sm"
+                    title="Permitir mensagens novamente"
+                    submitLabel="Permitir"
+                    action={allowMessagesAgainAction.bind(null, patient.id)}
+                  >
+                    <p className="text-sm text-muted-foreground">
+                      {patient.name} pediu para parar de receber mensagens. Só libere se o paciente aceitou voltar a
+                      receber lembretes por WhatsApp.
+                    </p>
+                    <CheckboxField name="consent" label="O paciente aceitou voltar a receber mensagens por WhatsApp" />
+                  </ActionDialog>
+                )}
+                {canUpdate && !patient.anonymized && (
+                  <ConfirmButton
+                    label="Limpar conversa"
+                    variant="ghost"
+                    confirmMessage={`Limpar a conversa de ${patient.name} no WhatsApp? O agendamento em andamento é encerrado e as mensagens não lidas saem da lista. O cadastro e as consultas continuam.`}
+                    action={clearConversationAction.bind(null, patient.id)}
+                  />
+                )}
+                {canUpdate && !patient.anonymized && (
+                  <a
+                    href={`/pacientes/${patient.id}/exportar`}
+                    download
+                    className={buttonVariants({ variant: "ghost", size: "sm" })}
+                    title="Baixa todos os dados do paciente (LGPD)"
+                  >
+                    Exportar
+                  </a>
+                )}
+                {canUpdate && !patient.anonymized && (
                   <ActionDialog
                     triggerLabel="Editar"
                     triggerVariant="ghost"
@@ -97,6 +136,14 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
                   >
                     <PatientFields patient={patient} />
                   </ActionDialog>
+                )}
+                {canErase && !patient.anonymized && (
+                  <ConfirmButton
+                    label="Apagar dados"
+                    variant="ghost"
+                    confirmMessage={`Apagar definitivamente os dados pessoais de ${patient.name}? Nome, telefone, CPF e nascimento são removidos e nenhuma mensagem sai mais. Isto não pode ser desfeito.`}
+                    action={anonymizePatientAction.bind(null, patient.id)}
+                  />
                 )}
               </div>
             </StaggerItem>

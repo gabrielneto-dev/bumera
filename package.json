@@ -15,7 +15,8 @@
     "postinstall": "prisma generate",
     "db:tunnel": "ssh -fN -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -L 5433:127.0.0.1:5432 my-server",
     "ui:tunnel": "ssh -fN -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -L 5678:127.0.0.1:5678 -L 5050:127.0.0.1:5050 my-server",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "ai:eval": "tsx scripts/ai-eval.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

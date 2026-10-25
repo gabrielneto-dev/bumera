@@ -14,6 +14,8 @@ export const statement = {
   appointment: ["create", "read", "update", "cancel"],
   procedure: ["create", "read", "update", "delete"],
   dentist: ["create", "read", "update", "delete"],
+  quote: ["create", "read", "update"],
+  audit: ["read"],
   triggerRule: ["read", "update"],
 } as const;
 
@@ -25,6 +27,8 @@ export const admin = ac.newRole({
   appointment: ["create", "read", "update", "cancel"],
   procedure: ["create", "read", "update", "delete"],
   dentist: ["create", "read", "update", "delete"],
+  quote: ["create", "read", "update"],
+  audit: ["read"],
   triggerRule: ["read", "update"],
 });
 
@@ -33,6 +37,7 @@ export const secretary = ac.newRole({
   appointment: ["create", "read", "update", "cancel"],
   procedure: ["read"],
   dentist: ["read"],
+  quote: ["create", "read", "update"],
 });
 
 export const dentist = ac.newRole({

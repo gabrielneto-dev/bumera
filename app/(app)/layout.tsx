@@ -22,9 +22,15 @@ function navItemsFor(role: string): NavItem[] {
   const candidates: Array<NavItem & { allowed: boolean }> = [
     { href: "/agenda", label: "Agenda", icon: "agenda", group: "Rotina", allowed: can(role, "appointment", "read") },
     { href: "/pendentes", label: "Pendentes", icon: "pendentes", group: "Rotina", allowed: can(role, "patient", "update") },
+    { href: "/orcamentos", label: "Orçamentos", icon: "orcamentos", group: "Rotina", allowed: can(role, "quote", "read") },
     { href: "/pacientes", label: "Pacientes", icon: "pacientes", group: "Cadastros", allowed: can(role, "patient", "read") },
     { href: "/dentistas", label: "Dentistas", icon: "dentistas", group: "Cadastros", allowed: can(role, "dentist", "create") },
     { href: "/procedimentos", label: "Procedimentos", icon: "procedimentos", group: "Cadastros", allowed: can(role, "procedure", "create") },
+    { href: "/mensagens", label: "Mensagens", icon: "mensagens", group: "Clínica", allowed: can(role, "triggerRule", "update") },
+    { href: "/whatsapp", label: "WhatsApp", icon: "whatsapp", group: "Clínica", allowed: can(role, "triggerRule", "update") },
+    { href: "/atividades", label: "Atividades", icon: "atividades", group: "Clínica", allowed: can(role, "audit", "read") },
+    { href: "/assistente", label: "Assistente", icon: "assistente", group: "Clínica", allowed: can(role, "triggerRule", "update") },
+    { href: "/qualidade-ia", label: "Qualidade da IA", icon: "qualidade", group: "Clínica", allowed: can(role, "triggerRule", "update") },
     { href: "/equipe", label: "Equipe", icon: "equipe", group: "Clínica", allowed: can(role, "invitation", "create") },
   ];
   return candidates.filter((item) => item.allowed).map(({ href, label, icon, group }) => ({ href, label, icon, group }));
