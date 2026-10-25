@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createPrismaClient } from "@/lib/prisma";
-import { clearConversation } from "@/lib/services/conversations";
+import { clearConversation, listOpenConversations } from "@/lib/services/conversations";
 import { createClinic, createPatient } from "../helpers/factories";
 import { ctxFor, NOW } from "../helpers/service-context";
 
@@ -60,5 +60,31 @@ describe("clearConversation", () => {
     expect(await clearConversation(ctxFor(prisma, clinic, "admin"), { patientId })).toEqual({ conversations: 0, messages: 0 });
     await expect(clearConversation(ctxFor(prisma, clinic, "admin"), { patientId: "nope" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(clearConversation(ctxFor(prisma, clinic, "admin"), { inboundMessageId: "nope" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  describe("listOpenConversations", () => {
+    it("lists the dialogs still going, with the patient or 'new contact', where they stopped and the procedure", async () => {
+      const procedure = await prisma.procedure.create({ data: { organizationId: clinic, name: "Limpeza", defaultDurationMin: 30 } });
+      await prisma.conversation.create({ data: { organizationId: clinic, phoneE164: PHONE, patientId, step: "SLOT", procedureId: procedure.id, misses: 1, expiresAt: new Date(NOW.getTime() + 3_600_000) } });
+      await prisma.conversation.create({ data: { organizationId: clinic, phoneE164: "+5511922223333", name: "Fulano Secreto", expiresAt: new Date(NOW.getTime() + 3_600_000) } });
+      await prisma.conversation.create({ data: { organizationId: clinic, phoneE164: "+5511911110001", status: "DONE", expiresAt: new Date(NOW.getTime() + 3_600_000) } });
+      await prisma.conversation.create({ data: { organizationId: clinic, phoneE164: "+5511911110002", expiresAt: new Date(NOW.getTime() - 1000) } });
+      await open(other, "+5511900000099");
+
+      const list = await listOpenConversations(ctxFor(prisma, clinic, "secretary"));
+
+      expect(list).toHaveLength(2);
+      expect(list.find((item) => item.phoneE164 === PHONE)).toMatchObject({ patientName: "Maria", step: "SLOT", procedureName: "Limpeza", misses: 1 });
+      expect(list.find((item) => item.phoneE164 === "+5511922223333")).toMatchObject({ patientName: null, procedureName: null });
+      expect(JSON.stringify(list)).not.toContain("Fulano");
+    });
+
+    it("can clear one of them by its id", async () => {
+      const conversation = await open(clinic);
+      expect(await clearConversation(ctxFor(prisma, clinic, "secretary"), { conversationId: conversation.id })).toEqual({ conversations: 1, messages: 0 });
+      expect(await listOpenConversations(ctxFor(prisma, clinic, "secretary"))).toEqual([]);
+      await expect(clearConversation(ctxFor(prisma, clinic, "secretary"), { conversationId: conversation.id })).resolves.toMatchObject({ conversations: 0 });
+      await expect(clearConversation(ctxFor(prisma, clinic, "secretary"), { conversationId: "nope" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
   });
 });

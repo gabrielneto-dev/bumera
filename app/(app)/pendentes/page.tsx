@@ -1,4 +1,4 @@
-import { CalendarClock, CalendarSync, ClipboardList, HeartHandshake, MessageCircleWarning, MessageSquareText, UserPlus } from "lucide-react";
+import { CalendarClock, CalendarSync, ClipboardList, HeartHandshake, MessageCircleWarning, MessageSquareText, MessagesSquare, UserPlus } from "lucide-react";
 import type { ReactNode } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { AvatarInitials } from "@/components/avatar-initials";
@@ -7,19 +7,31 @@ import { ConfirmButton } from "@/components/form/confirm-button";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { PageHeader } from "@/components/page-header";
 import { formatDayLong, formatTime } from "@/lib/dates";
+import { STEP_LABEL } from "../qualidade-ia/labels";
 import { REMINDER_KIND_LABEL } from "@/lib/labels";
 import { formatBrPhone } from "@/lib/phone";
 import { listPending, listRescheduleRequests } from "@/lib/services/appointments";
+import { listOpenConversations } from "@/lib/services/conversations";
 import { listInbox } from "@/lib/services/inbox";
 import { listPatients } from "@/lib/services/patients";
 import { listFailedReminders, listInterestedPatients } from "@/lib/services/reminders";
 import { getServiceContext } from "@/lib/services/server";
 import { hasWhatsappInstance } from "@/lib/services/whatsapp";
-import { approveAppointmentAction, approvePatientAction, markInboxHandledAction, clearInboxConversationAction, markInterestHandledAction, rejectAppointmentAction } from "./actions";
+import { approveAppointmentAction, approvePatientAction, markInboxHandledAction, clearInboxConversationAction, clearOpenConversationAction, markInterestHandledAction, rejectAppointmentAction } from "./actions";
 
 export const metadata = { title: "Pendentes" };
 // Per-user page: it depends on the session cookie, so navigating here may block (loading.tsx covers the wait).
 export const instant = false;
+
+const MINUTE_MS = 60_000;
+const HOUR_MINUTES = 60;
+
+/** "agora", "há 12 min", "há 3 h": how long ago something last happened. */
+function ago(iso: string, now: number): string {
+  const minutes = Math.max(0, Math.round((now - new Date(iso).getTime()) / MINUTE_MS));
+  if (minutes < 1) return "agora";
+  return minutes < HOUR_MINUTES ? `há ${minutes} min` : `há ${Math.round(minutes / HOUR_MINUTES)} h`;
+}
 
 function Section({ icon: Icon, title, count, children }: { icon: typeof UserPlus; title: string; count: number; children: ReactNode }) {
   return (
@@ -36,7 +48,7 @@ function Section({ icon: Icon, title, count, children }: { icon: typeof UserPlus
 
 export default async function PendentesPage() {
   const ctx = await getServiceContext();
-  const [patients, appointments, failedReminders, rescheduleRequests, interested, whatsappConnected, inbox] = await Promise.all([
+  const [patients, appointments, failedReminders, rescheduleRequests, interested, whatsappConnected, inbox, ongoing] = await Promise.all([
     listPatients(ctx, { status: "PENDING" }),
     listPending(ctx),
     listFailedReminders(ctx),
@@ -44,7 +56,9 @@ export default async function PendentesPage() {
     listInterestedPatients(ctx),
     hasWhatsappInstance(ctx),
     listInbox(ctx),
+    listOpenConversations(ctx),
   ]);
+  const now = ctx.now().getTime();
   const isEmpty = patients.items.length === 0 && appointments.length === 0 && failedReminders.length === 0 && rescheduleRequests.length === 0 && interested.length === 0 && inbox.length === 0;
 
   return (
@@ -210,6 +224,35 @@ export default async function PendentesPage() {
                   <ConfirmButton label="Recusar" variant="ghost" action={rejectAppointmentAction.bind(null, appointment.id)} />
                   <ConfirmButton label="Aprovar" action={approveAppointmentAction.bind(null, appointment.id)} />
                 </div>
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </Section>
+      )}
+
+      {ongoing.length > 0 && (
+        <Section icon={MessagesSquare} title="Conversas em andamento" count={ongoing.length}>
+          <p className="text-sm text-muted-foreground">Pessoas que estão marcando horário pelo WhatsApp agora. Limpe uma conversa para que a próxima mensagem comece do zero.</p>
+          <Stagger className="space-y-2">
+            {ongoing.map((conversation) => (
+              <StaggerItem key={conversation.id} className="flex flex-wrap items-center gap-4 rounded-2xl border bg-card px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{conversation.patientName ?? "Contato novo"}</p>
+                  <p className="text-sm text-muted-foreground tabular-nums">
+                    {formatBrPhone(conversation.phoneE164)} · parou em: {STEP_LABEL[conversation.step]}
+                    {conversation.procedureName ? ` · ${conversation.procedureName}` : ""}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Última mensagem {ago(conversation.lastActivityAt, now)}
+                    {conversation.misses > 0 ? ` · ${conversation.misses} ${conversation.misses === 1 ? "resposta não entendida" : "respostas não entendidas"}` : ""}
+                  </p>
+                </div>
+                <ConfirmButton
+                  label="Limpar conversa"
+                  variant="outline"
+                  confirmMessage="Limpar esta conversa? O agendamento em andamento é encerrado e a próxima mensagem da pessoa começa do zero."
+                  action={clearOpenConversationAction.bind(null, conversation.id)}
+                />
               </StaggerItem>
             ))}
           </Stagger>

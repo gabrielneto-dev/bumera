@@ -44,6 +44,13 @@ export async function markInboxHandledAction(id: string): Promise<ActionState> {
   });
 }
 
+export async function clearOpenConversationAction(conversationId: string): Promise<ActionState> {
+  return runAction(async () => {
+    await clearConversation(await getServiceContext(), { conversationId });
+    return "Conversa limpa.";
+  });
+}
+
 export async function clearInboxConversationAction(inboundMessageId: string): Promise<ActionState> {
   return runAction(async () => {
     await clearConversation(await getServiceContext(), { inboundMessageId });
