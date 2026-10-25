@@ -52,4 +52,5 @@ export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
   AI_SETTINGS_CHANGED: "Assistente de IA alterado",
   INBOUND_MESSAGE_HANDLED: "Mensagem de paciente respondida pela equipe",
   PATIENT_MESSAGE_ANSWERED_BY_AI: "Paciente respondido pelo assistente de IA",
+  CONVERSATION_CLEARED: "Conversa do WhatsApp limpa pela equipe",
 };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanName, isGreeting, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
+import { cleanName, isGreeting, isResetCommand, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
 
 const procedures = [
   { id: "p1", name: "Avaliação" },
@@ -78,5 +78,15 @@ describe("isGreeting", () => {
 
   it.each(["", "oi, quero marcar uma limpeza", "boa noite, vocês atendem sábado?", "bem", "quero agendar", "1", "sim"])("does not treat %j as only a hello", (text) => {
     expect(isGreeting(text)).toBe(false);
+  });
+});
+
+describe("isResetCommand", () => {
+  it.each(["recomeçar", "Recomeçar!", "reiniciar", "limpar conversa", "começar de novo"])("sees %j as a request to start over", (text) => {
+    expect(isResetCommand(text)).toBe(true);
+  });
+
+  it.each(["quero recomeçar o tratamento", "1", "oi", "cancelar"])("does not treat %j as one", (text) => {
+    expect(isResetCommand(text)).toBe(false);
   });
 });

@@ -15,7 +15,7 @@ import { listPatients } from "@/lib/services/patients";
 import { listFailedReminders, listInterestedPatients } from "@/lib/services/reminders";
 import { getServiceContext } from "@/lib/services/server";
 import { hasWhatsappInstance } from "@/lib/services/whatsapp";
-import { approveAppointmentAction, approvePatientAction, markInboxHandledAction, markInterestHandledAction, rejectAppointmentAction } from "./actions";
+import { approveAppointmentAction, approvePatientAction, markInboxHandledAction, clearInboxConversationAction, markInterestHandledAction, rejectAppointmentAction } from "./actions";
 
 export const metadata = { title: "Pendentes" };
 // Per-user page: it depends on the session cookie, so navigating here may block (loading.tsx covers the wait).
@@ -84,7 +84,15 @@ export default async function PendentesPage() {
                   <p className="text-sm break-words whitespace-pre-wrap">{item.text}</p>
                   <p className="text-sm text-muted-foreground tabular-nums">Responda por aqui ou ligue: {formatBrPhone(item.phoneE164)}</p>
                 </div>
-                <ConfirmButton label="Marcar como respondida" action={markInboxHandledAction.bind(null, item.id)} />
+                <div className="flex items-start gap-2">
+                  <ConfirmButton
+                    label="Limpar conversa"
+                    variant="ghost"
+                    confirmMessage="Limpar a conversa deste número? O agendamento em andamento é encerrado e as mensagens não lidas dele saem desta lista."
+                    action={clearInboxConversationAction.bind(null, item.id)}
+                  />
+                  <ConfirmButton label="Marcar como respondida" action={markInboxHandledAction.bind(null, item.id)} />
+                </div>
               </StaggerItem>
             ))}
           </Stagger>

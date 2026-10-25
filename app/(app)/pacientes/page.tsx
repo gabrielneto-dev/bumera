@@ -13,7 +13,7 @@ import { can } from "@/lib/authz";
 import { formatBrPhone } from "@/lib/phone";
 import { listPatients } from "@/lib/services/patients";
 import { getServiceContext } from "@/lib/services/server";
-import { allowMessagesAgainAction, anonymizePatientAction, createPatientAction, updatePatientAction } from "./actions";
+import { allowMessagesAgainAction, anonymizePatientAction, clearConversationAction, createPatientAction, updatePatientAction } from "./actions";
 import { PatientFields } from "./patient-fields";
 
 export const metadata = { title: "Pacientes" };
@@ -106,6 +106,14 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
                     </p>
                     <CheckboxField name="consent" label="O paciente aceitou voltar a receber mensagens por WhatsApp" />
                   </ActionDialog>
+                )}
+                {canUpdate && !patient.anonymized && (
+                  <ConfirmButton
+                    label="Limpar conversa"
+                    variant="ghost"
+                    confirmMessage={`Limpar a conversa de ${patient.name} no WhatsApp? O agendamento em andamento é encerrado e as mensagens não lidas saem da lista. O cadastro e as consultas continuam.`}
+                    action={clearConversationAction.bind(null, patient.id)}
+                  />
                 )}
                 {canUpdate && !patient.anonymized && (
                   <a

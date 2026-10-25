@@ -3,7 +3,7 @@ import { recordAudit } from "@/lib/audit";
 import { phoneCandidates, type InboundMessage } from "@/lib/inbound/evolution";
 import type { AiClient, AiContext } from "@/lib/ai/types";
 import { closeOpenConversations, continueConversation, findOpenConversation, startConversation } from "@/lib/booking/conversation";
-import { isGreeting, looksLikeBookingRequest } from "@/lib/booking/text";
+import { isGreeting, isResetCommand, looksLikeBookingRequest } from "@/lib/booking/text";
 import { receiveFreeText } from "@/lib/inbound/free-text";
 import { parseIntent } from "@/lib/inbound/intent";
 import { isUrgent } from "@/lib/inbound/urgent";
@@ -54,6 +54,16 @@ export async function handleInboundMessage(
   const phones = phoneCandidates(message.phoneE164);
   const settings = await prisma.clinicSettings.findUnique({ where: { organizationId: message.organizationId }, select: { bookingEnabled: true } });
   const bookingEnabled = settings?.bookingEnabled ?? true;
+
+  // "Recomeçar": the person starts the conversation over. A repeated delivery of the same message does nothing.
+  if (isResetCommand(message.text) && intent === "UNKNOWN") {
+    const current = await findOpenConversation(prisma, message.organizationId, phones, now);
+    if (current?.lastMessageId === message.messageId) return { outcome: "IGNORED" };
+    await closeOpenConversations(prisma, message.organizationId, phones);
+    const reachable = patients.find((patient) => !patient.doNotContact && !patient.guardianName) ?? patients.find((patient) => !patient.doNotContact);
+    if (!bookingEnabled || (patients.length > 0 && !reachable)) return { outcome: "IGNORED" };
+    return startConversation(prisma, { ...message, text: "Oi" }, reachable ?? null, now, deps.ai);
+  }
 
   if (patients.length === 0) {
     // A first contact. Opting out means nothing for someone we hold no record of; anyone else is welcomed.

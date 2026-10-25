@@ -84,3 +84,10 @@ export function isGreeting(text: string): boolean {
   if (words.length === 0 || words.length > MAX_GREETING_WORDS) return false;
   return words.every((word) => GREETING_WORDS.has(word)) && words.some((word) => GREETING_CORE.has(word));
 }
+
+const RESET_COMMAND = /^(recomecar|reiniciar|comecar de novo|comecar novamente|limpar conversa|reiniciar conversa|recomecar conversa)\W*$/;
+
+/** The person asks to start the conversation over ("recomeçar", "limpar conversa"). */
+export function isResetCommand(text: string): boolean {
+  return RESET_COMMAND.test(normalize(text).trim());
+}

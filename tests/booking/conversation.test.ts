@@ -49,6 +49,31 @@ describe("booking conversation", () => {
     await say("Ana Souza");
   }
 
+  describe("starting over", () => {
+    it("lets the person write 'recomeçar' to begin again, once per delivery", async () => {
+      await reachSlots();
+      expect(await conversation()).toMatchObject({ step: "SLOT", name: "Ana Souza" });
+
+      expect(await say("Recomeçar", STRANGER, NOW, "reset-1")).toMatchObject({ outcome: "CONVERSATION" });
+
+      const fresh = await conversation();
+      expect(fresh).toMatchObject({ status: "OPEN", step: "PROCEDURE", procedureId: null, name: null });
+      expect(await prisma.conversation.count({ where: { status: "OPEN" } })).toBe(1);
+      expect(await lastReply()).toContain("Em que posso te ajudar?");
+
+      expect(await say("Recomeçar", STRANGER, NOW, "reset-1")).toEqual({ outcome: "IGNORED" });
+      expect(await prisma.conversation.count()).toBe(2);
+    });
+
+    it("does nothing for a clinic with booking turned off, and for someone who opted out", async () => {
+      await prisma.clinicSettings.update({ where: { organizationId: clinic }, data: { bookingEnabled: false } });
+      expect(await say("recomeçar")).toEqual({ outcome: "IGNORED" });
+      await prisma.clinicSettings.update({ where: { organizationId: clinic }, data: { bookingEnabled: true } });
+      await prisma.patient.create({ data: { organizationId: clinic, name: "Rita", phoneE164: "+5511977776666", doNotContact: true } });
+      expect(await say("reiniciar", "+5511977776666")).toEqual({ outcome: "IGNORED" });
+    });
+  });
+
   describe("a first contact", () => {
     it("is welcomed with the clinic's procedures, without creating anyone yet", async () => {
       expect(await say("Oi, quero marcar uma consulta")).toMatchObject({ outcome: "CONVERSATION" });

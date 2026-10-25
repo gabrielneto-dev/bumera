@@ -3,6 +3,7 @@
 import type { ActionState } from "@/lib/action-state";
 import { formBoolean, formOptional, formString } from "@/lib/form-data";
 import { runAction } from "@/lib/run-action";
+import { clearConversation } from "@/lib/services/conversations";
 import { allowMessagesAgain, anonymizePatient, confirmPatient, createPatient, updatePatient } from "@/lib/services/patients";
 import { getServiceContext } from "@/lib/services/server";
 
@@ -62,5 +63,12 @@ export async function anonymizePatientAction(id: string): Promise<ActionState> {
   return runAction(async () => {
     await anonymizePatient(await getServiceContext(), id);
     return "Dados do paciente apagados.";
+  });
+}
+
+export async function clearConversationAction(patientId: string): Promise<ActionState> {
+  return runAction(async () => {
+    const result = await clearConversation(await getServiceContext(), { patientId });
+    return result.conversations + result.messages === 0 ? "Não havia conversa em andamento." : "Conversa limpa.";
   });
 }
