@@ -1,5 +1,7 @@
 # Arquitetura da IA no WhatsApp — plano estratégico e tático
 
+> **2026-10-25:** este plano foi escrito antes de o módulo 4 entrar no `main`. A Parte A (estratégia) e a arquitetura-alvo da Parte B continuam valendo; o roteiro tático (Parte C) foi substituído pelo roteiro de `docs/ai-gap-analysis.md`, que parte do código em produção.
+
 Status: proposta v2 (2026-10-25). Aprovado pelo usuário: (D1) portar padrões do DeskcommCRM, sem fork; (D2) conversa 100% no app, n8n fora do caminho da conversa; (D3) canal determinístico antes do LLM. Novas propostas desta versão estão marcadas como **[decidir]**.
 
 Premissa: não há código de IA, webhook de entrada ou buffer no repositório hoje; o plano parte do zero (o app tem lembretes M2, serviços com permissão e `scopedPrisma`).

@@ -20,7 +20,7 @@ Three loops (turn · conversation · learning); conversation = append-only event
 - Queue: pg-boss 12 in polling mode with heartbeat (spike evidence) — `CTX-DEC-20261025-queue-pg-boss`
 
 ## Research
-`CTX-RES-20261025-deskcommcrm-agent-engine` (what to port, file pointers), `CTX-RES-20261025-evolution-webhook-contract` (docs-based contract, pin v2.3.7).
+`CTX-RES-20261025-deskcommcrm-agent-engine` (what to port, file pointers), `CTX-RES-20261025-evolution-webhook-contract` (docs-based contract, pin v2.3.7), `CTX-RES-20261025-module4-gap-analysis` (current code vs plan; new roadmap F1–F6).
 
 ## Code map
 Queue/worker foundation: `lib/queue/boss.ts` (pg-boss options), `lib/queue/queues.ts` (`defineQueue`, `enqueue`, `enqueueDebounced`, Prisma-transaction enqueue), `lib/queue/worker.ts` (`startWorker`, retries, heartbeat, per-group serialization), `lib/queue/health.ts`, `lib/log.ts` (JSON-lines, no PII), entry `worker/main.ts` (`npm run worker:dev`). **Run a single worker replica**: per-conversation serialization is in-memory (`localGroupConcurrency`) because pg-boss's database-wide `groupConcurrency` raced between pollers of one process (measured).
