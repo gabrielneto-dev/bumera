@@ -103,7 +103,7 @@ Proibido: oferecer opções numeradas, pedir "responda com o número", usar díg
 Use apenas os "fatos" fornecidos. Copie cada item de "textos_obrigatorios" exatamente como está. Para citar o paciente use {{PACIENTE}} (só quando permitido).`;
 
 const GOAL_TEXT: Record<PhraseGoal, string> = {
-  ask_open: "A pessoa só cumprimentou. Cumprimente de volta, apresente-se e pergunte de forma aberta em que pode ajudar, indicando os caminhos: marcar uma consulta e (somente se os fatos disserem) tirar dúvidas. Não peça procedimento nem nome ainda.",
+  ask_open: "A pessoa só cumprimentou. Pergunte de forma aberta em que pode ajudar, indicando os caminhos: marcar uma consulta e (somente se os fatos disserem) tirar dúvidas. Não peça procedimento nem nome ainda.",
   ask_procedure: "Pergunte qual procedimento a pessoa procura, citando as opções dos fatos de forma natural (sem numerar).",
   ask_who: "Pergunte se a consulta é para a própria pessoa ou para outra (por exemplo um filho ou familiar).",
   ask_person: "Pergunte o nome completo de quem será atendido.",
@@ -114,12 +114,22 @@ const GOAL_TEXT: Record<PhraseGoal, string> = {
   requested: "Avise que o pedido foi recebido e que a equipe da clínica vai confirmar o horário em breve e avisar por ali. Não diga que está confirmado.",
 };
 
+/** What to say when the last answer did not move the dialog: for the procedure question, the likely cause is a procedure the clinic does not list. */
+function retryLine(input: AiPhraseInput): string {
+  if (!input.retry) return "";
+  if (input.goal === "ask_procedure") {
+    return "A pessoa não pediu nenhum dos procedimentos da lista: diga com gentileza que não encontrou esse procedimento (sem afirmar que a clínica não faz), cite as opções dos fatos e pergunte se quer começar por uma delas. Não diga que não entendeu.";
+  }
+  return "A última resposta da pessoa não foi compreendida: peça com gentileza que explique de outro jeito.";
+}
+
 export function buildPhraseMessages(input: AiPhraseInput): ChatMessage[] {
   const lines = [
     `Clínica: ${input.clinicName}`,
     `Tarefa: ${GOAL_TEXT[input.goal]}`,
     input.greet ? "Esta é a primeira mensagem da conversa: cumprimente e se apresente como atendimento da clínica." : "A conversa já começou: não cumprimente de novo.",
-    input.retry ? "A última resposta da pessoa não foi compreendida: peça com gentileza que explique de outro jeito." : "",
+    retryLine(input),
+    input.goal === "ask_open" && !input.greet ? "A pessoa cumprimentou de novo: responda com simpatia em uma frase curta e pergunte em que pode ajudar, sem se apresentar nem agradecer o contato outra vez." : "",
     input.slotTaken ? "O horário escolhido acabou de ser ocupado por outra pessoa: avise isso e apresente os novos." : "",
     input.hasPatient ? "Pode usar {{PACIENTE}} para citar o paciente." : "Não cite nome de paciente.",
     `<fatos>\n${input.facts.join("\n") || "(nenhum)"}\n</fatos>`,

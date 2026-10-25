@@ -66,4 +66,6 @@ export const noSlots = (clinicName: string): string =>
 export const handoff = (clinicName: string): string =>
   join("Tudo bem!", `A equipe da *${clean(clinicName)}* vai falar com você em breve.`);
 
+export const procedureNotFound = (): string => "Não encontrei esse procedimento por aqui. Estes são os que temos:";
+
 export const notUnderstood = (): string => "Não entendi. Responda com o número de uma das opções, por favor.";

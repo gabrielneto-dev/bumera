@@ -421,7 +421,8 @@ interface Spoken {
 /** The next message of the dialog for the conversation's current step: written by the AI when possible, fixed otherwise. */
 async function speak(turn: Turn, conv: Conversation, options: { retry?: boolean; slotTaken?: boolean; unmatched?: boolean; done?: boolean; open?: boolean; person?: string } = {}): Promise<string> {
   const spoken = await spokenFor(turn, conv, options);
-  const fallback = options.retry ? `${say.notUnderstood()}\n\n${spoken.fallback}` : spoken.fallback;
+  const miss = conv.step === "PROCEDURE" ? say.procedureNotFound() : say.notUnderstood();
+  const fallback = options.retry ? `${miss}\n\n${spoken.fallback}` : spoken.fallback;
   let text = fallback;
   if (turn.ai) {
     try {

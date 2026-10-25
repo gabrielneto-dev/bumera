@@ -169,6 +169,19 @@ describe("fluid booking dialog (AI reads and writes)", () => {
     expect(counts.PHRASE_USED).toBeUndefined();
   });
 
+  it("says the procedure was not found, instead of 'não entendi', and keeps the greeting short the second time", async () => {
+    const seen: AiPhraseInput[] = [];
+    const ai = fakeAi(undefined, { phrase: (input) => (seen.push(input), writer(input)), turn: {} });
+    await say("Oi", ai);
+    await say("Oi, boa tarde!", ai);
+    expect(seen.map((input) => [input.goal, input.greet])).toEqual([["ask_open", true], ["ask_open", false]]);
+
+    const plain = await say("quero fazer um tratamento de canal", null);
+    expect(plain).toMatchObject({ outcome: "CONVERSATION" });
+    expect(await lastReply()).toContain("Não encontrei esse procedimento por aqui");
+    expect(await lastReply()).not.toContain("Não entendi");
+  });
+
   it("does not read a name with the AI, and keeps the patient's name away from it", async () => {
     const ai = fakeAi(undefined, { phrase: writer, turn: { procedure: 2, whom: "other" } });
     await say("Quero clarear os dentes do meu filho", ai);
