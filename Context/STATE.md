@@ -1,7 +1,7 @@
 # Project State
 
 Last updated: 2026-10-24
-Latest checkpoint: Context/checkpoints/CP-20261025-0100-open-question-buffer.md
+Latest checkpoint: Context/checkpoints/CP-20261025-1000-quality-panel-clear-conversation.md
 
 ## Current objective
 Ship the pilot: confirmação/lembrete over WhatsApp for 1–3 dental clinics (modules 1–3, no AI), hosted on the user's server. M4 (inbound replies and hardening) in progress.
@@ -25,11 +25,12 @@ Ship the pilot: confirmação/lembrete over WhatsApp for 1–3 dental clinics (m
 - LGPD: append-only activity log with the admin Atividades screen, export of a patient's data (JSON download) and erasure by anonymization ("Apagar dados", admin only). `CTX-NTE-20261022-lgpd-audit-export-erasure`.
 
 - Module 4 (AI), deployed at 20ce1f3: message inbox for free text; per-clinic opt-in AI assistant (encrypted key entered in the Assistente screen, model claude-haiku-5.5, injection pre-filter, masking); WhatsApp booking dialog for new contacts and patients that ends in a PENDING appointment the secretary approves; appointments for someone else (dependent records, notices addressed to the guardian); fluid conversation where the AI reads free answers and writes the questions while the app validates everything (numbered menu as fallback). 715 tests, ~96.8%. Details: `CTX-NTE-20261024-ai-assistant-and-inbox`, `CTX-NTE-20261024-booking-dialog`, rules `CTX-DEC-20261024-ai-booking-rules`.
+  AI quality screen (`/qualidade-ia`), "Limpar conversa" (button on Pacientes/Pendentes, list "Conversas em andamento", and "recomeçar" on WhatsApp); deployed at 382d9b2, 789 tests.
   A plain hello gets an open question ("em que posso te ajudar?"); messages written in a row are buffered 8 s and answered once (`INBOUND_BUFFER_MS`); n8n polls every minute; deployed at 8c8e347, 749 tests. Production clinic AI had to be switched on in the Assistente screen (needs the clinic info text).
   Day/period preference ("só à tarde", "quinta de manhã", "depois das 17h") filters the real free slots; deployed at df864dd, 723 tests, eval 29/29 reading and 36/36 writing.
 
 ## Not built yet
-Creating a clinic's Evolution instance and QR code from the app (manual runbook in `deploy/README.md`), erasure inside Evolution and a retention policy, Editable message texts, AI improvements (reschedule by chat, quality dashboard, short memory, audio), off-machine encrypted backup copy, webhook setup for new Evolution instances (manual today), audit log and patient data export/deletion, protection of public n8n/Evolution hostnames, LGPD checklist, e-mail provider, password reset, cleaning test data in `bumera_prod` (Gabriel Teste, Teste Falha).
+Creating a clinic's Evolution instance and QR code from the app (manual runbook in `deploy/README.md`), erasure inside Evolution and a retention policy, Editable message texts, AI improvements (reschedule by chat, short memory, audio), off-machine encrypted backup copy, webhook setup for new Evolution instances (manual today), audit log and patient data export/deletion, protection of public n8n/Evolution hostnames, LGPD checklist, e-mail provider, password reset, cleaning test data in `bumera_prod` (Gabriel Teste, Teste Falha).
 
 ## Blockers
 None.
@@ -41,7 +42,7 @@ Three engines (app, n8n, Evolution) · app owns the DB (PostgreSQL) · Next.js +
 `CTX-QUE-20261016-service-auth` (partly answered) · `CTX-QUE-20261016-llm-usage-in-pilot` · `CTX-QUE-20261016-pilot-first-module-and-clinics` · `CTX-QUE-20261018-email-provider` (postponed). Risk: `CTX-RSK-20261021-evolution-publicly-exposed`.
 
 ## Next likely steps
-0. The owner tests the fluid booking dialog and the day/period preference on WhatsApp; then the AI quality dashboard; end-of-project items (e-mail, password reset, off-machine backup: the user wants these at the end).
+0. The owner tests the fluid booking dialog and the day/period preference on WhatsApp; then reschedule by chat; end-of-project items (e-mail, password reset, off-machine backup: the user wants these at the end).
 1. Protect the Evolution hostname (Cloudflare Access) and keep the CPF key copies off the server (owner actions).
 2. Off-machine encrypted backup copy; audit log; real e-mail provider and password reset.
 3. Put the Evolution hostname behind Cloudflare Access; back up the CPF keys off the server.
