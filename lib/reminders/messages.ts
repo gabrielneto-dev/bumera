@@ -164,6 +164,8 @@ export function renderReminderMessage(raw: MessageInput): string {
       );
     case "REPLY_HANDOFF":
       return handoffMessage(hello, clinic);
+    case "REPLY_MEDIA":
+      return join(hello, "Ainda não consigo ouvir áudios nem ver imagens por aqui. 🙏", `Pode escrever sua mensagem? Se preferir, a equipe da ${clinic} vê o que você mandou e responde em breve.`);
     case "REPLY_FLOW":
       // Built by the booking dialog from sanitized parts (names, procedures); its own *bold* must survive.
       return (raw.freeText ?? "").trim().slice(0, MAX_FLOW_TEXT_LENGTH) || handoffMessage(hello, clinic);

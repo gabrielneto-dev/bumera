@@ -1,6 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/webhooks/evolution/[token]/route";
 import { createPrismaClient } from "@/lib/prisma";
+import { QUEUE_SCHEMA } from "@/lib/queue/boss";
+import { stopProducerBoss } from "@/lib/queue/producer";
 import { createClinic, createDentist, createPatient, createProcedure } from "../helpers/factories";
 
 const prisma = createPrismaClient(process.env.DATABASE_URL as string);
@@ -43,6 +45,7 @@ describe("POST /api/webhooks/evolution/[token]", () => {
 
   afterAll(async () => {
     vi.unstubAllEnvs();
+    await stopProducerBoss();
     await prisma.$disconnect();
   });
 
@@ -62,6 +65,22 @@ describe("POST /api/webhooks/evolution/[token]", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ success: true, data: { outcome: "CONFIRMED", appointmentId } });
     expect((await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } })).status).toBe("CONFIRMED");
+  });
+
+  it("with the worker as sender, only keeps the message and schedules the number's turn", async () => {
+    vi.stubEnv("WHATSAPP_SENDER", "worker");
+    await prisma.$executeRawUnsafe(`delete from ${QUEUE_SCHEMA}.job where name = 'whatsapp.turn'`).catch(() => 0);
+    const response = await call(payload("1"));
+    vi.stubEnv("WHATSAPP_SENDER", "");
+
+    expect(await response.json()).toMatchObject({ success: true, data: { outcome: "BUFFERED" } });
+    expect((await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } })).status).toBe("SCHEDULED");
+    expect(await prisma.inboundBuffer.count()).toBe(1);
+    const jobs: Array<{ singleton_key: string }> = await prisma.$queryRawUnsafe(
+      `select singleton_key from ${QUEUE_SCHEMA}.job where name = 'whatsapp.turn' and state = 'created'`,
+    );
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].singleton_key).toMatch(/^turn:.+:\+5511987654321$/);
   });
 
   it("holds the message while the buffer is on, and answers it when the timer runs", async () => {

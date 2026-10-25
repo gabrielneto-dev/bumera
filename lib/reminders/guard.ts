@@ -19,7 +19,7 @@ export interface GuardInput {
   patientHasUpcomingAppointment?: boolean;
 }
 
-const REPLY_KINDS: readonly ReminderKind[] = ["REPLY_CONFIRMED", "REPLY_RESCHEDULE", "REPLY_OPTED_OUT", "REPLY_INTERESTED", "REPLY_DECLINED", "REPLY_HANDOFF", "REPLY_AI", "REPLY_FLOW"];
+const REPLY_KINDS: readonly ReminderKind[] = ["REPLY_CONFIRMED", "REPLY_RESCHEDULE", "REPLY_OPTED_OUT", "REPLY_INTERESTED", "REPLY_DECLINED", "REPLY_HANDOFF", "REPLY_AI", "REPLY_FLOW", "REPLY_MEDIA"];
 
 /** Answers to a patient's own WhatsApp message (as opposed to reminders the clinic starts). */
 export function isReplyKind(kind: ReminderKind): boolean {

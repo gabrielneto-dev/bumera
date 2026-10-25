@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { bufferMessage, bufferQuietMs, flushBuffered } from "@/lib/inbound/buffer";
+import { bufferMessage, bufferQuietMs, flushBuffered, joinBurst } from "@/lib/inbound/buffer";
 import type { ClinicMessage, InboundOutcome } from "@/lib/inbound/handle";
 import { createPrismaClient } from "@/lib/prisma";
 import { createClinic } from "../helpers/factories";
@@ -104,5 +104,27 @@ describe("inbound buffer", () => {
       vi.stubEnv("INBOUND_BUFFER_MS", "abc");
       expect(bufferQuietMs()).toBe(0);
     });
+  });
+});
+
+describe("joinBurst", () => {
+  const row = (messageId: string, text: string, mediaKind: string | null = null) => ({ instance: "bumera-teste", messageId, text, mediaKind });
+
+  it("joins the written texts and keeps the last message id", () => {
+    expect(joinBurst("org", "+5511987654321", [row("1", "oi"), row("2", "", "audio"), row("3", "quero marcar")])).toEqual({
+      organizationId: "org",
+      phoneE164: "+5511987654321",
+      instance: "bumera-teste",
+      messageId: "3",
+      text: "oi\nquero marcar",
+    });
+  });
+
+  it("answers a burst of media only as media", () => {
+    expect(joinBurst("org", "+5511987654321", [row("1", "", "image"), row("2", "", "audio")])).toMatchObject({ text: "", mediaKind: "audio", messageId: "2" });
+  });
+
+  it("refuses an empty burst", () => {
+    expect(() => joinBurst("org", "+5511987654321", [])).toThrow();
   });
 });

@@ -16,7 +16,9 @@
     "db:tunnel": "ssh -fN -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -L 5433:127.0.0.1:5432 my-server",
     "ui:tunnel": "ssh -fN -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -L 5678:127.0.0.1:5678 -L 5050:127.0.0.1:5050 my-server",
     "test:e2e": "playwright test",
-    "ai:eval": "tsx scripts/ai-eval.ts"
+    "ai:eval": "tsx scripts/ai-eval.ts",
+    "worker:dev": "tsx --env-file=.env.local worker/main.ts",
+    "worker": "tsx worker/main.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -31,6 +33,7 @@
     "motion": "^14.4.0",
     "next": "16.4.2",
     "pg": "^8.23.1",
+    "pg-boss": "~12.38.0",
     "prisma": "^7.10.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",

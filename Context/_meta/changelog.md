@@ -63,3 +63,6 @@
 
 ## 2026-10-24 (module 4 save)
 - AI assistant/inbox note, booking dialog note, AI booking rules decision, checkpoint, STATE and indexes.
+
+## 2026-10-25 (AI plan, merge, re-base)
+- n8n-control merged into main (context conflicts resolved, catalog rebuilt). New branch `ai-agent` (plan, decisions, research, questions), checkpoint, MAP/STATE/architecture index; inbound-routing decision superseded.

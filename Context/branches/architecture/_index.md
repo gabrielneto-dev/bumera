@@ -8,7 +8,7 @@ Scope: engines, stack, hosting, data, security. Status: active — direction dec
 - Next.js + Tailwind + shadcn/ui, n8n — `CTX-DEC-20261016-stack-nextjs-n8n`
 - SaaS multi-tenant — `CTX-DEC-20261016-saas-multi-tenant`
 - PostgreSQL — `CTX-DEC-20261016-postgresql`
-- Inbound WhatsApp: Evolution → app → n8n (verify) — `CTX-DEC-20261016-inbound-routing-app-first`
+- Inbound WhatsApp: app first; target is the conversation fully in the app + worker, n8n out of the path — `CTX-DEC-20261025-conversation-owned-by-app` (supersedes `CTX-DEC-20261016-inbound-routing-app-first`; see `../ai-agent/_index.md`)
 - Auth e-mail/password + invites — `CTX-DEC-20261017-auth-email-password-invites`
 - Backups deferred — `CTX-DEC-20261017-defer-backups`; phased network exposure — `CTX-DEC-20261017-network-exposure-phased`
 - No Proxmox, clean server — `CTX-DEC-20261018-no-proxmox-clean-server`

@@ -1,10 +1,23 @@
+export type MediaKind = "audio" | "image" | "video" | "document";
+
 export interface InboundMessage {
   /** Evolution instance (the clinic's WhatsApp number) that received the message. */
   instance: string;
   phoneE164: string;
+  /** The text, or the caption of a media message; empty for media without caption. */
   text: string;
   messageId: string;
+  /** Set when the message is a media message (with or without caption). */
+  mediaKind?: MediaKind;
 }
+
+const MEDIA_FIELDS: ReadonlyArray<[string, MediaKind]> = [
+  ["audioMessage", "audio"],
+  ["imageMessage", "image"],
+  ["videoMessage", "video"],
+  ["documentMessage", "document"],
+  ["documentWithCaptionMessage", "document"],
+];
 
 const BR_E164 = /^\+55\d{10,11}$/;
 
@@ -21,14 +34,20 @@ function phoneFromJid(jid: string | null): string | null {
   return BR_E164.test(candidate) ? candidate : null;
 }
 
-function textOf(message: Record<string, unknown> | null): string | null {
+/** Text, or media kind plus caption; null for anything else (stickers, reactions, polls...). */
+function contentOf(message: Record<string, unknown> | null): { text: string; mediaKind?: MediaKind } | null {
   if (!message) return null;
-  return asString(message.conversation) ?? asString(asRecord(message.extendedTextMessage)?.text);
+  const text = asString(message.conversation) ?? asString(asRecord(message.extendedTextMessage)?.text);
+  if (text) return { text };
+  for (const [field, mediaKind] of MEDIA_FIELDS) {
+    if (field in message) return { text: asString(asRecord(message[field])?.caption) ?? "", mediaKind };
+  }
+  return null;
 }
 
 /**
- * Extracts a patient's text message from an Evolution API webhook body, or null when the event
- * is not something to act on (our own messages, groups, broadcasts, media, other events).
+ * Extracts a patient's message (text, or audio/media) from an Evolution API webhook body, or null when the
+ * event is not something to act on (our own messages, groups, broadcasts, stickers, other events).
  */
 export function parseEvolutionMessage(payload: unknown): InboundMessage | null {
   const body = asRecord(payload);
@@ -44,10 +63,10 @@ export function parseEvolutionMessage(payload: unknown): InboundMessage | null {
   const remoteJid = asString(key.remoteJid);
   // WhatsApp may hide the number behind a @lid id and send the real one alongside.
   const phoneE164 = phoneFromJid(remoteJid) ?? phoneFromJid(asString(key.remoteJidAlt));
-  const text = textOf(asRecord(data?.message));
+  const content = contentOf(asRecord(data?.message));
   const messageId = asString(key.id);
-  if (!instance || !phoneE164 || !text || !messageId) return null;
-  return { instance, phoneE164, text, messageId };
+  if (!instance || !phoneE164 || !content || !messageId) return null;
+  return { instance, phoneE164, messageId, ...content };
 }
 
 /**
