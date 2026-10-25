@@ -255,6 +255,25 @@ export async function claimDueReminders(prisma: PrismaClient, { now, limit = DEF
   }, { timeout: TRANSACTION_TIMEOUT_MS });
 }
 
+export interface ClaimedReminder {
+  due: DueReminder;
+  /** When it was queued: a reply's typing delay counts from here. */
+  createdAt: Date;
+  isReply: boolean;
+}
+
+/**
+ * A reminder the worker claimed for this attempt, rendered for sending; null when the claim is no longer
+ * current (sent, cancelled, re-claimed after a timeout) or the clinic has no WhatsApp anymore.
+ */
+export async function loadClaimedReminder(prisma: PrismaClient, id: string, attempt: number): Promise<ClaimedReminder | null> {
+  const row = await prisma.reminder.findUnique({ where: { id }, include: detailInclude });
+  if (!row || row.status !== "CLAIMED" || row.attempts !== attempt) return null;
+  const settings = await prisma.clinicSettings.findUnique({ where: { organizationId: row.organizationId }, select: { whatsappInstance: true } });
+  if (!settings?.whatsappInstance) return null;
+  return { due: toDue(row, attempt, settings.whatsappInstance), createdAt: row.createdAt, isReply: isReplyKind(row.kind) };
+}
+
 /** Retrying after this moment is pointless: the appointment started, or the quote expired. */
 function retryDeadline(
   row: {
@@ -273,7 +292,7 @@ function retryDeadline(
 }
 
 /** `attempt` is the number received in the due payload: a report about an older try is ignored. */
-export type ReminderOutcome = { attempt: number } & ({ outcome: "sent" } | { outcome: "failed"; error?: string });
+export type ReminderOutcome = { attempt: number } & ({ outcome: "sent"; providerMessageId?: string | null } | { outcome: "failed"; error?: string });
 
 export interface ReminderResult {
   id: string;
@@ -313,7 +332,7 @@ export async function recordReminderResult(
       : toClinicSettings(null).quoteValidDays;
 
     if (result.outcome === "sent") {
-      await tx.reminder.update({ where: { id }, data: { status: "SENT", sentAt: now, note: null } });
+      await tx.reminder.update({ where: { id }, data: { status: "SENT", sentAt: now, note: null, providerMessageId: result.providerMessageId ?? null } });
       return { id, status: "SENT" };
     }
 

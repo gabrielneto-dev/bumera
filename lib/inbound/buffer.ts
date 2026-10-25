@@ -92,9 +92,18 @@ async function answerRows(prisma: PrismaClient, organizationId: string, phoneE16
   }
 }
 
-/** Answers what one number wrote, whatever the quiet time (the worker's turn job decides when). */
+/**
+ * Worker path: answers what one number wrote, whatever the quiet time (the turn job decides when). Turns of a
+ * number never run at the same time, so the rows are answered first and deleted after: a worker that dies
+ * mid-turn leaves them for the retry, and answering again is safe (every branch of the handler is idempotent
+ * per message id). Messages that arrive meanwhile are not deleted; their own turn answers them.
+ */
 export async function flushNumber(prisma: PrismaClient, organizationId: string, phoneE164: string, now: Date, handler: Handler = handleInboundMessage): Promise<boolean> {
-  return answerRows(prisma, organizationId, phoneE164, await numberRows(prisma, organizationId, phoneE164), now, handler);
+  const rows = await numberRows(prisma, organizationId, phoneE164);
+  if (rows.length === 0) return false;
+  await handler(prisma, joinBurst(organizationId, phoneE164, rows), now);
+  await prisma.inboundBuffer.deleteMany({ where: { id: { in: rows.map((row) => row.id) } } });
+  return true;
 }
 
 /** How many unanswered messages a number has and when the first of them arrived (for the debounce). */

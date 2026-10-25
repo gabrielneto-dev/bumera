@@ -117,3 +117,29 @@ describe("WhatsApp turns on the worker", () => {
     });
   });
 });
+
+describe("runTurn after a crash", () => {
+  it("leaves the messages in place until they are answered, and does not delete what arrived meanwhile", async () => {
+    const local = createPrismaClient(process.env.DATABASE_URL as string);
+    const boss = createBoss(process.env.DATABASE_URL as string);
+    await boss.start();
+    await local.$executeRawUnsafe('TRUNCATE TABLE "organization" CASCADE');
+    const clinic = await createClinic(local, "a");
+    const message = (messageId: string, text: string): ClinicMessage => ({ organizationId: clinic, instance: "bumera-teste", phoneE164: PHONE, messageId, text });
+    await scheduleTurn(local, boss, message("m1", "oi"), NOW);
+    let seenDuringHandling = -1;
+    const handler = async (): Promise<InboundOutcome> => {
+      seenDuringHandling = await local.inboundBuffer.count();
+      // A new message arrives while the turn is being answered.
+      await scheduleTurn(local, boss, message("m2", "e o endereço?"), new Date(NOW.getTime() + 1000));
+      return { outcome: "CONVERSATION" };
+    };
+
+    await runTurn({ prisma: local, boss, handler }, { organizationId: clinic, phoneE164: PHONE }, NOW);
+
+    expect(seenDuringHandling).toBe(1);
+    expect(await local.inboundBuffer.findMany({ select: { messageId: true } })).toEqual([{ messageId: "m2" }]);
+    await boss.stop({ graceful: false });
+    await local.$disconnect();
+  });
+});

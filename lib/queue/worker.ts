@@ -1,7 +1,7 @@
 import type { Job, PgBoss } from "pg-boss";
 import type { Logger } from "@/lib/log";
 import { POLLING_INTERVAL_SECONDS } from "@/lib/queue/boss";
-import { ensureQueue, type QueueDefinition } from "@/lib/queue/queues";
+import { ensureQueue, type JobSpec, type QueueDefinition } from "@/lib/queue/queues";
 
 /** Jobs processed at once per queue in this process. */
 const LOCAL_CONCURRENCY = 5;
@@ -13,9 +13,21 @@ export interface RunningWorker {
   stop(): Promise<void>;
 }
 
+/** A job created on a cron by pg-boss (one per occurrence, whatever the number of workers). */
+export interface WorkerSchedule {
+  spec: JobSpec;
+  cron: string;
+  data: object;
+  /** Serialization group of the created jobs. */
+  group?: string;
+}
+
 export interface StartWorkerOptions {
   boss: PgBoss;
   queues: QueueDefinition[];
+  schedules?: WorkerSchedule[];
+  /** Queue names whose schedules must not exist anymore. */
+  unschedule?: string[];
   log: Logger;
 }
 
@@ -39,7 +51,7 @@ function jobHandler(queue: QueueDefinition, log: Logger) {
 }
 
 /** Creates/updates the queues, starts polling them, and returns a handle for health and shutdown. */
-export async function startWorker({ boss, queues, log }: StartWorkerOptions): Promise<RunningWorker> {
+export async function startWorker({ boss, queues, schedules = [], unschedule = [], log }: StartWorkerOptions): Promise<RunningWorker> {
   let running = true;
   boss.on("error", (error) => log.error("boss.error", { error }));
 
@@ -58,7 +70,14 @@ export async function startWorker({ boss, queues, log }: StartWorkerOptions): Pr
       jobHandler(queue, log),
     );
   }
-  log.info("worker.started", { queues: queues.map((queue) => queue.name) });
+  for (const name of unschedule) {
+    if (await boss.getQueue(name)) await boss.unschedule(name);
+  }
+  for (const schedule of schedules) {
+    await ensureQueue(boss, schedule.spec);
+    await boss.schedule(schedule.spec.name, schedule.cron, schedule.data, schedule.group ? { group: { id: schedule.group } } : {});
+  }
+  log.info("worker.started", { queues: queues.map((queue) => queue.name), schedules: schedules.map((schedule) => schedule.spec.name) });
 
   return {
     isHealthy: () => running,
