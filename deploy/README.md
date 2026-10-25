@@ -25,6 +25,19 @@ Instance `bumera-teste` (Baileys), paired by QR code through the Evolution API (
 Create two *Header Auth* credentials: `Bumera service key` (name `Authorization`, value `Bearer <SERVICE_API_KEY>`) and `Evolution API key` (name `apikey`, value `<EVOLUTION_API_KEY>`).
 Import `n8n/workflows/reminders-whatsapp.json`, link both credentials, run it once manually, then activate.
 
+## Worker and the WhatsApp sender switch (AI F1)
+The `worker` service (`bumera-worker`, `Dockerfile` target `worker`) runs pg-boss queues in the `pgboss` schema of `bumera_prod` (created on first start). `WHATSAPP_SENDER` in `~/bumera-app/.env` decides who buffers inbound messages and sends WhatsApp messages; the app and the worker read the same value:
+- `n8n` (default): the webhook buffers with `INBOUND_BUFFER_MS`, the n8n workflow polls `/api/v1/reminders/due` and sends. The worker consumes nothing.
+- `worker`: the webhook stores the message and schedules the number's turn; the worker answers it, dispatches due messages every minute and right after each turn, and sends them through Evolution with pacing. `/due` then hands out nothing, so a workflow left active cannot send twice.
+
+Switch to the worker (after `docker compose build app worker` and the migration):
+1. Set `WHATSAPP_SENDER=worker` in `~/bumera-app/.env`.
+2. `docker compose up -d app worker`; check `docker compose ps` (worker healthy) and `docker logs bumera-worker` (JSON lines; `worker.started` lists the queues).
+3. Deactivate the n8n workflow "Bumera - Lembretes por WhatsApp" (`n8n update:workflow --id=7msgAcP3Ptnh5r9r --active=false` inside `infra-n8n`, or in the editor).
+4. Send "oi" and "1" from a test phone to `bumera-teste`; the answer should arrive in about 10 s.
+
+Back to n8n: set `WHATSAPP_SENDER=n8n`, `docker compose up -d app worker`, reactivate the workflow. Messages buffered for the worker are then answered by the next `/due` poll. Run one worker replica only.
+
 ## Adding a clinic (one WhatsApp number per clinic)
 Each clinic has its own Evolution instance; its name is saved on the app's **WhatsApp** screen (admin only) and is unique across clinics. Until it is set, that clinic's messages wait (they are checked again every 30 minutes) and Pendentes shows a warning.
 1. Create the instance (header `apikey`, from inside the Evolution container or through an SSH tunnel to 127.0.0.1:8080): `POST /instance/create` with `{"instanceName":"<name>","qrcode":true,"integration":"WHATSAPP-BAILEYS"}`.
