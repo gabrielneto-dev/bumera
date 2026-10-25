@@ -3,6 +3,9 @@ import { parseEvolutionMessage } from "@/lib/inbound/evolution";
 import { bufferMessage, bufferQuietMs, flushBuffered } from "@/lib/inbound/buffer";
 import { handleInboundMessage } from "@/lib/inbound/handle";
 import { prisma } from "@/lib/prisma";
+import { getProducerBoss } from "@/lib/queue/producer";
+import { whatsappSender } from "@/lib/whatsapp/mode";
+import { scheduleTurn } from "@/lib/whatsapp/turn";
 import { checkWebhookToken, configuredWebhookToken } from "@/lib/webhook-auth";
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -38,6 +41,11 @@ export async function POST(request: Request, context: { params: Promise<{ token:
     });
     if (!clinic) return ok({ outcome: "UNKNOWN_INSTANCE" });
     const clinicMessage = { ...message, organizationId: clinic.organizationId };
+    // Worker pipeline: store and (re)schedule the number's turn; the worker answers once the person stops writing.
+    if (whatsappSender() === "worker") {
+      await scheduleTurn(prisma, await getProducerBoss(), clinicMessage, new Date());
+      return ok({ outcome: "BUFFERED" });
+    }
     const quietMs = bufferQuietMs();
     if (quietMs === 0) return ok(await handleInboundMessage(prisma, clinicMessage, new Date()));
 

@@ -11,16 +11,19 @@ export const QUEUE_SCHEMA = "pgboss";
 export const POLLING_INTERVAL_SECONDS = 0.5;
 const SUPERVISE_INTERVAL_SECONDS = 10;
 
-export function bossOptions(connectionString: string): ConstructorOptions {
-  return {
-    connectionString,
-    schema: QUEUE_SCHEMA,
-    useListenNotify: false,
-    superviseIntervalSeconds: SUPERVISE_INTERVAL_SECONDS,
-    monitorIntervalSeconds: SUPERVISE_INTERVAL_SECONDS,
-  };
+/**
+ * The worker runs queues, supervision and cron schedules. A producer (the web app) only enqueues: no
+ * supervision or schedules, so several app processes never compete for maintenance.
+ */
+export type BossRole = "worker" | "producer";
+const PRODUCER_POOL_SIZE = 2;
+
+export function bossOptions(connectionString: string, role: BossRole = "worker"): ConstructorOptions {
+  const common = { connectionString, schema: QUEUE_SCHEMA, useListenNotify: false };
+  if (role === "producer") return { ...common, supervise: false, schedule: false, max: PRODUCER_POOL_SIZE };
+  return { ...common, superviseIntervalSeconds: SUPERVISE_INTERVAL_SECONDS, monitorIntervalSeconds: SUPERVISE_INTERVAL_SECONDS };
 }
 
-export function createBoss(connectionString: string): PgBoss {
-  return new PgBoss(bossOptions(connectionString));
+export function createBoss(connectionString: string, role: BossRole = "worker"): PgBoss {
+  return new PgBoss(bossOptions(connectionString, role));
 }

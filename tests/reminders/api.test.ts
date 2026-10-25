@@ -90,6 +90,15 @@ describe("reminders API (service key)", () => {
       vi.stubEnv("INBOUND_BUFFER_MS", "");
     });
 
+    it("hands out nothing while the worker is the sender, so the two never send the same message", async () => {
+      vi.stubEnv("WHATSAPP_SENDER", "worker");
+      const body = await (await getDue(dueRequest())).json();
+      vi.stubEnv("WHATSAPP_SENDER", "");
+
+      expect(body).toMatchObject({ success: true, data: [], meta: { count: 0, sender: "worker" } });
+      expect(await prisma.reminder.findUniqueOrThrow({ where: { id: reminderId } })).toMatchObject({ status: "PENDING" });
+    });
+
     it("validates the limit", async () => {
       expect((await getDue(dueRequest("?limit=abc"))).status).toBe(400);
       expect((await getDue(dueRequest("?limit=0"))).status).toBe(400);

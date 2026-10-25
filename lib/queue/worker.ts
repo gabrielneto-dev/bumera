@@ -1,11 +1,8 @@
-import type { Job, PgBoss, Queue } from "pg-boss";
+import type { Job, PgBoss } from "pg-boss";
 import type { Logger } from "@/lib/log";
 import { POLLING_INTERVAL_SECONDS } from "@/lib/queue/boss";
-import type { QueueDefinition } from "@/lib/queue/queues";
+import { ensureQueue, type QueueDefinition } from "@/lib/queue/queues";
 
-const DEFAULT_RETRY_LIMIT = 3;
-const DEFAULT_RETRY_DELAY_SECONDS = 5;
-const DEFAULT_HEARTBEAT_SECONDS = 15;
 /** Jobs processed at once per queue in this process. */
 const LOCAL_CONCURRENCY = 5;
 /** How long stop() waits for in-flight jobs before giving up on them (they are retried later). */
@@ -20,24 +17,6 @@ export interface StartWorkerOptions {
   boss: PgBoss;
   queues: QueueDefinition[];
   log: Logger;
-}
-
-function queueOptions(queue: QueueDefinition): Omit<Queue, "name" | "policy"> {
-  return {
-    retryLimit: queue.retryLimit ?? DEFAULT_RETRY_LIMIT,
-    retryDelay: queue.retryDelaySeconds ?? DEFAULT_RETRY_DELAY_SECONDS,
-    retryBackoff: true,
-    heartbeatSeconds: queue.heartbeatSeconds ?? DEFAULT_HEARTBEAT_SECONDS,
-  };
-}
-
-async function ensureQueue(boss: PgBoss, queue: QueueDefinition): Promise<void> {
-  const options = queueOptions(queue);
-  if (await boss.getQueue(queue.name)) {
-    await boss.updateQueue(queue.name, options);
-  } else {
-    await boss.createQueue(queue.name, { ...options, policy: "standard" });
-  }
 }
 
 function jobHandler(queue: QueueDefinition, log: Logger) {

@@ -55,10 +55,57 @@ export function joinBurst(organizationId: string, phoneE164: string, rows: reado
 
 type Handler = (prisma: PrismaClient, message: ClinicMessage, now: Date) => Promise<InboundOutcome>;
 
+type Row = Awaited<ReturnType<PrismaClient["inboundBuffer"]["findMany"]>>[number];
+
+const numberRows = (prisma: PrismaClient, organizationId: string, phoneE164: string): Promise<Row[]> =>
+  prisma.inboundBuffer.findMany({ where: { organizationId, phoneE164 }, orderBy: [{ receivedAt: "asc" }, { id: "asc" }] });
+
 /**
- * Answers every number that has been quiet for `quietMs`, joining what it wrote into one message. Safe to call from
- * several places at once: a group of messages is claimed by deleting it, and only one caller can win that.
- * Returns how many numbers were answered.
+ * Claims these rows (deleting them; only one caller can win) and answers them as one message. If answering
+ * fails, the rows are put back while still fresh, so a retry answers them, and the error is rethrown.
+ * Returns false when another caller had already claimed them.
+ */
+async function answerRows(prisma: PrismaClient, organizationId: string, phoneE164: string, rows: Row[], now: Date, handler: Handler): Promise<boolean> {
+  const last = rows.at(-1);
+  if (!last) return false;
+  try {
+    await prisma.$transaction(async (tx) => {
+      const claimed = await tx.inboundBuffer.deleteMany({ where: { id: { in: rows.map((row) => row.id) } } });
+      if (claimed.count !== rows.length) throw new ClaimLost();
+    });
+  } catch (error) {
+    if (error instanceof ClaimLost) return false;
+    throw error;
+  }
+
+  try {
+    await handler(prisma, joinBurst(organizationId, phoneE164, rows), now);
+    return true;
+  } catch (error) {
+    if (now.getTime() - last.receivedAt.getTime() < RETRY_WINDOW_MS) {
+      await prisma.inboundBuffer.createMany({
+        data: rows.map((row) => ({ organizationId: row.organizationId, instance: row.instance, phoneE164: row.phoneE164, messageId: row.messageId, text: row.text, mediaKind: row.mediaKind, receivedAt: row.receivedAt })),
+        skipDuplicates: true,
+      });
+    }
+    throw error;
+  }
+}
+
+/** Answers what one number wrote, whatever the quiet time (the worker's turn job decides when). */
+export async function flushNumber(prisma: PrismaClient, organizationId: string, phoneE164: string, now: Date, handler: Handler = handleInboundMessage): Promise<boolean> {
+  return answerRows(prisma, organizationId, phoneE164, await numberRows(prisma, organizationId, phoneE164), now, handler);
+}
+
+/** How many unanswered messages a number has and when the first of them arrived (for the debounce). */
+export async function pendingBurst(prisma: PrismaClient, organizationId: string, phoneE164: string): Promise<{ count: number; firstAt: Date | null }> {
+  const result = await prisma.inboundBuffer.aggregate({ where: { organizationId, phoneE164 }, _count: { _all: true }, _min: { receivedAt: true } });
+  return { count: result._count._all, firstAt: result._min.receivedAt };
+}
+
+/**
+ * Legacy path (n8n sender): answers every number that has been quiet for `quietMs`, joining what it wrote
+ * into one message. Safe to call from several places at once. Returns how many numbers were answered.
  */
 export async function flushBuffered(prisma: PrismaClient, now: Date, quietMs: number, handler: Handler = handleInboundMessage): Promise<number> {
   const cutoff = new Date(now.getTime() - quietMs);
@@ -67,30 +114,11 @@ export async function flushBuffered(prisma: PrismaClient, now: Date, quietMs: nu
   let answered = 0;
 
   for (const { organizationId, phoneE164 } of groups.values()) {
-    const rows = await prisma.inboundBuffer.findMany({ where: { organizationId, phoneE164 }, orderBy: [{ receivedAt: "asc" }, { id: "asc" }] });
-    const last = rows.at(-1);
+    const rows = await numberRows(prisma, organizationId, phoneE164);
     // Still writing: the newest message is too recent.
+    const last = rows.at(-1);
     if (!last || last.receivedAt.getTime() > cutoff.getTime()) continue;
-
-    try {
-      await prisma.$transaction(async (tx) => {
-        const claimed = await tx.inboundBuffer.deleteMany({ where: { id: { in: rows.map((row) => row.id) } } });
-        if (claimed.count !== rows.length) throw new ClaimLost();
-      });
-    } catch (error) {
-      if (error instanceof ClaimLost) continue;
-      throw error;
-    }
-
-    try {
-      await handler(prisma, joinBurst(organizationId, phoneE164, rows), now);
-      answered += 1;
-    } catch (error) {
-      if (now.getTime() - last.receivedAt.getTime() < RETRY_WINDOW_MS) {
-        await prisma.inboundBuffer.createMany({ data: rows.map((row) => ({ organizationId: row.organizationId, instance: row.instance, phoneE164: row.phoneE164, messageId: row.messageId, text: row.text, mediaKind: row.mediaKind, receivedAt: row.receivedAt })), skipDuplicates: true });
-      }
-      throw error;
-    }
+    if (await answerRows(prisma, organizationId, phoneE164, rows, now, handler)) answered += 1;
   }
   return answered;
 }
