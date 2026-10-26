@@ -1,12 +1,18 @@
 import { freeSlots } from "@/lib/services/appointments";
 import type { ServiceContext } from "@/lib/services/context";
-import type { SlotPreference } from "@/lib/ai/types";
 import { shiftDay, todayInClinic } from "@/lib/dates";
 
 const DAYS_AHEAD = 14;
 const LEAD_TIME_MS = 2 * 3_600_000;
 /** The earliest slot of the morning and of the afternoon, per dentist and day: variety instead of 8:00, 8:30, 9:00. */
 const AFTERNOON_FROM_HOUR = 13;
+
+/** What the person asked for: days of the week (0 = Sunday), morning/afternoon, not before an hour (0-23). */
+export interface SlotPreference {
+  weekdays?: number[];
+  period?: "morning" | "afternoon";
+  fromHour?: number;
+}
 
 export interface SlotOption {
   startsAt: string;

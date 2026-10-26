@@ -38,3 +38,15 @@ export function formatBrPhone(e164: string): string {
   if (!match) return e164;
   return `(${match[1]}) ${match[2]}-${match[3]}`;
 }
+
+/**
+ * Older WhatsApp accounts report Brazilian mobiles without the ninth digit. Returns the number
+ * as given plus the variant with or without that digit, so patients are found either way.
+ */
+export function phoneCandidates(e164: string): string[] {
+  const withNine = /^(\+55\d{2})9(\d{8})$/.exec(e164);
+  if (withNine) return [e164, `${withNine[1]}${withNine[2]}`];
+  const withoutNine = /^(\+55\d{2})([6-9]\d{7})$/.exec(e164);
+  if (withoutNine) return [e164, `${withoutNine[1]}9${withoutNine[2]}`];
+  return [e164];
+}

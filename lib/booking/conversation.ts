@@ -5,7 +5,7 @@ import { recordAiEvent } from "@/lib/ai/events";
 import type { AiClient, SlotPreference, AiPhraseInput, AiTurn, AiTurnInput } from "@/lib/ai/types";
 import { trusted, validateAnswer, validatePhrase } from "@/lib/booking/fluid";
 import * as say from "@/lib/booking/messages";
-import { findNextSlots, type SlotOption } from "@/lib/booking/slots";
+import { findNextSlots, type SlotOption } from "@/lib/schedule-slots";
 import { cleanName, detectWhom, greetingOf, isAffirmation, isGreeting, looksLikeBookingRequest, matchProcedure, mentionedProcedure, parseChoice, withGreeting } from "@/lib/booking/text";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { AppError } from "@/lib/errors";

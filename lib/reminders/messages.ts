@@ -2,8 +2,11 @@ import type { ReminderKind } from "@/generated/prisma/client";
 import { stripTitle } from "@/lib/initials";
 import { CLINIC_TIME_ZONE } from "@/lib/schedule";
 
+/** Answers to a patient's own message; sent by the n8n workflows with the text the API returns. */
+export type AnswerKind = "REPLY_CONFIRMED" | "REPLY_RESCHEDULE" | "REPLY_OPTED_OUT" | "REPLY_INTERESTED" | "REPLY_DECLINED";
+
 export interface MessageInput {
-  kind: ReminderKind;
+  kind: ReminderKind | AnswerKind;
   clinicName: string;
   patientName: string;
   /** ISO instant. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesPreference } from "@/lib/booking/slots";
+import { matchesPreference } from "@/lib/schedule-slots";
 
 // 2026-10-26 is a Monday; Brasília is UTC-3.
 const MONDAY = "2026-10-26";

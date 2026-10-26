@@ -1,4 +1,4 @@
-import type { SlotOption } from "@/lib/booking/slots";
+import type { SlotOption } from "@/lib/schedule-slots";
 import { formatSlot, sanitizeName } from "@/lib/reminders/messages";
 
 const PARAGRAPH = "\n\n";
