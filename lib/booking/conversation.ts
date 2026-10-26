@@ -6,7 +6,7 @@ import type { AiClient, SlotPreference, AiPhraseInput, AiTurn, AiTurnInput } fro
 import { trusted, validateAnswer, validatePhrase } from "@/lib/booking/fluid";
 import * as say from "@/lib/booking/messages";
 import { findNextSlots, type SlotOption } from "@/lib/booking/slots";
-import { cleanName, detectWhom, greetingOf, isAffirmation, isGreeting, looksLikeBookingRequest, matchProcedure, parseChoice, withGreeting } from "@/lib/booking/text";
+import { cleanName, detectWhom, greetingOf, isAffirmation, isGreeting, looksLikeBookingRequest, matchProcedure, mentionedProcedure, parseChoice, withGreeting } from "@/lib/booking/text";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { AppError } from "@/lib/errors";
 import { phoneCandidates } from "@/lib/inbound/evolution";
@@ -191,6 +191,7 @@ export async function startConversation(prisma: PrismaClient, message: ClinicMes
   if (isUrgent(message.text)) return handOff(turn, created, "Pediu para marcar, mas a mensagem parece urgente", undefined, "URGENT");
   if (procedures.length === 0) return handOff(turn, created, "Pediu para marcar uma consulta (sem procedimentos cadastrados)");
   if (greeting) return reply(turn, created, await speak(turn, created, { open: true }));
+  if (procedureId === null) noteUnlistedProcedure(turn);
   return prompt(turn, created);
 }
 
@@ -255,8 +256,20 @@ async function onProcedure(turn: Turn, conv: Conversation, procedures: Array<{ i
   }
   if (procedureId) patch.procedureId = procedureId;
   if (whom) patch.forSelf = whom === "self";
+  if (!patch.procedureId) noteUnlistedProcedure(turn);
   if (Object.keys(patch).length === 0) return stuck(turn, conv);
   return prompt(turn, await advance(turn, conv, patch));
+}
+
+/**
+ * The person named a procedure the clinic does not list ("um clareamento"): say so plainly before asking again.
+ * Decided by the app, not left to the AI's wording; the person was clear, so it is not a miss.
+ */
+function noteUnlistedProcedure(turn: Turn): void {
+  const named = mentionedProcedure(turn.message.text);
+  if (!named) return;
+  const line = say.procedureNotOffered(named);
+  turn.aside = turn.aside ? `${line}\n\n${turn.aside}` : line;
 }
 
 async function onWho(turn: Turn, conv: Conversation, choice: number | null, hint: AiTurn | null): Promise<InboundOutcome> {

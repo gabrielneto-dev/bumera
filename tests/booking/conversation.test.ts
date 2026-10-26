@@ -108,6 +108,32 @@ describe("booking conversation", () => {
     });
   });
 
+  describe("a procedure the clinic does not list", () => {
+    it("says so plainly, without counting a miss, and asks again with the clinic's options", async () => {
+      await say("oi");
+      await say("eu queria fazer um implante");
+
+      expect(await conversation()).toMatchObject({ step: "PROCEDURE", procedureId: null, misses: 0 });
+      const text = await lastReply();
+      expect(text).toMatch(/^Ainda não consigo agendar \*implante\* por aqui\./);
+      expect(text).toContain("atendente");
+      expect(text).toContain("Clareamento dental");
+    });
+
+    it("also says so when the first message already asks for it", async () => {
+      await say("bom dia, quero marcar um implante");
+
+      expect(await lastReply()).toMatch(/^Bom dia! Ainda não consigo agendar \*implante\* por aqui\./);
+    });
+
+    it("books a listed procedure as before", async () => {
+      await say("oi");
+      await say("eu queria fazer um clareamento");
+
+      expect(await conversation()).toMatchObject({ procedureId: clareamentoId });
+    });
+  });
+
   describe("a first contact", () => {
     it("is welcomed with the clinic's procedures, without creating anyone yet", async () => {
       expect(await say("Oi, quero marcar uma consulta")).toMatchObject({ outcome: "CONVERSATION" });
