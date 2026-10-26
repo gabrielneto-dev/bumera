@@ -68,4 +68,8 @@ export const handoff = (clinicName: string): string =>
 
 export const procedureNotFound = (): string => "Não encontrei esse procedimento por aqui. Estes são os que temos:";
 
+/** The person named a procedure the clinic does not list for WhatsApp booking. */
+export const procedureNotOffered = (procedure: string): string =>
+  `Ainda não consigo agendar *${clean(procedure)}* por aqui. Se quiser falar sobre isso com a equipe, é só escrever *atendente*.`;
+
 export const notUnderstood = (): string => "Não entendi. Responda com o número de uma das opções, por favor.";

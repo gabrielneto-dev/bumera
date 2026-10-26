@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanName, greetingOf, isAffirmation, isGreeting, isResetCommand, withGreeting, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
+import { cleanName, greetingOf, mentionedProcedure, isAffirmation, isGreeting, isResetCommand, withGreeting, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
 
 const procedures = [
   { id: "p1", name: "Avaliação" },
@@ -126,4 +126,17 @@ describe("withGreeting", () => {
   it("leaves the text alone without a greeting", () => {
     expect(withGreeting("Olá! Aqui é a clínica.", null)).toBe("Olá! Aqui é a clínica.");
   });
+});
+
+describe("mentionedProcedure", () => {
+  it.each([
+    ["eu queria fazer um clareamento", "clareamento"],
+    ["preciso tirar o siso", "extração"],
+    ["quero colocar aparelho", "aparelho ortodôntico"],
+    ["Tratamento de canal, quanto custa?", "tratamento de canal"],
+    ["implantes dentários", "implante"],
+    ["queria fazer lentes de contato nos dentes", "lentes de contato"],
+  ])("finds the procedure in %j", (text, expected) => expect(mentionedProcedure(text)).toBe(expected));
+
+  it.each(["oi, bom dia!", "quero marcar uma consulta", "pode ser amanhã", "meu canal do youtube"])("finds none in %j", (text) => expect(mentionedProcedure(text)).toBeNull());
 });

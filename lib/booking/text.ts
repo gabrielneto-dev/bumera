@@ -120,3 +120,27 @@ export function withGreeting(text: string, greeting: string | null): string {
   const rest = text.slice(hello[0].length);
   return `${greeting}! ${rest.charAt(0).toUpperCase()}${rest.slice(1)}`;
 }
+
+/**
+ * Common dental procedures people ask for by name, with the label used in the answer. Only consulted when the
+ * clinic's own list did not match, so the person can be told plainly that it is not bookable here.
+ */
+const KNOWN_PROCEDURES: ReadonlyArray<[RegExp, string]> = [
+  [/\bclarea\w*/, "clareamento"],
+  [/\b(limpeza|profilaxia)\b/, "limpeza"],
+  [/\b(tratamento de canal|endodont\w*|fazer (o |um )?canal)\b/, "tratamento de canal"],
+  [/\b(extra(cao|ir|ir o|ção)\w*|arrancar|siso)\b/, "extração"],
+  [/\bimplante\w*/, "implante"],
+  [/\b(aparelho|ortodon\w*|alinhador\w*)\b/, "aparelho ortodôntico"],
+  [/\b(restaura\w*|obtura\w*)/, "restauração"],
+  [/\b(protese|dentadura|ponte movel)\b/, "prótese"],
+  [/\b(lentes? de contato|facetas?)\b/, "lentes de contato"],
+  [/\b(raspagem|periodon\w*|gengiva)\b/, "tratamento de gengiva"],
+  [/\b(harmoniza\w*|botox|preenchimento)\b/, "harmonização facial"],
+];
+
+/** A procedure named in the message ("um clareamento", "tirar o siso"), as a label; null when none. */
+export function mentionedProcedure(text: string): string | null {
+  const normalized = normalize(text);
+  return KNOWN_PROCEDURES.find(([pattern]) => pattern.test(normalized))?.[1] ?? null;
+}

@@ -178,6 +178,11 @@ describe("fluid booking dialog (AI reads and writes)", () => {
 
     const plain = await say("quero fazer um tratamento de canal", null);
     expect(plain).toMatchObject({ outcome: "CONVERSATION" });
+    expect(await lastReply()).toMatch(/^Ainda não consigo agendar \*tratamento de canal\* por aqui/);
+    expect(await lastReply()).not.toContain("Não entendi");
+
+    // A procedure the app does not know by name: the generic notice, still not "não entendi".
+    await say("quero fazer uma pulpotomia", null);
     expect(await lastReply()).toContain("Não encontrei esse procedimento por aqui");
     expect(await lastReply()).not.toContain("Não entendi");
   });
