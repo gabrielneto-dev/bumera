@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBrPhone, isMobileE164, normalizeBrPhone } from "@/lib/phone";
+import { formatBrPhone, isMobileE164, normalizeBrPhone, phoneCandidates } from "@/lib/phone";
 
 describe("normalizeBrPhone", () => {
   it("converts common mobile formats to E.164", () => {
@@ -34,5 +34,19 @@ describe("formatBrPhone", () => {
   it("formats mobile and landline numbers for display", () => {
     expect(formatBrPhone("+5511987654321")).toBe("(11) 98765-4321");
     expect(formatBrPhone("+551134567890")).toBe("(11) 3456-7890");
+  });
+});
+
+describe("phoneCandidates", () => {
+  it("adds the ninth digit that older WhatsApp accounts omit", () => {
+    expect(phoneCandidates("+551797822073")).toEqual(["+551797822073", "+5517997822073"]);
+  });
+
+  it("also tries the number without the ninth digit", () => {
+    expect(phoneCandidates("+5517997822073")).toEqual(["+5517997822073", "+551797822073"]);
+  });
+
+  it("keeps landlines as they are", () => {
+    expect(phoneCandidates("+551733221100")).toEqual(["+551733221100"]);
   });
 });

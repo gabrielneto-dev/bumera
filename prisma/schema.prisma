@@ -94,10 +94,6 @@ model Organization {
   quotes          Quote[]
   clinicSettings  ClinicSettings?
   auditLogs       AuditLog[]
-  inboundMessages InboundMessage[]
-  conversations   Conversation[]
-  inboundBuffers  InboundBuffer[]
-  aiEvents        AiEvent[]
 
   @@unique([slug])
   @@map("organization")
@@ -223,8 +219,6 @@ model Patient {
   updatedAt       DateTime         @updatedAt
   appointments    Appointment[]
   quotes          Quote[]
-  inboundMessages InboundMessage[]
-  conversations   Conversation[]
 
   @@unique([id, organizationId])
   @@unique([organizationId, cpfHash])
@@ -271,24 +265,11 @@ enum ReminderKind {
   REMINDER_24H
   REMINDER_2H
   NO_SHOW_FOLLOWUP
-  /// Automatic answers to a patient's WhatsApp reply (1, 2, SAIR); sent through the same n8n flow.
-  REPLY_CONFIRMED
-  REPLY_RESCHEDULE
-  REPLY_OPTED_OUT
   /// Module 1: invite the patient back N months after a completed appointment.
   REACTIVATION
-  REPLY_INTERESTED
-  REPLY_DECLINED
   /// Module 2: follow-ups after a quote was given (day 2 and day 7).
   QUOTE_FOLLOWUP_1
   QUOTE_FOLLOWUP_2
-  /// Module 4: answers to a free-text message from a patient.
-  REPLY_HANDOFF
-  REPLY_AI
-  /// Module 4: one turn of the booking conversation (text built by the app).
-  REPLY_FLOW
-  /// Audio or media without text: asks the person to write (the secretary also sees it on Pendentes).
-  REPLY_MEDIA
 }
 
 /// What the patient answered to a campaign message (reactivation).
@@ -315,19 +296,11 @@ model Reminder {
   id                String          @id @default(uuid())
   organizationId    String
   organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  /// Exactly one of appointmentId / quoteId / inboundMessageId / conversationId is set (CHECK constraint in the migration).
+  /// Exactly one of appointmentId / quoteId is set (CHECK constraint in the migrations).
   appointmentId     String?
   appointment       Appointment?    @relation(fields: [appointmentId, organizationId], references: [id, organizationId], onDelete: NoAction)
   quoteId           String?
   quote             Quote?          @relation(fields: [quoteId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  inboundMessageId  String?
-  inboundMessage    InboundMessage? @relation(fields: [inboundMessageId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  conversationId    String?
-  conversation      Conversation?   @relation(fields: [conversationId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  /// REPLY_FLOW: the inbound message this turn answers, so a repeated delivery is answered once.
-  replyToMessageId  String?
-  /// Free text of an AI answer (REPLY_AI only); every other kind is rendered from a fixed template.
-  text              String?
   kind              ReminderKind
   status            ReminderStatus  @default(PENDING)
   /// Earliest moment n8n may pick it up; moved forward on retries.
@@ -339,8 +312,6 @@ model Reminder {
   answer            ReminderAnswer?
   answeredAt        DateTime?
   handledAt         DateTime?
-  /// WhatsApp id of the delivered message (lets the app tell its own messages from the clinic's, phase F2).
-  providerMessageId String?
   /// Why it was cancelled/skipped, or the last delivery error. Never holds message text or PII.
   note              String?
   createdAt         DateTime        @default(now())
@@ -348,8 +319,6 @@ model Reminder {
 
   @@unique([appointmentId, kind])
   @@unique([quoteId, kind])
-  @@unique([inboundMessageId, kind])
-  @@unique([conversationId, replyToMessageId])
   @@index([status, dueAt])
   @@index([organizationId, status])
   @@map("reminder")
@@ -419,15 +388,7 @@ model ClinicSettings {
   whatsappInstance     String?      @unique
   /// Welcome first contacts and guide them to a booking request (module 4); off = unknown numbers are ignored.
   bookingEnabled       Boolean      @default(true)
-  /// Module 4 (opt-in): the clinic accepted that patients' messages go, masked, to an external AI provider.
-  aiEnabled            Boolean      @default(false)
-  aiEnabledAt          DateTime?
-  aiEnabledBy          String?
-  /// The clinic's own OpenRouter key, AES-256-GCM encrypted (same key as the CPFs); never shown again. Only the last
-  /// characters are kept in clear so the screen can say which key is saved.
-  aiApiKeyEncrypted    String?
-  aiApiKeyLast4        String?
-  /// What the AI may answer from: address, opening hours, payment methods and so on, written by the clinic.
+  /// What the clinic's WhatsApp assistant (n8n) may answer from: address, opening hours, payment methods; written by the clinic.
   clinicInfo           String?
   updatedAt            DateTime     @updatedAt
 
@@ -491,45 +452,8 @@ model AuditLog {
 // it is cleared when the message is handled and when the patient's data is erased.
 // ---------------------------------------------------------------------------
 
-enum InboundStatus {
-  OPEN
-  HANDLED
-}
 
-enum InboundReason {
-  UNRECOGNIZED
-  URGENT
-  AI_UNSURE
-  AI_UNAVAILABLE
-  AI_ANSWERED
-}
 
-model InboundMessage {
-  id             String        @id @default(uuid())
-  organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  /// Null for a first contact who is not a patient yet.
-  patientId      String?
-  patient        Patient?      @relation(fields: [patientId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  /// Who wrote, when there is no patient to point at.
-  phoneE164      String?
-  /// Evolution's message id: the same delivery repeated is recognized and ignored.
-  messageId      String
-  /// Null once handled or erased.
-  text           String?
-  reason         InboundReason
-  status         InboundStatus @default(OPEN)
-  /// What the AI understood, when it looked at the message ("QUESTION", "YES", ...); never the text.
-  aiIntent       String?
-  handledAt      DateTime?
-  createdAt      DateTime      @default(now())
-  reminders      Reminder[]
-
-  @@unique([id, organizationId])
-  @@unique([organizationId, messageId])
-  @@index([organizationId, status])
-  @@map("inbound_message")
-}
 
 // ---------------------------------------------------------------------------
 // Module 4: the booking conversation. A first contact (or a patient asking to book) is guided through
@@ -538,110 +462,8 @@ model InboundMessage {
 // in here (name, offered slots) is cleared when the conversation ends or expires.
 // ---------------------------------------------------------------------------
 
-enum ConversationStep {
-  PROCEDURE
-  /// For themselves or for someone else (a child, a relative)?
-  WHO
-  /// The name of that other person.
-  PERSON
-  NAME
-  SLOT
-  CONFIRM
-}
 
-enum ConversationStatus {
-  OPEN
-  DONE
-  HANDED_OFF
-  EXPIRED
-}
 
-model Conversation {
-  id              String             @id @default(uuid())
-  organizationId  String
-  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  phoneE164       String
-  /// Set when the person is already a patient, or once the request created one.
-  patientId       String?
-  patient         Patient?           @relation(fields: [patientId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  step            ConversationStep   @default(PROCEDURE)
-  status          ConversationStatus @default(OPEN)
-  procedureId     String?
-  /// What the person said their name is; cleared when the conversation ends.
-  name            String?
-  /// true = for the person writing, false = for someone else, null = not asked yet.
-  forSelf         Boolean?
-  /// The other person's name when the appointment is for someone else; cleared when the conversation ends.
-  personName      String?
-  /// The slots last offered: [{ startsAt, dentistId }]; cleared when the conversation ends.
-  slotOptions     Json?
-  slotOffset      Int                @default(0)
-  chosenStartsAt  DateTime?
-  chosenDentistId String?
-  /// Wrong answers in a row: after a few the person is handed to the secretary.
-  misses          Int                @default(0)
-  /// AI calls spent on this conversation (reading answers, writing questions).
-  aiCalls         Int                @default(0)
-  lastMessageId   String?
-  appointmentId   String?
-  expiresAt       DateTime
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  reminders       Reminder[]
 
-  @@unique([id, organizationId])
-  @@index([organizationId, status])
-  @@index([status, expiresAt])
-  @@map("conversation")
-}
 
-/// Messages waiting a few seconds so a person who writes several in a row gets one answer; deleted when processed.
-model InboundBuffer {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  instance       String
-  phoneE164      String
-  /// Evolution's message id: the same delivery repeated is recognized and ignored.
-  messageId      String
-  /// Empty for audio/media without caption (see mediaKind).
-  text           String
-  /// audio, image, video or document; null for text.
-  mediaKind      String?
-  receivedAt     DateTime     @default(now())
 
-  @@unique([organizationId, messageId])
-  @@index([receivedAt])
-  @@map("inbound_buffer")
-}
-
-enum AiEventKind {
-  /// A free-text answer in the booking dialog was read and sure enough to act on.
-  TURN_READ
-  /// The model read it but was not sure (below the confidence bar).
-  TURN_UNSURE
-  /// The model call failed (provider down, bad output).
-  TURN_FAILED
-  /// A question the model wrote passed validation and was sent.
-  PHRASE_USED
-  /// A question the model wrote was refused by validation: the fixed text went out instead.
-  PHRASE_REJECTED
-  /// The model call to write a question failed: the fixed text went out instead.
-  PHRASE_FAILED
-  /// A side question was answered from the clinic's information.
-  ASIDE_ANSWERED
-  /// A side-question answer was refused by validation.
-  ASIDE_REJECTED
-}
-
-/// One thing the AI did in the booking dialog, for the quality screen. Counts only: never text or people.
-model AiEvent {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  kind           AiEventKind
-  createdAt      DateTime     @default(now())
-
-  @@index([organizationId, createdAt])
-  @@map("ai_event")
-}

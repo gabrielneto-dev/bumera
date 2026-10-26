@@ -28,13 +28,6 @@ RUN npx prisma generate && npm run build
 FROM build AS migrate
 CMD ["npx", "prisma", "migrate", "deploy"]
 
-# Background worker (WhatsApp turns and sending, CTX-DEC-20261025-migration-roadmap). It runs the TypeScript
-# sources with tsx, so it reuses the build stage (full node_modules, generated Prisma client).
-FROM build AS worker
-ENV NODE_ENV=production
-USER node
-CMD ["npx", "tsx", "worker/main.ts"]
-
 FROM base AS runtime
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN addgroup -S app && adduser -S app -G app

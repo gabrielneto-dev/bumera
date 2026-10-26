@@ -29,8 +29,6 @@ function navItemsFor(role: string): NavItem[] {
     { href: "/mensagens", label: "Mensagens", icon: "mensagens", group: "Clínica", allowed: can(role, "triggerRule", "update") },
     { href: "/whatsapp", label: "WhatsApp", icon: "whatsapp", group: "Clínica", allowed: can(role, "triggerRule", "update") },
     { href: "/atividades", label: "Atividades", icon: "atividades", group: "Clínica", allowed: can(role, "audit", "read") },
-    { href: "/assistente", label: "Assistente", icon: "assistente", group: "Clínica", allowed: can(role, "triggerRule", "update") },
-    { href: "/qualidade-ia", label: "Qualidade da IA", icon: "qualidade", group: "Clínica", allowed: can(role, "triggerRule", "update") },
     { href: "/equipe", label: "Equipe", icon: "equipe", group: "Clínica", allowed: can(role, "invitation", "create") },
   ];
   return candidates.filter((item) => item.allowed).map(({ href, label, icon, group }) => ({ href, label, icon, group }));

@@ -1,6 +1,6 @@
 # Branch: ai-agent
 
-⚠ Plan written before the n8n-control work was merged; being re-based (see the plan's correction).
+**Current direction (2026-10-26): the WhatsApp conversation lives in n8n workflows; the app is only an API** — `CTX-DEC-20261026-whatsapp-in-n8n`, API reference `docs/n8n-whatsapp-api.md` (code: `lib/n8n-api/*`, routes `app/api/v1/clinics/**`). Everything below about in-app turns, worker and pg-boss is history (superseded).
 
 Scope: the WhatsApp assistant — inbound channel, conversation state, agent turn, tools, guardrails, outbox/sender, memory, evaluation, autonomy. Status: active (plan approved 2026-10-25, Phase 0 started).
 
@@ -10,6 +10,7 @@ Full plan (canonical, long): `docs/ai-whatsapp-architecture.md` in the repo. Sum
 Three loops (turn · conversation · learning); conversation = append-only events + projected state (control `bot|human|blocked` × phase `idle|awaiting_patient|awaiting_staff`); seven-stage turn (perceive, understand, route, deliberate, verify, commit, reflect); model proposes commands, the system decides; outbox + single sender per WhatsApp number; autonomy ladder L0–L4 per clinic and action class.
 
 ## Decisions
+- **WhatsApp in n8n, app as API** — `CTX-DEC-20261026-whatsapp-in-n8n` (supersedes the conversation-in-app decision)
 - Port DeskcommCRM patterns, no fork — `CTX-DEC-20261025-port-deskcomm-patterns`
 - Conversation owned by the app; n8n out of the conversation path — `CTX-DEC-20261025-conversation-owned-by-app` (supersedes `CTX-DEC-20261016-inbound-routing-app-first`)
 - Deterministic channel before the LLM (closes M4) — `CTX-DEC-20261025-deterministic-channel-first`

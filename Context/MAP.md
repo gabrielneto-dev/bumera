@@ -17,9 +17,9 @@ Tags: stack, nextjs, n8n, evolution-api, whatsapp, database, hosting, infrastruc
 Routes: stack/WhatsApp/data/compliance/server/code map → `branches/architecture/_index.md` (start with `CTX-NTE-20261020-m1-implementation` to find code)
 
 ### ai-agent
-Path: `branches/ai-agent/` — Status: active (plan approved, being re-based on the merged module 4 code)
+Path: `branches/ai-agent/` — Status: active (WhatsApp conversation moved to n8n; app = API)
 Tags: ai-assistant, whatsapp, llm, outbox, webhook, evolution-api
-Routes: WhatsApp AI architecture, worker/queue (pg-boss), cyclic turns, autonomy → `branches/ai-agent/_index.md` (full plan: `docs/ai-whatsapp-architecture.md`)
+Routes: WhatsApp/n8n workflows, API for n8n, AI rules, history of the in-app plan → `branches/ai-agent/_index.md` (API: `docs/n8n-whatsapp-api.md`)
 
 ## Global records
 `global/questions/` (answered bootstrap questions); other `global/` folders empty. Sources: `sources/` (OpenRouter pricing articles).

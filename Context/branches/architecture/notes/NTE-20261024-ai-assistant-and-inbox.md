@@ -4,11 +4,12 @@ type: note
 title: Módulo 4: caixa de mensagens, assistente de IA por clínica, chave criptografada e avaliação de modelos
 branch: architecture
 tags: [ai-assistant, llm, openrouter, privacy, security, architecture]
-status: active
+status: superseded
 confidence: high
 created_at: 2026-10-24
 updated_at: 2026-10-24
 related: [CTX-NTE-20261021-m4-inbound-replies, CTX-NTE-20261024-booking-dialog, CTX-DEC-20261024-ai-booking-rules, CTX-NTE-20261022-lgpd-audit-export-erasure]
+superseded_by: CTX-DEC-20261026-whatsapp-in-n8n
 ---
 
 # Assistente de IA (commits 7df4991, 673f185, 51ec8d7 e anteriores; migrations 20261022160000_m6_inbox_ai, 20261022170000_ai_api_key)
@@ -25,3 +26,6 @@ Texto livre de paciente conhecido que nenhuma palavra-chave explica vira `inboun
 
 ## Limites conhecidos
 Áudio não é lido; a IA não vê o histórico (só o estado atual); cada resposta do diálogo usa 2 chamadas (~2 s); dados que o paciente digita fora de nome/telefone (ex.: nome numa frase livre da 1ª mensagem) podem ir ao provedor, daí o aceite de privacidade no opt-in.
+
+## Superseded (2026-10-26)
+Code removed: the assistant, inbox and AI key moved out of the app (AI lives in n8n).

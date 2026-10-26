@@ -1,7 +1,7 @@
 # Production services for the Bumera app and Evolution API, on the shared server infra.
 # Lives in ~/bumera-app on the server (sources in ~/bumera-app/src); Postgres and n8n come from
 # ~/infra and are reached over the external docker network "infra" (hosts: postgres, n8n).
-#   cd ~/bumera-app && docker compose build app && docker compose build worker && docker compose --profile tools run --rm migrate && docker compose up -d app worker evolution redis
+#   cd ~/bumera-app && docker compose build app && docker compose --profile tools build migrate && docker compose --profile tools run --rm migrate && docker compose up -d app evolution redis
 # Values come from ~/bumera-app/.env (names listed in deploy/env.production.example).
 # Nothing is published on the network: Cloudflare Tunnel -> 127.0.0.1:3000, and
 # n8n reaches the services as http://bumera-app:3000 and http://bumera-evolution:8080.
@@ -22,8 +22,6 @@ services:
       target: migrate
     environment:
       DATABASE_URL: postgresql://bumera:${POSTGRES_PASSWORD}@postgres:5432/bumera_prod
-      # Only for scripts/ai-eval.ts --from-db, which decrypts the clinic's saved AI key in memory.
-      CPF_ENCRYPTION_KEY: ${CPF_ENCRYPTION_KEY}
     mem_limit: 768m
     networks: [infra]
 
@@ -42,17 +40,6 @@ services:
       CPF_ENCRYPTION_KEY: ${CPF_ENCRYPTION_KEY}
       CPF_HASH_KEY: ${CPF_HASH_KEY}
       SERVICE_API_KEY: ${SERVICE_API_KEY}
-      EVOLUTION_WEBHOOK_TOKEN: ${EVOLUTION_WEBHOOK_TOKEN}
-      # Read-only: shows each clinic's WhatsApp connection state on the WhatsApp screen.
-      EVOLUTION_API_URL: http://bumera-evolution:8080
-      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
-      # Module 4 (optional): without both of these the AI assistant does not exist and free text goes to the secretary.
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      AI_MODEL: ${AI_MODEL:-}
-      # A person who writes several messages in a row is answered once, after this many ms of quiet (n8n path only).
-      INBOUND_BUFFER_MS: "8000"
-      # Who buffers inbound messages and sends WhatsApp: "n8n" (legacy poll of /due) or "worker". Same value in the worker.
-      WHATSAPP_SENDER: ${WHATSAPP_SENDER:-n8n}
     ports:
       - "127.0.0.1:3000:3000"
     mem_limit: 512m
@@ -62,32 +49,6 @@ services:
       interval: 20s
       timeout: 5s
       retries: 10
-      start_period: 30s
-
-  # Answers WhatsApp bursts and sends every WhatsApp message when WHATSAPP_SENDER=worker. Exactly one replica.
-  worker:
-    build:
-      context: ./src
-      network: host
-      target: worker
-    container_name: bumera-worker
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql://bumera:${POSTGRES_PASSWORD}@postgres:5432/bumera_prod
-      CPF_ENCRYPTION_KEY: ${CPF_ENCRYPTION_KEY}
-      CPF_HASH_KEY: ${CPF_HASH_KEY}
-      EVOLUTION_API_URL: http://bumera-evolution:8080
-      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      AI_MODEL: ${AI_MODEL:-}
-      WHATSAPP_SENDER: ${WHATSAPP_SENDER:-n8n}
-    mem_limit: 384m
-    networks: [infra]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3200/health >/dev/null || exit 1"]
-      interval: 20s
-      timeout: 5s
-      retries: 5
       start_period: 30s
 
   evolution:

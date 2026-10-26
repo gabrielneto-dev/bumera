@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { handleInboundMessage } from "@/lib/inbound/handle";
+import { applyPatientAnswer } from "@/lib/n8n-api/answers";
 import { createPrismaClient } from "@/lib/prisma";
 import { DEFAULT_CLINIC_SETTINGS } from "@/lib/reminders/settings";
 import { listAuditLog } from "@/lib/services/audit";
@@ -126,10 +126,10 @@ describe("activity log", () => {
       await prisma.appointment.create({
         data: { organizationId: clinicA, patientId: patient.id, dentistId: dentist.id, procedureId: procedure.id, startsAt: starts, endsAt: new Date(starts.getTime() + 1_800_000) },
       });
-      const message = (text: string) => ({ instance: "x", organizationId: clinicA, phoneE164: "+5511987654321", text, messageId: `m-${text}` });
+      const answer = (value: "CONFIRM" | "OPT_OUT") => applyPatientAnswer(prisma, { organizationId: clinicA, phoneE164: "+5511987654321", answer: value }, NOW);
 
-      await handleInboundMessage(prisma, message("1"), NOW);
-      await handleInboundMessage(prisma, message("SAIR"), NOW);
+      await answer("CONFIRM");
+      await answer("OPT_OUT");
 
       const log = await entries();
       expect(log.map((item) => [item.action, item.actorType, item.actorUserId])).toEqual([

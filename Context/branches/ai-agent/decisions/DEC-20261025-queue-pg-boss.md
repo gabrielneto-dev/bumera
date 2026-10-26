@@ -4,13 +4,13 @@ type: decision
 title: Fila do worker — pg-boss 12 em modo polling, com heartbeat
 branch: ai-agent
 tags: [architecture, database]
-status: active
+status: superseded
 confidence: high
 created_at: 2026-10-25
-updated_at: 2026-10-25
+updated_at: 2026-10-26
 related: [CTX-QUE-20261025-queue-library, CTX-PLN-20261025-ai-whatsapp-architecture]
 supersedes: null
-superseded_by: null
+superseded_by: CTX-DEC-20261026-whatsapp-in-n8n
 ---
 
 # Decision
@@ -32,3 +32,6 @@ Use **pg-boss 12.38** (own schema in the app database) for turns, sender, follow
 
 ## Consequences
 Dependency `pg-boss@12.38.x`; its schema lives in each app database (`bumera_dev`, `bumera_test`, prod). Test helpers must reset that schema too.
+
+## Superseded (2026-10-26)
+The worker and pg-boss were removed with the move to n8n; the spike results stay as reference.

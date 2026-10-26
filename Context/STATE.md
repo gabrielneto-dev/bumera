@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-10-24
+Last updated: 2026-10-26
 Latest checkpoint: Context/checkpoints/CP-20261025-1900-ai-plan-merge-rebase.md
 
 ## Current objective
@@ -31,7 +31,7 @@ Ship the pilot: confirmação/lembrete over WhatsApp for 1–3 dental clinics (m
 
 - Generic infra reference copy in `deploy/infra/` (per-project databases via `~/infra/scripts/new-db.sh`) and `npm run ui:tunnel` came from `main` (commit 304eb46, merged 2026-10-25): `CTX-DEC-20261021-generic-shared-infra`, `CTX-FCT-20261021-server-infra-state`.
 
-- **AI architecture work** (branch `claude/ai-cyclic-architecture`, 2026-10-25): approved plan for a cyclic WhatsApp AI (`docs/ai-whatsapp-architecture.md`, `branches/ai-agent/_index.md`) and a pg-boss worker process foundation (`lib/queue/*`, `worker/main.ts`). Gap analysis done and roadmap F1–F6 approved (`docs/ai-gap-analysis.md`, `CTX-DEC-20261025-migration-roadmap`). **F1 built** (worker buffers per number and sends with pacing behind `WHATSAPP_SENDER`, media answered; `CTX-NTE-20261025-f1-worker-pipeline`), not deployed yet.
+- **WhatsApp moved to n8n (2026-10-26)**: the app has no conversation code anymore (webhook, buffer, booking dialog, AI, worker removed; tables dropped). It exposes `/api/v1/reminders/*` and `/api/v1/clinics/**` for the n8n workflows (`docs/n8n-whatsapp-api.md`, `CTX-DEC-20261026-whatsapp-in-n8n`). Patient replies (incl. SAIR) need the n8n inbound workflow, not built yet.
 
 ## Not built yet
 Creating a clinic's Evolution instance and QR code from the app (manual runbook in `deploy/README.md`), erasure inside Evolution and a retention policy, Editable message texts, AI improvements (reschedule by chat, short memory, audio), off-machine encrypted backup copy, webhook setup for new Evolution instances (manual today), audit log and patient data export/deletion, protection of public n8n/Evolution hostnames, LGPD checklist, e-mail provider, password reset, cleaning test data in `bumera_prod` (Gabriel Teste, Teste Falha).

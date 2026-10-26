@@ -21,18 +21,9 @@ export const REMINDER_KIND_LABEL: Record<ReminderKind, string> = {
   REMINDER_24H: "1º lembrete antes da consulta",
   REMINDER_2H: "2º lembrete antes da consulta",
   NO_SHOW_FOLLOWUP: "Convite para remarcar",
-  REPLY_CONFIRMED: "Resposta: consulta confirmada",
-  REPLY_RESCHEDULE: "Resposta: pedido de remarcação",
-  REPLY_OPTED_OUT: "Resposta: descadastro",
   REACTIVATION: "Convite para voltar",
-  REPLY_INTERESTED: "Resposta: quer agendar",
-  REPLY_DECLINED: "Resposta: agora não",
   QUOTE_FOLLOWUP_1: "Orçamento: 1º contato",
   QUOTE_FOLLOWUP_2: "Orçamento: 2º contato",
-  REPLY_HANDOFF: "Resposta: mensagem recebida",
-  REPLY_AI: "Resposta do assistente",
-  REPLY_MEDIA: "Resposta: áudio ou mídia recebida",
-  REPLY_FLOW: "Atendimento: agendamento",
 };
 
 export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState } from "react";
-import { FormMessage, FormStateProvider, SubmitButton, TextField, useActionFormState } from "@/components/form/form-state";
+import { FormMessage, FormStateProvider, SubmitButton, TextareaField, TextField, useActionFormState } from "@/components/form/form-state";
 import { type ActionState, idleState } from "@/lib/action-state";
 
 type FormAction = (previous: ActionState, formData: FormData) => Promise<ActionState>;
@@ -17,8 +17,8 @@ function SavedMessage() {
   );
 }
 
-/** The name of the clinic's WhatsApp instance in the Evolution API. */
-export function WhatsappForm({ instance, action }: { instance: string | null; action: FormAction }) {
+/** The clinic's WhatsApp instance in the Evolution API and what the n8n assistant may answer from. */
+export function WhatsappForm({ instance, clinicInfo, action }: { instance: string | null; clinicInfo: string; action: FormAction }) {
   const router = useRouter();
   const [state, formAction] = useActionState<ActionState, FormData>(async (previous, formData) => {
     const next = await action(previous, formData);
@@ -39,6 +39,14 @@ export function WhatsappForm({ instance, action }: { instance: string | null; ac
           autoComplete="off"
           maxLength={40}
           hint="Letras minúsculas, números, - ou _. É o nome combinado com quem instalou o WhatsApp da clínica; deixe vazio para desconectar."
+        />
+        <TextareaField
+          name="clinicInfo"
+          label="Informações da clínica para o atendimento"
+          defaultValue={clinicInfo}
+          rows={5}
+          maxLength={2000}
+          hint="Endereço, horários, formas de pagamento. O atendimento automático do WhatsApp responde dúvidas só com o que estiver aqui."
         />
         <FormMessage />
         <SavedMessage />

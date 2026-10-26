@@ -66,3 +66,6 @@
 
 ## 2026-10-25 (AI plan, merge, re-base)
 - n8n-control merged into main (context conflicts resolved, catalog rebuilt). New branch `ai-agent` (plan, decisions, research, questions), checkpoint, MAP/STATE/architecture index; inbound-routing decision superseded.
+
+## 2026-10-26
+- WhatsApp moved to n8n: decision `CTX-DEC-20261026-whatsapp-in-n8n`; in-app plan, roadmap, pg-boss decision, F1 note and module 4 code notes marked superseded; STATE, MAP, ai-agent index.

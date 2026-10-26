@@ -1,5 +1,7 @@
 # Análise de lacunas — IA no WhatsApp (código atual × plano)
 
+> **Substituído em 2026-10-26:** a conversa no WhatsApp foi movida para workflows do n8n e o código de conversa, IA e worker saiu do app (`CTX-DEC-20261026-whatsapp-in-n8n`). O app expõe só a API descrita em `docs/n8n-whatsapp-api.md`. Este documento fica como histórico; os princípios (determinístico antes da IA, a IA não decide fatos, um remetente por número) continuam válidos para os workflows.
+
 Data: 2026-10-25. Base: `main` em f1029ac (módulo 4 já em produção). Plano de referência: `docs/ai-whatsapp-architecture.md`.
 
 ## 1. Como o sistema funciona hoje
