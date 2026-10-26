@@ -139,7 +139,7 @@ describe("fluid booking dialog (AI reads and writes)", () => {
     const ai = fakeAi(undefined, { phrase: writer, turn: { procedure: 1, whom: "self" } });
     await say("Oi, boa noite", ai);
     expect(await conversation()).toMatchObject({ step: "PROCEDURE", procedureId: null, forSelf: null, misses: 0 });
-    expect(await lastReply()).toBe("Oi! Aqui é o atendimento da clínica 😊 Em que posso te ajudar?");
+    expect(await lastReply()).toBe("Boa noite! Aqui é o atendimento da clínica 😊 Em que posso te ajudar?");
 
     await say("Oi", ai);
     expect(await conversation()).toMatchObject({ step: "PROCEDURE", misses: 0 });

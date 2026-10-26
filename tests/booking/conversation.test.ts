@@ -65,12 +65,46 @@ describe("booking conversation", () => {
       expect(await prisma.conversation.count()).toBe(2);
     });
 
+    it("starts over and greets once when 'recomeçar' and a hello come in the same burst", async () => {
+      await reachSlots();
+      const before = (await replies()).length;
+      const restart = () =>
+        handleInboundMessage(prisma, { instance: "x", organizationId: clinic, phoneE164: STRANGER, text: "oi, bom dia!", messageId: "burst-1", restart: true }, NOW, { ai: null });
+
+      expect(await restart()).toMatchObject({ outcome: "CONVERSATION" });
+
+      expect(await conversation()).toMatchObject({ status: "OPEN", step: "PROCEDURE", procedureId: null, name: null });
+      expect(await replies()).toHaveLength(before + 1);
+      expect(await lastReply()).toMatch(/^Bom dia! Aqui é o atendimento/);
+      expect(await restart()).toEqual({ outcome: "IGNORED" });
+      expect(await replies()).toHaveLength(before + 1);
+    });
+
     it("does nothing for a clinic with booking turned off, and for someone who opted out", async () => {
       await prisma.clinicSettings.update({ where: { organizationId: clinic }, data: { bookingEnabled: false } });
       expect(await say("recomeçar")).toEqual({ outcome: "IGNORED" });
       await prisma.clinicSettings.update({ where: { organizationId: clinic }, data: { bookingEnabled: true } });
       await prisma.patient.create({ data: { organizationId: clinic, name: "Rita", phoneE164: "+5511977776666", doNotContact: true } });
       expect(await say("reiniciar", "+5511977776666")).toEqual({ outcome: "IGNORED" });
+    });
+  });
+
+  describe("greetings", () => {
+    it("answers 'bom dia', 'boa tarde' and 'boa noite' in kind", async () => {
+      await say("Bom dia!");
+      expect(await lastReply()).toMatch(/^Bom dia! /);
+      await say("oi, boa noite", "+5511933334444");
+      expect(await lastReply("+5511933334444")).toMatch(/^Boa noite! /);
+    });
+
+    it("greets back a first message that also asks to book", async () => {
+      await say("boa tarde, quero marcar uma consulta");
+      expect(await lastReply()).toMatch(/^Boa tarde! /);
+    });
+
+    it("keeps 'Olá!' for a plain hello", async () => {
+      await say("oi");
+      expect(await lastReply()).toMatch(/^Olá! /);
     });
   });
 

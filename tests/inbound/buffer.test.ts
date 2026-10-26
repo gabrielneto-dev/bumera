@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { bufferMessage, bufferQuietMs, flushBuffered, joinBurst } from "@/lib/inbound/buffer";
+import { bufferMessage, bufferQuietMs, flushBuffered, planBurst } from "@/lib/inbound/buffer";
 import type { ClinicMessage, InboundOutcome } from "@/lib/inbound/handle";
 import { createPrismaClient } from "@/lib/prisma";
 import { createClinic } from "../helpers/factories";
@@ -107,24 +107,39 @@ describe("inbound buffer", () => {
   });
 });
 
-describe("joinBurst", () => {
+describe("planBurst", () => {
   const row = (messageId: string, text: string, mediaKind: string | null = null) => ({ instance: "bumera-teste", messageId, text, mediaKind });
+  const plan = (...rows: ReturnType<typeof row>[]) => planBurst("org", "+5511987654321", rows).map(({ messageId, text, mediaKind, restart }) => ({ messageId, text, ...(mediaKind ? { mediaKind } : {}), ...(restart ? { restart } : {}) }));
 
-  it("joins the written texts and keeps the last message id", () => {
-    expect(joinBurst("org", "+5511987654321", [row("1", "oi"), row("2", "", "audio"), row("3", "quero marcar")])).toEqual({
-      organizationId: "org",
-      phoneE164: "+5511987654321",
-      instance: "bumera-teste",
-      messageId: "3",
-      text: "oi\nquero marcar",
-    });
+  it("joins free text written in a row, keeping the last message id, and leaves audio to the text", () => {
+    expect(plan(row("1", "oi"), row("2", "", "audio"), row("3", "quero marcar"))).toEqual([{ messageId: "3", text: "oi\nquero marcar" }]);
   });
 
   it("answers a burst of media only as media", () => {
-    expect(joinBurst("org", "+5511987654321", [row("1", "", "image"), row("2", "", "audio")])).toMatchObject({ text: "", mediaKind: "audio", messageId: "2" });
+    expect(plan(row("1", "", "image"), row("2", "", "audio"))).toEqual([{ messageId: "2", text: "", mediaKind: "audio" }]);
+  });
+
+  it("keeps replies and menu numbers as messages of their own, in order", () => {
+    expect(plan(row("1", "1"), row("2", "obrigada!"), row("3", "3"))).toEqual([
+      { messageId: "1", text: "1" },
+      { messageId: "2", text: "obrigada!" },
+      { messageId: "3", text: "3" },
+    ]);
+  });
+
+  it("lets an opt-out win over everything else in the burst", () => {
+    expect(plan(row("1", "oi"), row("2", "SAIR"), row("3", "obrigado"))).toEqual([{ messageId: "2", text: "SAIR" }]);
+  });
+
+  it("starts over with what was written after 'recomeçar', in one answer", () => {
+    expect(plan(row("1", "quero marcar"), row("2", "recomeçar"), row("3", "oi, bom dia!"))).toEqual([{ messageId: "3", text: "oi, bom dia!", restart: true }]);
+  });
+
+  it("keeps a lone 'recomeçar' as the command", () => {
+    expect(plan(row("1", "blá"), row("2", "Recomeçar"))).toEqual([{ messageId: "2", text: "Recomeçar" }]);
   });
 
   it("refuses an empty burst", () => {
-    expect(() => joinBurst("org", "+5511987654321", [])).toThrow();
+    expect(() => planBurst("org", "+5511987654321", [])).toThrow();
   });
 });

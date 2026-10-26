@@ -16,6 +16,8 @@ import { scopedPrisma } from "@/lib/tenant-scope";
 /** A patient's message, already tied to the clinic whose WhatsApp number received it. */
 export interface ClinicMessage extends InboundMessage {
   organizationId: string;
+  /** The person wrote "recomeçar" earlier in the same burst: start over, then read this text. */
+  restart?: boolean;
 }
 
 export type InboundOutcome =
@@ -63,6 +65,13 @@ export async function handleInboundMessage(
     if (patients.length > 0 && !reachable) return { outcome: "IGNORED" };
     const outcome = await receiveMedia(prisma, { ...message, mediaKind: message.mediaKind }, reachable?.id ?? null, now);
     return { outcome };
+  }
+
+  // "Recomeçar" followed by more text in one burst: close the dialog, then read the text as a new start.
+  if (message.restart) {
+    const current = await findOpenConversation(prisma, message.organizationId, phones, now);
+    if (current?.lastMessageId === message.messageId) return { outcome: "IGNORED" };
+    await closeOpenConversations(prisma, message.organizationId, phones);
   }
 
   // "Recomeçar": the person starts the conversation over. A repeated delivery of the same message does nothing.

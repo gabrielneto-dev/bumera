@@ -6,7 +6,7 @@ import type { AiClient, SlotPreference, AiPhraseInput, AiTurn, AiTurnInput } fro
 import { trusted, validateAnswer, validatePhrase } from "@/lib/booking/fluid";
 import * as say from "@/lib/booking/messages";
 import { findNextSlots, type SlotOption } from "@/lib/booking/slots";
-import { cleanName, detectWhom, isAffirmation, isGreeting, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
+import { cleanName, detectWhom, greetingOf, isAffirmation, isGreeting, looksLikeBookingRequest, matchProcedure, parseChoice, withGreeting } from "@/lib/booking/text";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { AppError } from "@/lib/errors";
 import { phoneCandidates } from "@/lib/inbound/evolution";
@@ -517,13 +517,15 @@ async function handOff(turn: Turn, conv: Conversation, summary: string, text = s
         reason,
       },
     });
-    await queueFlowReply(tx, { organizationId: conv.organizationId, conversationId: conv.id, replyToMessageId: turn.message.messageId, text }, turn.now);
+    await queueFlowReply(tx, { organizationId: conv.organizationId, conversationId: conv.id, replyToMessageId: turn.message.messageId, text: withGreeting(text, greetingOf(turn.message.text)) }, turn.now);
   });
   return { outcome: "HANDOFF" };
 }
 
+/** Queues the answer to this message; a "bom dia" from the person is answered in kind. */
 async function reply(turn: Turn, conv: Conversation, text: string): Promise<InboundOutcome> {
-  await queueFlowReply(scopedPrisma(turn.prisma, conv.organizationId), { organizationId: conv.organizationId, conversationId: conv.id, replyToMessageId: turn.message.messageId, text }, turn.now);
+  const greeted = withGreeting(text, greetingOf(turn.message.text));
+  await queueFlowReply(scopedPrisma(turn.prisma, conv.organizationId), { organizationId: conv.organizationId, conversationId: conv.id, replyToMessageId: turn.message.messageId, text: greeted }, turn.now);
   if (turn.calls > 0) {
     await turn.prisma.conversation.update({ where: { id: conv.id }, data: { aiCalls: { increment: turn.calls } } });
     turn.calls = 0;
