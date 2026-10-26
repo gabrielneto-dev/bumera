@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { isUniqueViolation } from "@/lib/db-errors";
+import { isResetCommand } from "@/lib/booking/text";
 import { handleInboundMessage, type ClinicMessage, type InboundOutcome } from "@/lib/inbound/handle";
+import { parseIntent } from "@/lib/inbound/intent";
 
 const MAX_QUIET_MS = 60_000;
 /** A message whose processing failed is put back for another try only while it is this fresh. */
@@ -37,23 +39,56 @@ export async function bufferMessage(prisma: PrismaClient, message: ClinicMessage
 
 class ClaimLost extends Error {}
 
+type Handler = (prisma: PrismaClient, message: ClinicMessage, now: Date) => Promise<InboundOutcome>;
+
+const STANDALONE_NUMBER = /^\d{1,2}$/;
+
+/** Answers the planned messages of a burst one after the other. */
+async function answerBurst(prisma: PrismaClient, organizationId: string, phoneE164: string, rows: readonly BufferedRow[], now: Date, handler: Handler): Promise<void> {
+  for (const message of planBurst(organizationId, phoneE164, rows)) await handler(prisma, message, now);
+}
+
 type BufferedRow = { instance: string; messageId: string; text: string; mediaKind: string | null };
 
-/**
- * One message for the whole burst. Written texts are joined and answered (an audio sent along with text is
- * then left to the text); a burst of media only is answered as media. The id is the last message's.
- */
-export function joinBurst(organizationId: string, phoneE164: string, rows: readonly BufferedRow[]): ClinicMessage {
-  const last = rows.at(-1);
-  if (!last) throw new Error("empty burst");
-  const texts = rows.map((row) => row.text).filter((text) => text.trim() !== "");
+/** Rows that only mean something as a whole message: replies ("1", "2", "SAIR") and menu numbers. */
+function standsAlone(row: BufferedRow): boolean {
+  const text = row.text.trim();
+  return text !== "" && (parseIntent(text) !== "UNKNOWN" || STANDALONE_NUMBER.test(text));
+}
+
+function toMessage(organizationId: string, phoneE164: string, group: readonly BufferedRow[]): ClinicMessage {
+  const last = group.at(-1) as BufferedRow;
   const base = { organizationId, phoneE164, instance: last.instance, messageId: last.messageId };
+  const texts = group.map((row) => row.text).filter((text) => text.trim() !== "");
+  // Written text answers the burst (an audio sent along with it is left to the text).
   if (texts.length > 0) return { ...base, text: texts.join(JOIN_SEPARATOR) };
-  const mediaKind = rows.findLast((row) => row.mediaKind)?.mediaKind as ClinicMessage["mediaKind"];
+  const mediaKind = group.findLast((row) => row.mediaKind)?.mediaKind as ClinicMessage["mediaKind"];
   return { ...base, text: "", ...(mediaKind ? { mediaKind } : {}) };
 }
 
-type Handler = (prisma: PrismaClient, message: ClinicMessage, now: Date) => Promise<InboundOutcome>;
+/**
+ * Turns a burst into the messages to answer, in order. Free text written in a row is joined into one message,
+ * so the person gets one answer; commands that only work as a whole message stay apart ("1", "2", menu numbers).
+ * "SAIR" anywhere wins over everything else. "recomeçar" drops what came before it, and what follows it is read
+ * as a fresh start (one answer instead of two).
+ */
+export function planBurst(organizationId: string, phoneE164: string, rows: readonly BufferedRow[]): ClinicMessage[] {
+  if (rows.length === 0) throw new Error("empty burst");
+  const optOut = rows.findLast((row) => parseIntent(row.text) === "OPT_OUT");
+  if (optOut) return [toMessage(organizationId, phoneE164, [optOut])];
+
+  const resetAt = rows.findLastIndex((row) => isResetCommand(row.text));
+  const rest = resetAt >= 0 ? rows.slice(resetAt + 1) : rows;
+  if (resetAt >= 0 && rest.length === 0) return [toMessage(organizationId, phoneE164, [rows[resetAt] as BufferedRow])];
+
+  const groups: BufferedRow[][] = [];
+  for (const row of rest) {
+    const current = groups.at(-1);
+    if (standsAlone(row) || !current || standsAlone(current[0] as BufferedRow)) groups.push([row]);
+    else current.push(row);
+  }
+  return groups.map((group, index) => ({ ...toMessage(organizationId, phoneE164, group), ...(resetAt >= 0 && index === 0 ? { restart: true } : {}) }));
+}
 
 type Row = Awaited<ReturnType<PrismaClient["inboundBuffer"]["findMany"]>>[number];
 
@@ -79,7 +114,7 @@ async function answerRows(prisma: PrismaClient, organizationId: string, phoneE16
   }
 
   try {
-    await handler(prisma, joinBurst(organizationId, phoneE164, rows), now);
+    await answerBurst(prisma, organizationId, phoneE164, rows, now, handler);
     return true;
   } catch (error) {
     if (now.getTime() - last.receivedAt.getTime() < RETRY_WINDOW_MS) {
@@ -101,7 +136,7 @@ async function answerRows(prisma: PrismaClient, organizationId: string, phoneE16
 export async function flushNumber(prisma: PrismaClient, organizationId: string, phoneE164: string, now: Date, handler: Handler = handleInboundMessage): Promise<boolean> {
   const rows = await numberRows(prisma, organizationId, phoneE164);
   if (rows.length === 0) return false;
-  await handler(prisma, joinBurst(organizationId, phoneE164, rows), now);
+  await answerBurst(prisma, organizationId, phoneE164, rows, now, handler);
   await prisma.inboundBuffer.deleteMany({ where: { id: { in: rows.map((row) => row.id) } } });
   return true;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanName, isAffirmation, isGreeting, isResetCommand, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
+import { cleanName, greetingOf, isAffirmation, isGreeting, isResetCommand, withGreeting, looksLikeBookingRequest, matchProcedure, parseChoice } from "@/lib/booking/text";
 
 const procedures = [
   { id: "p1", name: "Avaliação" },
@@ -98,5 +98,32 @@ describe("isAffirmation", () => {
 
   it.each(["", "não", "pode ser terça de manhã", "ser", "por favor", "quero uma limpeza e um clareamento"])("does not treat %j as a plain yes", (text) => {
     expect(isAffirmation(text)).toBe(false);
+  });
+});
+
+describe("greetingOf", () => {
+  it.each([
+    ["bom dia!", "Bom dia"],
+    ["Oi, boa tarde", "Boa tarde"],
+    ["boa noite pessoal, quero marcar", "Boa noite"],
+    ["BOM DIA", "Bom dia"],
+  ])("reads %j as %j", (text, expected) => expect(greetingOf(text)).toBe(expected));
+
+  it.each(["oi", "olá", "quero marcar", "bom", "dia 12 pode?"])("finds no time-of-day greeting in %j", (text) => expect(greetingOf(text)).toBeNull());
+});
+
+describe("withGreeting", () => {
+  it("swaps a leading 'Olá!' for the person's greeting", () => {
+    expect(withGreeting("Olá! Aqui é a clínica.", "Bom dia")).toBe("Bom dia! Aqui é a clínica.");
+    expect(withGreeting("Oi, tudo bem? Em que posso ajudar?", "Boa noite")).toBe("Boa noite! Tudo bem? Em que posso ajudar?");
+  });
+
+  it("adds the greeting when the text starts otherwise, and keeps one that is already there", () => {
+    expect(withGreeting("Qual procedimento você procura?", "Boa tarde")).toBe("Boa tarde! Qual procedimento você procura?");
+    expect(withGreeting("Bom dia, Ana! Tudo certo.", "Bom dia")).toBe("Bom dia, Ana! Tudo certo.");
+  });
+
+  it("leaves the text alone without a greeting", () => {
+    expect(withGreeting("Olá! Aqui é a clínica.", null)).toBe("Olá! Aqui é a clínica.");
   });
 });

@@ -102,3 +102,21 @@ export function isAffirmation(text: string): boolean {
   if (words.length === 0 || words.length > MAX_AFFIRMATION_WORDS) return false;
   return words.every((word) => AFFIRMATION_WORDS.has(word)) && words.some((word) => AFFIRMATION_CORE.has(word));
 }
+
+const TIME_GREETING = /\b(bom dia|boa tarde|boa noite)\b/;
+const LEADING_HELLO = /^(olá|ola|oi)\s*[!,.]?\s*/i;
+
+/** "Bom dia" / "Boa tarde" / "Boa noite" when the person greeted with one, so the answer can greet in kind. */
+export function greetingOf(text: string): string | null {
+  const found = TIME_GREETING.exec(normalize(text))?.[1];
+  return found ? found.charAt(0).toUpperCase() + found.slice(1) : null;
+}
+
+/** Starts a reply with the person's greeting: replaces a leading "Olá!"/"Oi," or adds it, never twice. */
+export function withGreeting(text: string, greeting: string | null): string {
+  if (!greeting || normalize(text).startsWith(normalize(greeting))) return text;
+  const hello = LEADING_HELLO.exec(text);
+  if (!hello) return `${greeting}! ${text}`;
+  const rest = text.slice(hello[0].length);
+  return `${greeting}! ${rest.charAt(0).toUpperCase()}${rest.slice(1)}`;
+}
