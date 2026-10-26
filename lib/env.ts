@@ -25,14 +25,6 @@ const envSchema = z.object({
   CPF_HASH_KEY: base64Key32,
   /** Bearer key n8n uses for /api/v1 (service-to-service). Unset = those endpoints answer 503. */
   SERVICE_API_KEY: z.string().min(MIN_SECRET_LENGTH, `SERVICE_API_KEY must have at least ${MIN_SECRET_LENGTH} characters`).optional(),
-  /** Secret in the Evolution webhook URL (/api/webhooks/evolution/<token>). Unset = the webhook answers 503. */
-  EVOLUTION_WEBHOOK_TOKEN: z
-    .string()
-    .min(MIN_SECRET_LENGTH, `EVOLUTION_WEBHOOK_TOKEN must have at least ${MIN_SECRET_LENGTH} characters`)
-    .optional(),
-  /** Evolution API address and key, only used to show a clinic's WhatsApp connection state. */
-  EVOLUTION_API_URL: z.url().optional(),
-  EVOLUTION_API_KEY: z.string().min(MIN_SECRET_LENGTH).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

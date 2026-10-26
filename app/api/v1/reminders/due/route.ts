@@ -1,10 +1,8 @@
 import { z } from "zod";
 import { fail, failFrom, ok } from "@/lib/api-response";
-import { bufferQuietMs, flushBuffered } from "@/lib/inbound/buffer";
 import { prisma } from "@/lib/prisma";
 import { claimDueReminders } from "@/lib/reminders/dispatch";
 import { checkServiceKey, configuredServiceKey } from "@/lib/service-auth";
-import { whatsappSender } from "@/lib/whatsapp/mode";
 
 const MAX_LIMIT = 50;
 const querySchema = z.object({ limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(20) });
@@ -19,13 +17,7 @@ export async function GET(request: Request): Promise<Response> {
   const parsed = querySchema.safeParse(params);
   if (!parsed.success) return fail(400, "VALIDATION", `limit deve ser um inteiro de 1 a ${MAX_LIMIT}`);
 
-  // The worker sends now: handing anything out here would send it twice.
-  if (whatsappSender() === "worker") return ok([], { count: 0, sender: "worker" });
-
   try {
-    // Messages held back by the buffer whose timer was lost (a restart) are answered here, before the replies are handed out.
-    const quietMs = bufferQuietMs();
-    if (quietMs > 0) await flushBuffered(prisma, new Date(), quietMs).catch((error: unknown) => console.error("inbound buffer flush failed", error instanceof Error ? error.message : error));
     const due = await claimDueReminders(prisma, { now: new Date(), limit: parsed.data.limit });
     return ok(due, { count: due.length });
   } catch (error) {

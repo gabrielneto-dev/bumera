@@ -76,29 +76,6 @@ describe("reminders API (service key)", () => {
       expect((await (await getDue(dueRequest())).json()).data).toEqual([]);
     });
 
-    it("answers messages held by the inbound buffer before handing out replies", async () => {
-      vi.stubEnv("INBOUND_BUFFER_MS", "8000");
-      const settings = await prisma.clinicSettings.findFirstOrThrow({ where: { whatsappInstance: { not: null } } });
-      await prisma.inboundBuffer.create({
-        data: { organizationId: settings.organizationId, instance: settings.whatsappInstance as string, phoneE164: "+5511944445555", messageId: "held-1", text: "Olá", receivedAt: new Date(Date.now() - 60_000) },
-      });
-
-      const body = await (await getDue(dueRequest())).json();
-
-      expect(body.data.map((item: { kind: string }) => item.kind)).toContain("REPLY_FLOW");
-      expect(await prisma.inboundBuffer.count()).toBe(0);
-      vi.stubEnv("INBOUND_BUFFER_MS", "");
-    });
-
-    it("hands out nothing while the worker is the sender, so the two never send the same message", async () => {
-      vi.stubEnv("WHATSAPP_SENDER", "worker");
-      const body = await (await getDue(dueRequest())).json();
-      vi.stubEnv("WHATSAPP_SENDER", "");
-
-      expect(body).toMatchObject({ success: true, data: [], meta: { count: 0, sender: "worker" } });
-      expect(await prisma.reminder.findUniqueOrThrow({ where: { id: reminderId } })).toMatchObject({ status: "PENDING" });
-    });
-
     it("validates the limit", async () => {
       expect((await getDue(dueRequest("?limit=abc"))).status).toBe(400);
       expect((await getDue(dueRequest("?limit=0"))).status).toBe(400);

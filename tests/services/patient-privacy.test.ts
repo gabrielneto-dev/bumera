@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { handleInboundMessage } from "@/lib/inbound/handle";
+import { describeContact } from "@/lib/n8n-api/clinic";
 import { createPrismaClient } from "@/lib/prisma";
 import { bookAppointment } from "@/lib/services/appointments";
 import { exportPatientData } from "@/lib/services/patient-privacy";
@@ -164,9 +164,8 @@ describe("patient data rights (LGPD art. 18)", () => {
 
       const list = await listPatients(secretary(clinicA), {});
       expect(list.items[0]).toMatchObject({ name: "Paciente removido", anonymized: true });
-      const reply = await handleInboundMessage(prisma, { instance: "x", organizationId: clinicA, phoneE164: "+5511987654321", text: "1", messageId: "m1" }, NOW);
-      // The erased record is gone for good: the same phone is now just a stranger, welcomed like any first contact.
-      expect(reply).toEqual({ outcome: "CONVERSATION" });
+      // The erased record is gone for good: the same phone is now just a stranger to the WhatsApp workflows.
+      expect(await describeContact(prisma, clinicA, "+5511987654321", NOW)).toMatchObject({ known: false });
       expect((await prisma.patient.findUniqueOrThrow({ where: { id: patient.id } })).phoneE164).toBe("REMOVIDO");
     });
   });

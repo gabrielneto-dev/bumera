@@ -37,7 +37,6 @@ export interface PatientExport {
   }>;
   quotes: Array<{ id: string; description: string; valueReais: number | null; status: string; createdAt: string; closedAt: string | null }>;
   /** What the patient wrote that no keyword explained, with the text while it was still needed. */
-  messagesReceived: Array<{ text: string | null; reason: string; status: string; receivedAt: string; handledAt: string | null }>;
   /** Messages the system sent or tried to send (their text is not stored). */
   messages: Array<{ kind: string; status: string; attempts: number; sentAt: string | null; createdAt: string }>;
 }
@@ -54,7 +53,7 @@ export async function exportPatientData(ctx: ServiceContext, id: string): Promis
   if (!patient) throw new AppError("NOT_FOUND", "Paciente não encontrado", { resource: "patient" });
   if (patient.anonymizedAt) throw new AppError("ANONYMIZED_PATIENT", "Os dados deste paciente já foram apagados");
 
-  const [appointments, quotes, reminders, received] = await Promise.all([
+  const [appointments, quotes, reminders] = await Promise.all([
     ctx.db.appointment.findMany({
       where: { patientId: id },
       include: { dentist: { select: { name: true } }, procedure: { select: { name: true } } },
@@ -62,10 +61,9 @@ export async function exportPatientData(ctx: ServiceContext, id: string): Promis
     }),
     ctx.db.quote.findMany({ where: { patientId: id }, orderBy: { createdAt: "asc" } }),
     ctx.db.reminder.findMany({
-      where: { OR: [{ appointment: { patientId: id } }, { quote: { patientId: id } }, { inboundMessage: { patientId: id } }, { conversation: { patientId: id } }] },
+      where: { OR: [{ appointment: { patientId: id } }, { quote: { patientId: id } }] },
       orderBy: { createdAt: "asc" },
     }),
-    ctx.db.inboundMessage.findMany({ where: { patientId: id }, orderBy: { createdAt: "asc" } }),
   ]);
   await recordAudit(ctx.db, ctx, { action: "PATIENT_EXPORTED", patientId: id, entityId: id });
 
@@ -102,13 +100,6 @@ export async function exportPatientData(ctx: ServiceContext, id: string): Promis
       status: row.status,
       createdAt: row.createdAt.toISOString(),
       closedAt: iso(row.closedAt),
-    })),
-    messagesReceived: received.map((row) => ({
-      text: row.text,
-      reason: row.reason,
-      status: row.status,
-      receivedAt: row.createdAt.toISOString(),
-      handledAt: iso(row.handledAt),
     })),
     messages: reminders.map((row) => ({
       kind: row.kind,

@@ -4,11 +4,12 @@ type: plan
 title: Arquitetura e roadmap da IA no WhatsApp (Fases 0–6)
 branch: ai-agent
 tags: [ai-assistant, whatsapp, architecture, roadmap, llm]
-status: in-progress
+status: superseded-progress
 created_at: 2026-10-25
-updated_at: 2026-10-25
+updated_at: 2026-10-26
 related: [CTX-PLN-20261017-mvp-milestones, CTX-RES-20261025-deskcommcrm-agent-engine]
 depends_on: [CTX-DEC-20261025-port-deskcomm-patterns, CTX-DEC-20261025-conversation-owned-by-app, CTX-DEC-20261025-deterministic-channel-first, CTX-DEC-20261025-single-sender-outbox]
+superseded_by: CTX-DEC-20261026-whatsapp-in-n8n
 ---
 
 # ⚠ Correction (2026-10-25, later the same day)
@@ -39,3 +40,6 @@ M3 no longer uses an n8n flow: reminders are sent by the worker outbox (`CTX-DEC
 - 2026-10-25: gap analysis done (`CTX-RES-20261025-module4-gap-analysis`, `docs/ai-gap-analysis.md`); the phase table above is replaced by its roadmap F1–F6 once the user approves.
 - 2026-10-25: roadmap F1–F6 approved (`CTX-DEC-20261025-migration-roadmap`); F1 started.
 - 2026-10-25: F1 built and verified locally (`CTX-NTE-20261025-f1-worker-pipeline`); production deploy and switch pending the user's go-ahead.
+
+## Superseded (2026-10-26)
+Plan abandoned: WhatsApp moved to n8n. Principles carry over to the workflows.

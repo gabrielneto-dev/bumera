@@ -62,12 +62,6 @@ describe("guard for reactivation", () => {
     expect(evaluateGuard({ ...input, patient: { ...patient, consentAt: null } }, NOW)).toMatchObject({ ok: false, status: "SKIPPED" });
   });
 
-  it("treats the two campaign replies like other replies", () => {
-    for (const kind of ["REPLY_INTERESTED", "REPLY_DECLINED"] as const) {
-      expect(evaluateGuard({ kind, appointment: completed, patient }, NOW)).toEqual({ ok: true });
-      expect(evaluateGuard({ kind, appointment: completed, patient: { ...patient, doNotContact: true } }, NOW)).toMatchObject({ ok: false });
-    }
-  });
 });
 
 describe("reactivation messages", () => {

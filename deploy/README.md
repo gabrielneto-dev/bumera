@@ -25,24 +25,17 @@ Instance `bumera-teste` (Baileys), paired by QR code through the Evolution API (
 Create two *Header Auth* credentials: `Bumera service key` (name `Authorization`, value `Bearer <SERVICE_API_KEY>`) and `Evolution API key` (name `apikey`, value `<EVOLUTION_API_KEY>`).
 Import `n8n/workflows/reminders-whatsapp.json`, link both credentials, run it once manually, then activate.
 
-## Worker and the WhatsApp sender switch (AI F1)
-The `worker` service (`bumera-worker`, `Dockerfile` target `worker`) runs pg-boss queues in the `pgboss` schema of `bumera_prod` (created on first start). `WHATSAPP_SENDER` in `~/bumera-app/.env` decides who buffers inbound messages and sends WhatsApp messages; the app and the worker read the same value:
-- `n8n` (default): the webhook buffers with `INBOUND_BUFFER_MS`, the n8n workflow polls `/api/v1/reminders/due` and sends. The worker consumes nothing.
-- `worker`: the webhook stores the message and schedules the number's turn; the worker answers it, dispatches due messages every minute and right after each turn, and sends them through Evolution with pacing. `/due` then hands out nothing, so a workflow left active cannot send twice.
-
-Switch to the worker (after `docker compose build app worker` and the migration):
-1. Set `WHATSAPP_SENDER=worker` in `~/bumera-app/.env`.
-2. `docker compose up -d app worker`; check `docker compose ps` (worker healthy) and `docker logs bumera-worker` (JSON lines; `worker.started` lists the queues).
-3. Deactivate the n8n workflow "Bumera - Lembretes por WhatsApp" (`n8n update:workflow --id=7msgAcP3Ptnh5r9r --active=false` inside `infra-n8n`, or in the editor).
-4. Send "oi" and "1" from a test phone to `bumera-teste`; the answer should arrive in about 10 s.
-
-Back to n8n: set `WHATSAPP_SENDER=n8n`, `docker compose up -d app worker`, reactivate the workflow. Messages buffered for the worker are then answered by the next `/due` poll. Run one worker replica only.
+## WhatsApp conversations live in n8n
+Since 2026-10-26 (`CTX-DEC-20261026-whatsapp-in-n8n`) the app has no WhatsApp code: no webhook, no buffer, no AI. n8n workflows talk to patients through Evolution and call the app's API with the `Bumera service key` credential (reference: `docs/n8n-whatsapp-api.md`):
+- reminders: `GET /api/v1/reminders/due` + `POST /api/v1/reminders/{id}/result` (workflow "Bumera - Lembretes por WhatsApp");
+- conversation: `/api/v1/clinics/by-instance/{instance}`, `/clinics/{id}/contact`, `/answers` (1, 2, SAIR), `/procedures`, `/slots`, `/booking-requests`.
+The Evolution webhook of each instance must point at the n8n inbound workflow, not at the app.
 
 ## Adding a clinic (one WhatsApp number per clinic)
 Each clinic has its own Evolution instance; its name is saved on the app's **WhatsApp** screen (admin only) and is unique across clinics. Until it is set, that clinic's messages wait (they are checked again every 30 minutes) and Pendentes shows a warning.
 1. Create the instance (header `apikey`, from inside the Evolution container or through an SSH tunnel to 127.0.0.1:8080): `POST /instance/create` with `{"instanceName":"<name>","qrcode":true,"integration":"WHATSAPP-BAILEYS"}`.
-2. Point its webhook at the app: `POST /webhook/set/<name>` with `{"webhook":{"enabled":true,"url":"http://bumera-app:3000/api/webhooks/evolution/<EVOLUTION_WEBHOOK_TOKEN>","events":["MESSAGES_UPSERT"],"webhookByEvents":false,"webhookBase64":false}}`. Never print the response: it echoes the secret URL.
+2. Point its webhook at the n8n inbound workflow: `POST /webhook/set/<name>` with `{"webhook":{"enabled":true,"url":"<n8n production webhook URL of the inbound workflow>","events":["MESSAGES_UPSERT"],"webhookByEvents":false,"webhookBase64":false}}`. Never print the response: it echoes the URL.
 3. Pair the clinic's phone with the QR code (`GET /instance/connect/<name>`).
 4. In the app, as the clinic's admin, open **WhatsApp** and save the same name; the screen shows the connection state.
-The n8n workflow needs no change per clinic: the app tells it which instance to use for every message (`whatsapp.instance`), and inbound messages find their clinic by the instance that received them.
+The n8n workflows need no change per clinic: `/due` says which instance sends each reminder (`whatsapp.instance`), and an inbound message finds its clinic with `/api/v1/clinics/by-instance/{instance}`.
 

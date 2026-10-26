@@ -9,7 +9,8 @@ import { setWhatsappInstance } from "@/lib/services/whatsapp";
 export async function saveWhatsappAction(_previous: ActionState, formData: FormData): Promise<ActionState> {
   return runAction(async () => {
     const instance = formOptional(formData, "instance") ?? null;
-    await setWhatsappInstance(await getServiceContext(), { instance });
+    const clinicInfo = String(formData.get("clinicInfo") ?? "");
+    await setWhatsappInstance(await getServiceContext(), { instance, clinicInfo });
     return instance ? "WhatsApp da clínica salvo." : "WhatsApp desconectado desta clínica.";
   });
 }

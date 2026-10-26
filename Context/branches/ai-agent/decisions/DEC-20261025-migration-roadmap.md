@@ -4,11 +4,12 @@ type: decision
 title: Roteiro F1–F6 de migração da IA e as 4 decisões (outbox, retenção, atendimento humano, corte do n8n)
 branch: ai-agent
 tags: [ai-assistant, whatsapp, roadmap, outbox, n8n, lgpd]
-status: active
+status: superseded
 confidence: high
 created_at: 2026-10-25
-updated_at: 2026-10-25
+updated_at: 2026-10-26
 related: [CTX-RES-20261025-module4-gap-analysis, CTX-PLN-20261025-ai-whatsapp-architecture, CTX-DEC-20261025-single-sender-outbox]
+superseded_by: CTX-DEC-20261026-whatsapp-in-n8n
 ---
 
 # Decision (approved by the user on 2026-10-25)
@@ -20,3 +21,6 @@ Roadmap of `docs/ai-gap-analysis.md` §5: F1 transport, F2 state and memory, F3 
 
 ## Consequences
 F1 keeps `handleInboundMessage` and the reminder pipeline; only buffering, scheduling and sending move to the worker.
+
+## Superseded (2026-10-26)
+Roadmap F1–F6 (in-app) abandoned; F1 was built, deployed and then removed. Its 4 decisions only matter again if built in n8n.

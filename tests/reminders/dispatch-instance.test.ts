@@ -23,7 +23,7 @@ describe("whatsapp instance when handing reminders to n8n", () => {
     await prisma.$disconnect();
   });
 
-  async function reminder(clinic: string, kind: "CONFIRMATION" | "REPLY_CONFIRMED" = "CONFIRMATION") {
+  async function reminder(clinic: string, kind: "CONFIRMATION" = "CONFIRMATION") {
     const dentist = await createDentist(prisma, clinic);
     const procedure = await createProcedure(prisma, clinic);
     const patient = await createPatient(prisma, clinic, { name: "Maria Souza" });
@@ -56,14 +56,6 @@ describe("whatsapp instance when handing reminders to n8n", () => {
     const row = await prisma.reminder.findUniqueOrThrow({ where: { id: waiting.id } });
     expect(row).toMatchObject({ status: "PENDING", attempts: 0 });
     expect(row.dueAt).toEqual(new Date(NOW.getTime() + 30 * MINUTE));
-  });
-
-  it("holds replies too, and a clinic that cleared the name", async () => {
-    await prisma.clinicSettings.create({ data: { organizationId: clinicA, whatsappInstance: null } });
-    const answer = await reminder(clinicA, "REPLY_CONFIRMED");
-
-    expect(await claimDueReminders(prisma, { now: NOW })).toEqual([]);
-    expect((await prisma.reminder.findUniqueOrThrow({ where: { id: answer.id } })).status).toBe("PENDING");
   });
 
   it("delivers a held message once the clinic connects", async () => {

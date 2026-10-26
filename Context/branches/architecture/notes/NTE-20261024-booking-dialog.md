@@ -4,11 +4,12 @@ type: note
 title: Diálogo de agendamento por WhatsApp: máquina de estados, dependentes e camada fluida com IA
 branch: architecture
 tags: [ai-assistant, whatsapp, scheduling, patient, architecture]
-status: active
+status: superseded
 confidence: high
 created_at: 2026-10-24
 updated_at: 2026-10-24
 related: [CTX-NTE-20261024-ai-assistant-and-inbox, CTX-DEC-20261024-ai-booking-rules, CTX-NTE-20261021-m4-inbound-replies, CTX-NTE-20261022-lgpd-audit-export-erasure]
+superseded_by: CTX-DEC-20261026-whatsapp-in-n8n
 ---
 
 # Diálogo de agendamento (commits 9fa78a6, c098652, 20ce1f3; migrations 20261023120000_m7_booking_conversation, 20261023150000_m7_dependents, 20261024100000_m7_fluid_dialog)
@@ -51,3 +52,6 @@ related: [CTX-NTE-20261024-ai-assistant-and-inbox, CTX-DEC-20261024-ai-booking-r
 - Ajustes aprendidos com o uso real: procedimento não encontrado diz "não encontrei esse procedimento" (texto fixo `procedureNotFound`; prompt manda não dizer "não entendi" nem afirmar que a clínica não faz); saudação repetida recebe resposta curta sem se apresentar de novo; um "sim/pode ser/claro" (`isAffirmation`, ou `confirm: yes` lido pela IA) escolhe o único procedimento da clínica; com vários procedimentos um "sim" solto não escolhe.
 - Armadilhas: a mensagem "oi" como texto genérico nos testes passou a abrir a pergunta aberta (usar "vai demorar?"); `tests/reminders/api.test.ts` quebrava depois das 21h por causa do horário de silêncio (agora desliga o silêncio na clínica do teste); o túnel SSH para o banco de teste cai e a suíte falha com P1001 até reabrir (`npm run db:tunnel`).
 - 789 testes, ~96,8% de cobertura. Avaliação real do diálogo (Haiku 5.5): leitura 29/29, escrita 42/42.
+
+## Superseded (2026-10-26)
+Code removed: the booking dialog is rebuilt as an n8n workflow over the API (slots, booking requests).

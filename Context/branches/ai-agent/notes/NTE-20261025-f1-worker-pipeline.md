@@ -4,11 +4,12 @@ type: note
 title: Mapa do código da F1 (worker no lugar do buffer por setTimeout e do envio pelo n8n)
 branch: ai-agent
 tags: [ai-assistant, whatsapp, outbox, n8n, webhook]
-status: active
+status: superseded
 confidence: high
 created_at: 2026-10-25
-updated_at: 2026-10-25
+updated_at: 2026-10-26
 related: [CTX-DEC-20261025-migration-roadmap, CTX-DEC-20261025-queue-pg-boss, CTX-RES-20261025-module4-gap-analysis]
+superseded_by: CTX-DEC-20261026-whatsapp-in-n8n
 ---
 
 # F1 code map (branch claude/ai-cyclic-architecture)
@@ -34,3 +35,6 @@ Webhook `app/api/webhooks/evolution/[token]/route.ts` → `scheduleTurn` (`lib/w
 ## Gotchas
 - pg-boss `work()` renews heartbeats itself; `groupConcurrency` raced inside one process → `localGroupConcurrency: 1` (single worker replica).
 - Two buffer rows with the same `receivedAt` are ordered by random id: tests must use distinct times.
+
+## Superseded (2026-10-26)
+Code removed (worker, queue, sender, media reply).

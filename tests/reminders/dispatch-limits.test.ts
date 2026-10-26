@@ -31,7 +31,7 @@ describe("sending window and daily limit when handing reminders to n8n", () => {
 
   async function reminder(options: {
     now: Date;
-    kind?: "CONFIRMATION" | "REMINDER_2H" | "REPLY_CONFIRMED";
+    kind?: "CONFIRMATION" | "REMINDER_2H";
     status?: "PENDING" | "SENT";
     sentAt?: Date;
     org?: string;
@@ -77,16 +77,6 @@ describe("sending window and daily limit when handing reminders to n8n", () => {
       const due = await claimDueReminders(prisma, { now: new Date(NEXT_MORNING.getTime() + 60_000) });
 
       expect(due.map((item) => item.id)).toEqual([held.id]);
-    });
-
-    it("still answers a patient who just wrote, even at night", async () => {
-      const answer = await reminder({ now: NIGHT, kind: "REPLY_CONFIRMED" });
-      const held = await reminder({ now: NIGHT });
-
-      const due = await claimDueReminders(prisma, { now: NIGHT });
-
-      expect(due.map((item) => item.id)).toEqual([answer.id]);
-      expect((await row(held.id)).dueAt).toEqual(NEXT_MORNING);
     });
 
     it("uses the clinic's own quiet hours and can be switched off", async () => {
@@ -135,29 +125,6 @@ describe("sending window and daily limit when handing reminders to n8n", () => {
       await reminder({ now: DAYTIME });
 
       expect(await claimDueReminders(prisma, { now: DAYTIME })).toHaveLength(1);
-    });
-
-    it("never blocks a reply to the patient, but counts it", async () => {
-      await settings({ dailySendLimit: 1 });
-      await reminder({ now: DAYTIME, status: "SENT", sentAt: new Date(DAYTIME.getTime() - HOUR) });
-      const answer = await reminder({ now: DAYTIME, kind: "REPLY_CONFIRMED" });
-      const normal = await reminder({ now: DAYTIME });
-
-      const due = await claimDueReminders(prisma, { now: DAYTIME });
-
-      expect(due.map((item) => item.id)).toEqual([answer.id]);
-      expect((await row(normal.id)).dueAt).toEqual(NEXT_MORNING);
-    });
-
-    it("serves replies before ordinary reminders when the limit is tight", async () => {
-      await settings({ dailySendLimit: 1 });
-      const ordinary = await reminder({ now: DAYTIME });
-      await prisma.reminder.update({ where: { id: ordinary.id }, data: { dueAt: new Date(DAYTIME.getTime() - 10 * HOUR) } });
-      const answer = await reminder({ now: DAYTIME, kind: "REPLY_CONFIRMED" });
-
-      const due = await claimDueReminders(prisma, { now: DAYTIME });
-
-      expect(due.map((item) => item.id)).toEqual([answer.id]);
     });
 
     it("keeps each clinic's count separate", async () => {

@@ -15,7 +15,7 @@ export interface MessageInput {
   procedureName: string;
   /** What was quoted (quote follow-ups only). */
   quoteDescription?: string;
-  /** The AI's answer (REPLY_AI only); cleaned before it is sent. */
+  /** An extra line added by the app to an answer (e.g. other appointments still waiting). */
   freeText?: string;
   /** For a dependent: who answers for the patient. Messages are addressed to them and speak of the patient. */
   guardianName?: string;
@@ -24,7 +24,6 @@ export interface MessageInput {
 const MAX_NAME_LENGTH = 60;
 const MAX_QUOTE_LENGTH = 120;
 const MAX_FREE_TEXT_LENGTH = 800;
-const MAX_FLOW_TEXT_LENGTH = 1000;
 
 /**
  * Names are typed by people (or arrive from WhatsApp) and end up inside a message sent from the
@@ -99,9 +98,6 @@ const extraLine = (text: string | undefined): string => sanitizeParagraphs(text 
 
 const join = (...paragraphs: string[]): string => paragraphs.join(PARAGRAPH);
 
-const handoffMessage = (hello: string, clinic: string): string =>
-  join(hello, `Recebemos a sua mensagem na ${clinic}.`, "A nossa equipe vai ler e responder assim que possível.");
-
 /** Fixed pt-BR texts (no AI in the pilot). Rendered by the app so n8n flows stay generic. */
 export function renderReminderMessage(raw: MessageInput): string {
   const input = {
@@ -165,17 +161,6 @@ export function renderReminderMessage(raw: MessageInput): string {
         QUOTE_ANSWER_BLOCK,
         OPT_OUT_LINE,
       );
-    case "REPLY_HANDOFF":
-      return handoffMessage(hello, clinic);
-    case "REPLY_MEDIA":
-      return join(hello, "Ainda não consigo ouvir áudios nem ver imagens por aqui. 🙏", `Pode escrever sua mensagem? Se preferir, a equipe da ${clinic} vê o que você mandou e responde em breve.`);
-    case "REPLY_FLOW":
-      // Built by the booking dialog from sanitized parts (names, procedures); its own *bold* must survive.
-      return (raw.freeText ?? "").trim().slice(0, MAX_FLOW_TEXT_LENGTH) || handoffMessage(hello, clinic);
-    case "REPLY_AI": {
-      const answer = sanitizeParagraphs(raw.freeText ?? "");
-      return answer ? join(hello, answer) : handoffMessage(hello, clinic);
-    }
     case "REPLY_INTERESTED":
       return join(hello, "Ótimo! 😊", `A equipe da ${clinic} entra em contato em breve.`);
     case "REPLY_DECLINED":
