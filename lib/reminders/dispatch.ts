@@ -3,7 +3,7 @@ import { AppError } from "@/lib/errors";
 import { evaluateGuard, evaluateQuoteGuard, MAX_ATTEMPTS, retryDelayMs } from "@/lib/reminders/guard";
 import { isQuietNow, nextDayWindowStart, nextQuietEnd, startOfLocalDay } from "@/lib/reminders/send-window";
 import { type ClinicSettings, toClinicSettings } from "@/lib/reminders/settings";
-import { firstName, renderReminderMessage } from "@/lib/reminders/messages";
+import { dayAndTime, firstName, MAX_QUOTE_LENGTH, renderReminderMessage, sanitizeName } from "@/lib/reminders/messages";
 
 /**
  * Service-to-service side of the reminders (called by n8n through /api/v1, never by a signed-in user).
@@ -46,9 +46,10 @@ export interface DueReminder {
   attempt: number;
   message: string;
   clinic: { id: string; name: string };
-  patient: { id: string; firstName: string; phone: string };
-  /** Null for quote follow-ups and their replies. */
-  appointment: { id: string; startsAt: string; endsAt: string; dentistName: string; procedureName: string } | null;
+  /** A dependent's messages go to the guardian's phone, greet the guardian and speak of the patient. */
+  patient: { id: string; firstName: string; phone: string; dependent: boolean; guardianFirstName: string | null };
+  /** Null for quote follow-ups. `day`/`time` are formatted in the clinic's time zone; names are cleaned of links and formatting. */
+  appointment: { id: string; startsAt: string; endsAt: string; day: string; time: string; dentistName: string; procedureName: string } | null;
   quote: { id: string; description: string } | null;
   /** The clinic's WhatsApp (Evolution) instance n8n must send this message through. */
   whatsapp: { instance: string };
@@ -83,18 +84,25 @@ function toDue(row: ReminderDetail, attempt: number, instance: string): DueRemin
       quoteDescription: quote?.description,
       guardianName: patient.guardianName ?? undefined,
     }),
-    clinic: row.organization,
-    patient: { id: patient.id, firstName: firstName(patient.name), phone: patient.phoneE164 },
+    clinic: { id: row.organization.id, name: sanitizeName(row.organization.name) },
+    patient: {
+      id: patient.id,
+      firstName: firstName(patient.name),
+      phone: patient.phoneE164,
+      dependent: Boolean(patient.guardianName),
+      guardianFirstName: patient.guardianName ? firstName(patient.guardianName) : null,
+    },
     appointment: appointment
       ? {
           id: appointment.id,
           startsAt: appointment.startsAt.toISOString(),
           endsAt: appointment.endsAt.toISOString(),
-          dentistName: appointment.dentist.name,
-          procedureName: appointment.procedure.name,
+          ...dayAndTime(appointment.startsAt.toISOString()),
+          dentistName: sanitizeName(appointment.dentist.name),
+          procedureName: sanitizeName(appointment.procedure.name),
         }
       : null,
-    quote: quote ? { id: quote.id, description: quote.description } : null,
+    quote: quote ? { id: quote.id, description: sanitizeName(quote.description, MAX_QUOTE_LENGTH) } : null,
     whatsapp: { instance },
   };
 }

@@ -22,7 +22,7 @@ export interface MessageInput {
 }
 
 const MAX_NAME_LENGTH = 60;
-const MAX_QUOTE_LENGTH = 120;
+export const MAX_QUOTE_LENGTH = 120;
 const MAX_FREE_TEXT_LENGTH = 800;
 
 /**
@@ -47,7 +47,8 @@ const OPT_OUT_LINE = "Para não receber mais mensagens, responda *SAIR*.";
 const QUOTE_ANSWER_BLOCK = ["Responda:", "*1* para falar com a equipe", "*2* para agora não"].join("\n");
 const ANSWER_BLOCK = ["Responda:", "*1* para confirmar", "*2* para remarcar"].join("\n");
 
-function when(iso: string): { day: string; time: string } {
+/** "sábado, 17/10" and "09:00" in the clinic's time zone. */
+export function dayAndTime(iso: string): { day: string; time: string } {
   const date = new Date(iso);
   const weekday = new Intl.DateTimeFormat("pt-BR", { timeZone: CLINIC_TIME_ZONE, weekday: "long" }).format(date);
   const dayMonth = new Intl.DateTimeFormat("pt-BR", {
@@ -66,7 +67,7 @@ function when(iso: string): { day: string; time: string } {
 
 /** "terça-feira, 20/10 às 10:00": how a slot is shown to a patient. */
 export function formatSlot(iso: string): string {
-  const { day, time } = when(iso);
+  const { day, time } = dayAndTime(iso);
   return `${day} às ${time}`;
 }
 
@@ -107,7 +108,7 @@ export function renderReminderMessage(raw: MessageInput): string {
     procedureName: sanitizeName(raw.procedureName),
     quoteDescription: sanitizeName(raw.quoteDescription ?? "", MAX_QUOTE_LENGTH),
   };
-  const { day, time } = when(input.startsAt);
+  const { day, time } = dayAndTime(input.startsAt);
   const guardian = sanitizeName(raw.guardianName ?? "");
   const dependent = guardian !== "";
   // For a dependent the greeting goes to the person who answers, and the text speaks of the patient.
