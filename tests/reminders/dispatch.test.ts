@@ -85,6 +85,32 @@ describe("reminder dispatch", () => {
       expect(stored).toMatchObject({ status: "CLAIMED", attempts: 1, claimedAt: NOW });
     });
 
+    it("hands n8n the facts its text templates need, already formatted and cleaned", async () => {
+      const dentist = await createDentist(prisma, clinic, "*Dr.* http://evil.example/x Bruno");
+      const child = await createPatient(prisma, clinic, { name: "Pedro Souza", phoneE164: "+5511900001111" });
+      await prisma.patient.update({ where: { id: child.id }, data: { guardianName: "Maria Souza" } });
+      const appointment = await prisma.appointment.create({
+        data: { organizationId: clinic, patientId: child.id, dentistId: dentist.id, procedureId, startsAt: STARTS, endsAt: new Date(STARTS.getTime() + 30 * MINUTE) },
+      });
+      await prisma.reminder.create({ data: { organizationId: clinic, appointmentId: appointment.id, kind: "CONFIRMATION", dueAt: new Date(NOW.getTime() - MINUTE) } });
+
+      const [due] = await claimDueReminders(prisma, { now: NOW });
+      expect(due).toMatchObject({
+        patient: { firstName: "Pedro", dependent: true, guardianFirstName: "Maria" },
+        appointment: { day: "sábado, 17/10", time: "09:00", procedureName: "Limpeza" },
+      });
+      expect(due?.appointment?.dentistName).not.toMatch(/[*]|http|evil/);
+      expect(due?.patient).not.toHaveProperty("guardianName");
+    });
+
+    it("cleans the quote description and marks an adult patient as not a dependent", async () => {
+      const quote = await prisma.quote.create({ data: { organizationId: clinic, patientId, description: "*Promo* http://evil.example/x Implante" } });
+      await prisma.reminder.create({ data: { organizationId: clinic, quoteId: quote.id, kind: "QUOTE_FOLLOWUP_1", dueAt: new Date(NOW.getTime() - MINUTE) } });
+
+      const [due] = await claimDueReminders(prisma, { now: NOW });
+      expect(due).toMatchObject({ kind: "QUOTE_FOLLOWUP_1", patient: { dependent: false, guardianFirstName: null }, appointment: null, quote: { description: "Promo Implante" } });
+    });
+
     it("does not hand out the same reminder twice", async () => {
       await seed();
       expect(await claimDueReminders(prisma, { now: NOW })).toHaveLength(1);

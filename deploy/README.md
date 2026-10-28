@@ -27,7 +27,7 @@ Import `n8n/workflows/reminders-whatsapp.json`, link both credentials, run it on
 
 ## WhatsApp conversations live in n8n
 Since 2026-10-26 (`CTX-DEC-20261026-whatsapp-in-n8n`) the app has no WhatsApp code: no webhook, no buffer, no AI. n8n workflows talk to patients through Evolution and call the app's API with the `Bumera service key` credential (reference: `docs/n8n-whatsapp-api.md`):
-- reminders: `GET /api/v1/reminders/due` + `POST /api/v1/reminders/{id}/result` (workflow "Bumera - Lembretes por WhatsApp");
+- reminders: `GET /api/v1/reminders/due` + `POST /api/v1/reminders/{id}/result` (workflow "Bumera - Lembretes por WhatsApp (v2)", which holds the message texts, one node per kind);
 - conversation: `/api/v1/clinics/by-instance/{instance}`, `/clinics/{id}/contact`, `/answers` (1, 2, SAIR), `/procedures`, `/slots`, `/booking-requests`.
 The Evolution webhook of each instance must point at the n8n inbound workflow, not at the app.
 

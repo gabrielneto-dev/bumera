@@ -8,12 +8,29 @@ Toda resposta usa o envelope `{ "success": bool, "data": ..., "error": { "code",
 
 O telefone vai como o WhatsApp manda: só dígitos (`5511987654321`), com ou sem `+`. O app também acha os números de contas antigas, salvos sem o nono dígito.
 
-## Lembretes (fluxo já existente)
+## Lembretes
+
+Workflow "Bumera - Lembretes por WhatsApp (v2)". O app decide **quem** recebe e **quando**; o workflow decide **o texto**: um nó "Texto: ..." por tipo (`CONFIRMATION`, `REMINDER_24H`, `REMINDER_2H`, `NO_SHOW_FOLLOWUP`, `REACTIVATION`, `QUOTE_FOLLOWUP_1`, `QUOTE_FOLLOWUP_2`).
 
 | Rota | O que faz |
 |---|---|
-| `GET /api/v1/reminders/due?limit=1..50` | Entrega e reserva os lembretes devidos (todas as clínicas), já com o texto pronto e `whatsapp.instance`. Respeita horário de silêncio, limite diário, consentimento e opt-out. |
+| `GET /api/v1/reminders/due?limit=1..50` | Entrega e reserva os lembretes devidos (todas as clínicas). Respeita horário de silêncio, limite diário, consentimento e opt-out. |
 | `POST /api/v1/reminders/{id}/result` | `{"outcome":"sent","attempt":N}` ou `{"outcome":"failed","attempt":N,"error":"..."}`. Pode repetir sem efeito duplicado. |
+
+Cada lembrete traz os dados para o texto, já formatados e sem links nem formatação vindos de cadastros:
+```json
+{
+  "id": "...", "kind": "REMINDER_24H", "attempt": 1,
+  "clinic": { "id": "org_...", "name": "Odonto Company" },
+  "patient": { "id": "...", "firstName": "Pedro", "phone": "+5511900001111", "dependent": true, "guardianFirstName": "Maria" },
+  "appointment": { "id": "...", "startsAt": "...", "endsAt": "...", "day": "sábado, 31/10", "time": "09:00", "dentistName": "Dra. Ana", "procedureName": "Avaliação" },
+  "quote": null,
+  "whatsapp": { "instance": "bumera-teste" }
+}
+```
+- Dependente (`dependent: true`): a mensagem vai para o telefone do responsável, cumprimenta `guardianFirstName` e fala do paciente (`firstName`).
+- `appointment` é `null` nos orçamentos; `quote` é `null` nos demais. Na retomada, `appointment` é o último atendimento.
+- `message` (o texto antigo, montado pelo app) ainda vem enquanto o workflow antigo existir e será removido.
 
 ## Conversa
 
