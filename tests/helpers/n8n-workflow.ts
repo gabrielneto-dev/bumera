@@ -32,6 +32,12 @@ interface Assignment {
   value: unknown;
 }
 
+interface Condition {
+  leftValue: string;
+  rightValue: unknown;
+  operator: { operation: string };
+}
+
 interface SwitchRule {
   outputKey: string;
   conditions: { conditions: { leftValue: string; rightValue: string; operator: { operation: string } }[] };
@@ -53,12 +59,16 @@ export function nextNodes(workflow: Workflow, name: string, output = 0): string[
   return (workflow.connections[name]?.main[output] ?? []).map((link) => link.node);
 }
 
-function evaluate(code: string, json: Item, refs: NodeRefs): unknown {
-  const $ = (node: string) => {
+/** n8n's `$('Node')`: the item of that node paired with the current one (the tests give one per node). */
+function nodeAccessor(refs: NodeRefs) {
+  return (node: string) => {
     if (!(node in refs)) throw new Error(`expression reads node "${node}", which the test did not provide`);
-    return { item: { json: refs[node] } };
+    return { item: { json: refs[node] }, first: () => ({ json: refs[node] }) };
   };
-  return new Function("$json", "$", `return (${code});`)(json, $);
+}
+
+function evaluate(code: string, json: Item, refs: NodeRefs): unknown {
+  return new Function("$json", "$", `return (${code});`)(json, nodeAccessor(refs));
 }
 
 /** Resolves an n8n parameter value: plain values pass through, `=` values are expressions or templates. */
@@ -103,4 +113,25 @@ export function runHttp(workflow: Workflow, name: string, json: Item, refs: Node
   const { method = "GET", url, jsonBody } = node.parameters as { method?: string; url: string; jsonBody?: string };
   const body = jsonBody === undefined ? undefined : JSON.parse(String(resolve(jsonBody, json, refs)));
   return { method, url: String(resolve(url, json, refs)), body };
+}
+
+/** Whether an item passes an If node (the "true" output). */
+export function runIf(workflow: Workflow, name: string, json: Item, refs: NodeRefs = {}): boolean {
+  const { conditions, combinator } = (nodeOf(workflow, name).parameters.conditions as { conditions: Condition[]; combinator: "and" | "or" });
+  const results = conditions.map(({ leftValue, rightValue, operator }) => {
+    const left = resolve(leftValue, json, refs);
+    if (operator.operation === "notEmpty") return left !== undefined && left !== null && String(left) !== "";
+    if (operator.operation === "equals") return left === rightValue;
+    throw new Error(`unsupported operator ${operator.operation}`);
+  });
+  return combinator === "and" ? results.every(Boolean) : results.some(Boolean);
+}
+
+/** Output of a Code node ("run once for all items", JavaScript) for the given input items. */
+export function runCode(workflow: Workflow, name: string, items: Item[], refs: NodeRefs = {}): Item[] {
+  const { mode, jsCode } = nodeOf(workflow, name).parameters as { mode: string; jsCode: string };
+  if (mode !== "runOnceForAllItems") throw new Error(`unsupported Code mode ${mode}`);
+  const $input = { all: () => items.map((json) => ({ json })) };
+  const output = new Function("$input", "$", jsCode)($input, nodeAccessor(refs)) as { json: Item }[];
+  return output.map((item) => item.json);
 }
