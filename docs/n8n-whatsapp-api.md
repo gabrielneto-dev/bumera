@@ -32,6 +32,14 @@ Cada lembrete traz os dados para o texto, já formatados e sem links nem formata
 - `appointment` é `null` nos orçamentos; `quote` é `null` nos demais. Na retomada, `appointment` é o último atendimento.
 - O texto não vem pronto: ele fica nos nós "Texto: ..." do workflow.
 
+## Entrada
+
+Workflow "Bumera - Entrada do WhatsApp": a Evolution chama o webhook dele a cada mensagem recebida.
+- Junta as mensagens seguidas da mesma pessoa por 8 s (tabela `bumera_entrada_bloco` do n8n: instância, telefone, id e comando; nunca o texto; as linhas são apagadas ao decidir o bloco). Uma mensagem entregue duas vezes entra uma vez só.
+- "1", "2" e "SAIR" (também "parar", "pare", "descadastrar", "cancelar mensagens") só valem como mensagem inteira. "SAIR" em qualquer ponto do bloco vence; fora isso só conta um comando que seja a última mensagem do bloco ("1" seguido de texto livre não confirma).
+- Com um comando: `GET /clinics/by-instance/{instance}` e `POST /clinics/{id}/answers`; se `reply` vier preenchido, envia pela Evolution para o mesmo número. `NO_APPOINTMENT` e `UNKNOWN_PATIENT` não recebem resposta por enquanto.
+- Texto livre, áudio e agendamento ainda não têm resposta automática.
+
 ## Conversa
 
 ### `GET /api/v1/clinics/by-instance/{instance}`

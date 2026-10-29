@@ -1,0 +1,537 @@
+{
+  "id": "dkIJxUZ3JTscBMey",
+  "name": "Bumera - Entrada do WhatsApp",
+  "description": "Recebe as mensagens da Evolution e aplica as respostas 1, 2 e SAIR pelo Bumera (/answers), juntando mensagens seguidas (8 s). Texto livre e agendamento ficam para as próximas etapas.",
+  "versionId": "b603e246-2c67-47f1-a63e-ecac75000e4f",
+  "nodes": [
+    {
+      "id": "235ad66d-8971-41db-a5ea-473e136e7cbb",
+      "name": "Evolution chamou",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        96
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "<segredo: veja o nó no n8n>",
+        "responseMode": "onReceived",
+        "options": {
+          "noResponseBody": true
+        }
+      }
+    },
+    {
+      "id": "00cd3e5f-6717-4cbc-9fd5-e0fd9378d997",
+      "name": "Ler mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        96
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Evolution \"messages.upsert\": keeps a person's own 1:1 text or media message and\n// drops our messages, groups, broadcasts, reactions and other events.\n// Only the recognised command is kept, never the text itself.\nconst OPT_OUT = ['sair', 'parar', 'pare', 'descadastrar', 'cancelar mensagens'];\nconst MEDIA = ['audioMessage', 'imageMessage', 'videoMessage', 'documentMessage', 'documentWithCaptionMessage'];\n\nconst normalize = (text) => text.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase()\n  .replace(/[^a-z0-9 ]/g, ' ').replace(/\\s+/g, ' ').trim();\n\n// Whole-message matches only: a sentence that merely contains a keyword is not a command.\nfunction commandOf(text) {\n  const normalized = normalize(text);\n  if (normalized === '1') return 'CONFIRM';\n  if (normalized === '2') return 'RESCHEDULE';\n  if (OPT_OUT.includes(normalized)) return 'OPT_OUT';\n  return '';\n}\n\n// \"5511987654321@s.whatsapp.net\" -> \"5511987654321\"; null for groups, broadcasts and foreign numbers.\nfunction phoneOf(jid) {\n  if (typeof jid !== 'string' || !jid.endsWith('@s.whatsapp.net')) return null;\n  const digits = jid.slice(0, jid.indexOf('@')).replace(/\\D/g, '');\n  return /^55\\d{10,11}$/.test(digits) ? digits : null;\n}\n\nfunction textOf(message) {\n  if (typeof message.conversation === 'string' && message.conversation) return message.conversation;\n  const extended = message.extendedTextMessage;\n  if (extended && typeof extended.text === 'string' && extended.text) return extended.text;\n  return MEDIA.some((field) => field in message) ? '' : null;\n}\n\nconst out = [];\nfor (const item of $input.all()) {\n  const body = item.json.body || {};\n  if (String(body.event || '').toLowerCase().replace(/_/g, '.') !== 'messages.upsert') continue;\n  const data = Array.isArray(body.data) ? body.data[0] : body.data;\n  const key = (data && data.key) || {};\n  if (key.fromMe === true) continue;\n  // WhatsApp may hide the number behind a @lid id and send the real one alongside.\n  const phone = phoneOf(key.remoteJid) || phoneOf(key.remoteJidAlt);\n  const text = textOf((data && data.message) || {});\n  if (!body.instance || !phone || !key.id || text === null) continue;\n  out.push({ json: { instance: String(body.instance), phone, messageId: String(key.id), command: commandOf(text) } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "559585e6-848f-47c6-b103-7ee8a7ca300b",
+      "name": "Mensagem nova?",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        96
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "HgPYISUX3XFWPjsJ",
+          "cachedResultName": "bumera_entrada_bloco"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "messageId",
+              "keyValue": "={{ $json.messageId }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4315d4e2-3eb5-4121-9702-55cf87558e53",
+      "name": "Guardar no bloco",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        96
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "HgPYISUX3XFWPjsJ",
+          "cachedResultName": "bumera_entrada_bloco"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "instance": "={{ $json.instance }}",
+            "phone": "={{ $json.phone }}",
+            "messageId": "={{ $json.messageId }}",
+            "command": "={{ $json.command }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "instance",
+              "displayName": "instance",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "messageId",
+              "displayName": "messageId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "command",
+              "displayName": "command",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "df9ec313-09e1-4280-a775-83dee19fa112",
+      "name": "Esperar o bloco",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        96
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 8,
+        "unit": "seconds"
+      },
+      "webhookId": "d531a276-148a-4dd8-8a76-1c4f0359af5f"
+    },
+    {
+      "id": "f0f49f4d-2dfc-4bab-97be-23f554482c7e",
+      "name": "Ler o bloco",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        96
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "HgPYISUX3XFWPjsJ",
+          "cachedResultName": "bumera_entrada_bloco"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "instance",
+              "condition": "eq",
+              "keyValue": "={{ $('Ler mensagem').item.json.instance }}"
+            },
+            {
+              "keyName": "phone",
+              "condition": "eq",
+              "keyValue": "={{ $('Ler mensagem').item.json.phone }}"
+            }
+          ]
+        },
+        "returnAll": true
+      }
+    },
+    {
+      "id": "9f5b4e7d-2d01-4f27-bc8f-d8403451b1af",
+      "name": "Decidir o bloco",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        96
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Runs after the wait. Only the execution of the block's newest message answers it.\n// \"SAIR\" anywhere in the block wins; otherwise only a command sent as the block's last\n// message counts (\"1\" followed by free text is left for the team).\nconst rows = $input.all().map((item) => item.json).sort((a, b) => a.id - b.id);\nconst mine = $('Ler mensagem').first().json;\nconst last = rows[rows.length - 1];\nif (!last || last.messageId !== mine.messageId) return [];\nconst optOut = rows.some((row) => row.command === 'OPT_OUT');\nreturn [{ json: { instance: mine.instance, phone: mine.phone, answer: optOut ? 'OPT_OUT' : last.command, lastRowId: last.id } }];"
+      }
+    },
+    {
+      "id": "98c9925d-734a-4e55-a814-860ce120e313",
+      "name": "Limpar o bloco",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1568,
+        0
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "HgPYISUX3XFWPjsJ",
+          "cachedResultName": "bumera_entrada_bloco"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "instance",
+              "condition": "eq",
+              "keyValue": "={{ $json.instance }}"
+            },
+            {
+              "keyName": "phone",
+              "condition": "eq",
+              "keyValue": "={{ $json.phone }}"
+            },
+            {
+              "keyName": "id",
+              "condition": "lte",
+              "keyValue": "={{ $json.lastRowId }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "52c3788e-ea0f-4257-a52c-eb3f92259b1d",
+      "name": "É um comando?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1568,
+        192
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.answer }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "35bf2329-45ad-414c-87bc-623bac65f761",
+      "name": "Clínica do número",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1792,
+        192
+      ],
+      "parameters": {
+        "url": "=http://bumera-app:3000/api/v1/clinics/by-instance/{{ encodeURIComponent($json.instance) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YZSzgaHSl5XbQpHb",
+          "name": "Bumera service key"
+        }
+      }
+    },
+    {
+      "id": "1e92314e-8326-4c8a-93f2-c67111a6f5a4",
+      "name": "Aplicar resposta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2016,
+        192
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://bumera-app:3000/api/v1/clinics/{{ $json.data.id }}/answers",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $('Decidir o bloco').item.json.phone, answer: $('Decidir o bloco').item.json.answer }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YZSzgaHSl5XbQpHb",
+          "name": "Bumera service key"
+        }
+      }
+    },
+    {
+      "id": "66a43a58-f70b-48a8-960d-f97effe3c4cd",
+      "name": "Tem resposta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2240,
+        192
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.data.reply || '' }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "e8dc7d45-0aea-4076-be2d-6e96f7f5b9ba",
+      "name": "Responder pela Evolution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2464,
+        192
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://bumera-evolution:8080/message/sendText/{{ encodeURIComponent($('Decidir o bloco').item.json.instance) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Decidir o bloco').item.json.phone, text: $json.data.reply, delay: 1200 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "DFN8nEBbLbdlzqpX",
+          "name": "Evolution API key"
+        }
+      }
+    },
+    {
+      "id": "4789de08-3c8c-40e6-883c-c1fa8ddcc996",
+      "name": "Sticky Note 7aa6c349",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        192,
+        0
+      ],
+      "parameters": {
+        "content": "## Entrada do WhatsApp\nA Evolution chama este fluxo a cada mensagem recebida.\n\n1. Junta as mensagens seguidas da mesma pessoa por 8 s (tabela `bumera_entrada_bloco`, só o comando, nunca o texto; apagada depois).\n2. \"1\", \"2\" e \"SAIR\" valem só como mensagem inteira; SAIR vence o bloco.\n3. O Bumera aplica a resposta (`/answers`) e devolve o texto; este fluxo só envia.\n\nTexto livre, áudio e agendamento ainda não têm resposta automática.",
+        "color": 4,
+        "width": 832,
+        "height": 224
+      }
+    }
+  ],
+  "connections": {
+    "Evolution chamou": {
+      "main": [
+        [
+          {
+            "node": "Ler mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler mensagem": {
+      "main": [
+        [
+          {
+            "node": "Mensagem nova?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem nova?": {
+      "main": [
+        [
+          {
+            "node": "Guardar no bloco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar no bloco": {
+      "main": [
+        [
+          {
+            "node": "Esperar o bloco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar o bloco": {
+      "main": [
+        [
+          {
+            "node": "Ler o bloco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler o bloco": {
+      "main": [
+        [
+          {
+            "node": "Decidir o bloco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir o bloco": {
+      "main": [
+        [
+          {
+            "node": "Limpar o bloco",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "É um comando?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É um comando?": {
+      "main": [
+        [
+          {
+            "node": "Clínica do número",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clínica do número": {
+      "main": [
+        [
+          {
+            "node": "Aplicar resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar resposta": {
+      "main": [
+        [
+          {
+            "node": "Tem resposta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem resposta?": {
+      "main": [
+        [
+          {
+            "node": "Responder pela Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  }
+}
