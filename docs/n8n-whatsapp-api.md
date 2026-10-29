@@ -30,7 +30,7 @@ Cada lembrete traz os dados para o texto, já formatados e sem links nem formata
 ```
 - Dependente (`dependent: true`): a mensagem vai para o telefone do responsável, cumprimenta `guardianFirstName` e fala do paciente (`firstName`).
 - `appointment` é `null` nos orçamentos; `quote` é `null` nos demais. Na retomada, `appointment` é o último atendimento.
-- `message` (o texto antigo, montado pelo app) ainda vem enquanto o workflow antigo existir e será removido.
+- O texto não vem pronto: ele fica nos nós "Texto: ..." do workflow.
 
 ## Conversa
 

@@ -3,7 +3,7 @@ import { AppError } from "@/lib/errors";
 import { evaluateGuard, evaluateQuoteGuard, MAX_ATTEMPTS, retryDelayMs } from "@/lib/reminders/guard";
 import { isQuietNow, nextDayWindowStart, nextQuietEnd, startOfLocalDay } from "@/lib/reminders/send-window";
 import { type ClinicSettings, toClinicSettings } from "@/lib/reminders/settings";
-import { dayAndTime, firstName, MAX_QUOTE_LENGTH, renderReminderMessage, sanitizeName } from "@/lib/reminders/messages";
+import { dayAndTime, firstName, MAX_QUOTE_LENGTH, sanitizeName } from "@/lib/reminders/messages";
 
 /**
  * Service-to-service side of the reminders (called by n8n through /api/v1, never by a signed-in user).
@@ -44,7 +44,6 @@ export interface DueReminder {
   kind: ReminderKind;
   /** 1 for the first delivery try, 2+ for retries. */
   attempt: number;
-  message: string;
   clinic: { id: string; name: string };
   /** A dependent's messages go to the guardian's phone, greet the guardian and speak of the patient. */
   patient: { id: string; firstName: string; phone: string; dependent: boolean; guardianFirstName: string | null };
@@ -74,16 +73,6 @@ function toDue(row: ReminderDetail, attempt: number, instance: string): DueRemin
     id: row.id,
     kind: row.kind,
     attempt,
-    message: renderReminderMessage({
-      kind: row.kind,
-      clinicName: row.organization.name,
-      patientName: patient.name,
-      startsAt: (appointment?.startsAt ?? quote?.createdAt ?? row.createdAt).toISOString(),
-      dentistName: appointment?.dentist.name ?? "",
-      procedureName: appointment?.procedure.name ?? "",
-      quoteDescription: quote?.description,
-      guardianName: patient.guardianName ?? undefined,
-    }),
     clinic: { id: row.organization.id, name: sanitizeName(row.organization.name) },
     patient: {
       id: patient.id,

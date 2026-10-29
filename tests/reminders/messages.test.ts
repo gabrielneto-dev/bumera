@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderReminderMessage, sanitizeName } from "@/lib/reminders/messages";
+import { renderAnswerMessage, sanitizeName } from "@/lib/reminders/messages";
 
 const input = {
   clinicName: "Clínica Sorriso",
@@ -9,56 +9,14 @@ const input = {
   procedureName: "Limpeza",
 };
 
-describe("renderReminderMessage", () => {
-  it("confirms the booking with date, time, dentist and how to answer", () => {
-    const text = renderReminderMessage({ ...input, kind: "CONFIRMATION" });
-    expect(text).toContain("Olá, Maria!");
-    expect(text).toContain("Clínica Sorriso");
-    expect(text).toContain("terça-feira, 20/10");
-    expect(text).toContain("10:00");
-    expect(text).toContain("Dra. Ana Paula");
-    expect(text).toContain("Limpeza");
-    expect(text).toContain("*1* para confirmar");
-    expect(text).toContain("*2* para remarcar");
-    expect(text).toContain("*SAIR*");
-  });
-
-  it("asks for confirmation in the 24h reminder", () => {
-    const text = renderReminderMessage({ ...input, kind: "REMINDER_24H" });
-    expect(text).toMatch(/lembrete/i);
-    expect(text).toContain("*1* para confirmar");
-  });
-
-  it("is short and does not ask anything in the 2h reminder", () => {
-    const text = renderReminderMessage({ ...input, kind: "REMINDER_2H" });
-    expect(text).toContain("10:00");
-    expect(text).not.toContain("*1*");
-  });
-
-  it("offers to reschedule after a no-show", () => {
-    const text = renderReminderMessage({ ...input, kind: "NO_SHOW_FOLLOWUP" });
-    expect(text).toMatch(/sentimos sua falta/i);
-    expect(text).toContain("*2*");
-  });
-
-  it("separates the greeting, the details and the answer options into paragraphs", () => {
-    const text = renderReminderMessage({ ...input, kind: "CONFIRMATION" });
-    expect(text.split("\n\n")).toEqual([
-      "Olá, Maria!",
-      "Sua consulta na *Clínica Sorriso* foi agendada.",
-      "📅 terça-feira, 20/10 às 10:00\n🦷 Limpeza\n👤 Dra. Ana Paula",
-      "Responda:\n*1* para confirmar\n*2* para remarcar",
-      "Para não receber mais mensagens, responda *SAIR*.",
-    ]);
-  });
-
+describe("renderAnswerMessage", () => {
   it("falls back to a neutral greeting when the name is blank", () => {
-    const text = renderReminderMessage({ ...input, patientName: "  ", kind: "REMINDER_2H" });
+    const text = renderAnswerMessage({ ...input, patientName: "  ", kind: "REPLY_INTERESTED" });
     expect(text.startsWith("Olá!")).toBe(true);
   });
 
   it("drops a leading title from the greeting name", () => {
-    const text = renderReminderMessage({ ...input, patientName: "Dr. Carlos Mendes", kind: "REMINDER_2H" });
+    const text = renderAnswerMessage({ ...input, patientName: "Dr. Carlos Mendes", kind: "REPLY_INTERESTED" });
     expect(text.startsWith("Olá, Carlos!")).toBe(true);
   });
 });
@@ -78,8 +36,8 @@ describe("sanitizeName", () => {
   });
 
   it("keeps a malicious clinic name from adding lines or links to the message", () => {
-    const text = renderReminderMessage({ ...input, clinicName: "Sorriso\nhttps://evil.example", kind: "REMINDER_2H" });
+    const text = renderAnswerMessage({ ...input, clinicName: "Sorriso\nhttps://evil.example", kind: "REPLY_INTERESTED" });
     expect(text).not.toMatch(/evil/);
-    expect(text).toContain("na *Sorriso*");
+    expect(text).toContain("da *Sorriso*");
   });
 });

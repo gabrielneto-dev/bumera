@@ -72,7 +72,7 @@ describe("reminders API (service key)", () => {
       const body = await response.json();
       expect(body).toMatchObject({ success: true, error: null, meta: { count: 1 } });
       expect(body.data[0]).toMatchObject({ id: reminderId, kind: "CONFIRMATION", attempt: 1, patient: { firstName: "Maria" } });
-      expect(typeof body.data[0].message).toBe("string");
+      expect(body.data[0]).not.toHaveProperty("message");
       expect((await (await getDue(dueRequest())).json()).data).toEqual([]);
     });
 

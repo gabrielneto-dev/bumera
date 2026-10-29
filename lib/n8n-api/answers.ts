@@ -1,7 +1,7 @@
 import type { PrismaClient, ReminderKind } from "@/generated/prisma/client";
 import { recordAudit } from "@/lib/audit";
 import { phoneCandidates } from "@/lib/phone";
-import { type AnswerKind, renderReminderMessage } from "@/lib/reminders/messages";
+import { type AnswerKind, renderAnswerMessage } from "@/lib/reminders/messages";
 import { toClinicSettings } from "@/lib/reminders/settings";
 import { syncQuoteReminders, syncReminders } from "@/lib/reminders/sync";
 import { scopedPrisma } from "@/lib/tenant-scope";
@@ -47,7 +47,7 @@ const detailInclude = {
 } as const;
 
 function replyFor(kind: AnswerKind, subject: { clinicName: string; patientName: string; guardianName: string | null; startsAt?: Date; dentistName?: string; procedureName?: string }, note?: string): string {
-  return renderReminderMessage({
+  return renderAnswerMessage({
     kind,
     clinicName: subject.clinicName,
     patientName: subject.patientName,
