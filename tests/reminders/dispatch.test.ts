@@ -67,7 +67,7 @@ describe("reminder dispatch", () => {
   const statusOf = async (id: string) => (await prisma.reminder.findUniqueOrThrow({ where: { id } })).status;
 
   describe("claimDueReminders", () => {
-    it("hands out a due reminder with the message and what n8n needs to send it", async () => {
+    it("hands out a due reminder with what n8n needs to send it", async () => {
       const reminder = await seed();
       const [due, ...rest] = await claimDueReminders(prisma, { now: NOW });
       expect(rest).toEqual([]);
@@ -79,7 +79,7 @@ describe("reminder dispatch", () => {
         patient: { firstName: "Maria", phone: "+5511987654321" },
         appointment: { dentistName: "Dra. Ana Paula", procedureName: "Limpeza" },
       });
-      expect(due?.message).toContain("Olá, Maria!");
+      expect(due).not.toHaveProperty("message");
       expect(JSON.stringify(due)).not.toMatch(/cpf/i);
       const stored = await prisma.reminder.findUniqueOrThrow({ where: { id: reminder.id } });
       expect(stored).toMatchObject({ status: "CLAIMED", attempts: 1, claimedAt: NOW });
@@ -179,13 +179,11 @@ describe("reminder dispatch", () => {
       expect(await statusOf(reminder.id)).toBe("SKIPPED");
     });
 
-    it("strips links and formatting that a patient name could smuggle into the message", async () => {
+    it("strips links and formatting that a patient name could smuggle into the texts", async () => {
       const sneaky = await createPatient(prisma, clinic, { name: "*Dr.* http://evil.example/x Joana" });
       await seed({ patient: sneaky.id });
       const [due] = await claimDueReminders(prisma, { now: NOW });
-      expect(due?.message).not.toMatch(/evil|http/);
-      // The only formatting left is the app's own: the greeting carries just the cleaned first name.
-      expect(due?.message.split("\n\n")[0]).toBe("Olá, Joana!");
+      expect(JSON.stringify(due)).not.toMatch(/evil|http/);
       expect(due?.patient.firstName).toBe("Joana");
     });
 

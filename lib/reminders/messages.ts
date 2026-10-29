@@ -1,4 +1,3 @@
-import type { ReminderKind } from "@/generated/prisma/client";
 import { stripTitle } from "@/lib/initials";
 import { CLINIC_TIME_ZONE } from "@/lib/schedule";
 
@@ -6,15 +5,13 @@ import { CLINIC_TIME_ZONE } from "@/lib/schedule";
 export type AnswerKind = "REPLY_CONFIRMED" | "REPLY_RESCHEDULE" | "REPLY_OPTED_OUT" | "REPLY_INTERESTED" | "REPLY_DECLINED";
 
 export interface MessageInput {
-  kind: ReminderKind | AnswerKind;
+  kind: AnswerKind;
   clinicName: string;
   patientName: string;
   /** ISO instant. */
   startsAt: string;
   dentistName: string;
   procedureName: string;
-  /** What was quoted (quote follow-ups only). */
-  quoteDescription?: string;
   /** An extra line added by the app to an answer (e.g. other appointments still waiting). */
   freeText?: string;
   /** For a dependent: who answers for the patient. Messages are addressed to them and speak of the patient. */
@@ -43,9 +40,6 @@ export function sanitizeName(raw: string, maxLength = MAX_NAME_LENGTH): string {
 
 /** Blank line between paragraphs; WhatsApp renders *text* in bold. */
 const PARAGRAPH = "\n\n";
-const OPT_OUT_LINE = "Para não receber mais mensagens, responda *SAIR*.";
-const QUOTE_ANSWER_BLOCK = ["Responda:", "*1* para falar com a equipe", "*2* para agora não"].join("\n");
-const ANSWER_BLOCK = ["Responda:", "*1* para confirmar", "*2* para remarcar"].join("\n");
 
 /** "sábado, 17/10" and "09:00" in the clinic's time zone. */
 export function dayAndTime(iso: string): { day: string; time: string } {
@@ -99,14 +93,16 @@ const extraLine = (text: string | undefined): string => sanitizeParagraphs(text 
 
 const join = (...paragraphs: string[]): string => paragraphs.join(PARAGRAPH);
 
-/** Fixed pt-BR texts (no AI in the pilot). Rendered by the app so n8n flows stay generic. */
-export function renderReminderMessage(raw: MessageInput): string {
+/**
+ * Fixed pt-BR answers to a patient's own message, returned by `/answers`. The reminder texts
+ * themselves live in the n8n workflow "Bumera - Lembretes por WhatsApp (v2)".
+ */
+export function renderAnswerMessage(raw: MessageInput): string {
   const input = {
     ...raw,
     clinicName: sanitizeName(raw.clinicName),
     dentistName: sanitizeName(raw.dentistName),
     procedureName: sanitizeName(raw.procedureName),
-    quoteDescription: sanitizeName(raw.quoteDescription ?? "", MAX_QUOTE_LENGTH),
   };
   const { day, time } = dayAndTime(input.startsAt);
   const guardian = sanitizeName(raw.guardianName ?? "");
@@ -115,16 +111,9 @@ export function renderReminderMessage(raw: MessageInput): string {
   const hello = greeting(dependent ? guardian : input.patientName);
   const who = firstName(input.patientName);
   const clinic = `*${input.clinicName}*`;
-  const slot = `${day} às ${time}`;
-  const details = [`📅 ${slot}`, `🦷 ${input.procedureName}`, `👤 ${input.dentistName}`].join("\n");
+  const details = [`📅 ${day} às ${time}`, `🦷 ${input.procedureName}`, `👤 ${input.dentistName}`].join("\n");
 
   switch (input.kind) {
-    case "CONFIRMATION":
-      return join(hello, dependent ? `A consulta de *${who}* na ${clinic} foi agendada.` : `Sua consulta na ${clinic} foi agendada.`, details, ANSWER_BLOCK, OPT_OUT_LINE);
-    case "REMINDER_24H":
-      return join(hello, dependent ? `Lembrete: *${who}* tem uma consulta na ${clinic}.` : `Lembrete: você tem uma consulta na ${clinic}.`, details, ANSWER_BLOCK, OPT_OUT_LINE);
-    case "REMINDER_2H":
-      return join(hello, dependent ? `Lembrete: a consulta de *${who}* na ${clinic} está chegando.` : `Lembrete: sua consulta na ${clinic} está chegando.`, details, "Até já!");
     case "REPLY_CONFIRMED":
       return join(...[hello, dependent ? `Consulta de *${who}* confirmada ✅` : "Consulta confirmada ✅", details, "Até lá!", extraLine(raw.freeText)].filter(Boolean));
     case "REPLY_RESCHEDULE":
@@ -139,39 +128,9 @@ export function renderReminderMessage(raw: MessageInput): string {
         `Tudo certo: você não vai mais receber mensagens da ${clinic}.`,
         "Se mudar de ideia, é só falar com a clínica.",
       );
-    case "REACTIVATION":
-      return join(
-        hello,
-        dependent
-          ? `Faz um tempo desde o atendimento de *${who}* na ${clinic} (${input.procedureName}). Que tal agendar o retorno?`
-          : `Faz um tempo desde o seu atendimento na ${clinic} (${input.procedureName}). Que tal agendar o seu retorno?`,
-        ["Responda:", "*1* para agendar", "*2* para agora não"].join("\n"),
-        OPT_OUT_LINE,
-      );
-    case "QUOTE_FOLLOWUP_1":
-      return join(
-        hello,
-        `Passando para saber se ficou alguma dúvida sobre o orçamento *${input.quoteDescription}* na ${clinic}.`,
-        QUOTE_ANSWER_BLOCK,
-        OPT_OUT_LINE,
-      );
-    case "QUOTE_FOLLOWUP_2":
-      return join(
-        hello,
-        `O seu orçamento *${input.quoteDescription}* na ${clinic} continua disponível. Quer conversar sobre as condições?`,
-        QUOTE_ANSWER_BLOCK,
-        OPT_OUT_LINE,
-      );
     case "REPLY_INTERESTED":
       return join(hello, "Ótimo! 😊", `A equipe da ${clinic} entra em contato em breve.`);
     case "REPLY_DECLINED":
       return join(hello, "Tudo bem!", "Quando precisar, é só chamar. Cuide bem do seu sorriso! 🦷");
-    case "NO_SHOW_FOLLOWUP":
-      return join(
-        hello,
-        dependent ? `Sentimos a falta de *${who}* na consulta de ${slot} na ${clinic}.` : `Sentimos sua falta na consulta de ${slot} na ${clinic}.`,
-        "Quer remarcar? Responda *2* e nossa equipe entra em contato.",
-        OPT_OUT_LINE,
-      );
   }
 }

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { evaluateQuoteGuard } from "@/lib/reminders/guard";
-import { renderReminderMessage } from "@/lib/reminders/messages";
 import { planQuoteReminders, planReminders } from "@/lib/reminders/plan";
 import { DEFAULT_CLINIC_SETTINGS, type ClinicSettings } from "@/lib/reminders/settings";
 
@@ -91,20 +90,5 @@ describe("quotes with clinic settings", () => {
     const day10 = new Date(created.getTime() + 10 * DAY);
     expect(evaluateQuoteGuard({ quote, patient }, day10)).toEqual({ ok: true });
     expect(evaluateQuoteGuard({ quote, patient }, day10, 7)).toMatchObject({ ok: false, status: "CANCELLED" });
-  });
-});
-
-describe("reminder wording does not assume the configured time", () => {
-  const base = { clinicName: "Odonto Company", patientName: "Maria Souza", startsAt: "2026-10-20T13:00:00.000Z", dentistName: "Dr. Teste", procedureName: "Limpeza" };
-
-  it("keeps the real date and time in the text instead of saying 'amanhã' or 'hoje'", () => {
-    const first = renderReminderMessage({ ...base, kind: "REMINDER_24H" });
-    const second = renderReminderMessage({ ...base, kind: "REMINDER_2H" });
-    for (const text of [first, second]) {
-      expect(text).not.toMatch(/amanhã|hoje/i);
-      expect(text).toContain("terça-feira, 20/10 às 10:00");
-    }
-    expect(first).toContain("*1* para confirmar");
-    expect(second).not.toContain("*1*");
   });
 });

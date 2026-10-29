@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluateGuard } from "@/lib/reminders/guard";
-import { renderReminderMessage } from "@/lib/reminders/messages";
+import { renderAnswerMessage } from "@/lib/reminders/messages";
 import { planReminders } from "@/lib/reminders/plan";
 
 const NOW = new Date("2027-04-20T12:00:00.000Z");
@@ -73,19 +73,9 @@ describe("reactivation messages", () => {
     procedureName: "Limpeza",
   };
 
-  it("invites the patient back with the two answers and the opt-out", () => {
-    const text = renderReminderMessage({ ...base, kind: "REACTIVATION" });
-    expect(text.split("\n\n")[0]).toBe("Olá, Maria!");
-    expect(text).toContain("*Odonto Company*");
-    expect(text).toContain("Limpeza");
-    expect(text).toContain("*1* para agendar");
-    expect(text).toContain("*2* para agora não");
-    expect(text).toContain("*SAIR*");
-  });
-
   it("acknowledges interest and a refusal", () => {
-    expect(renderReminderMessage({ ...base, kind: "REPLY_INTERESTED" })).toMatch(/entra em contato/);
-    const declined = renderReminderMessage({ ...base, kind: "REPLY_DECLINED" });
+    expect(renderAnswerMessage({ ...base, kind: "REPLY_INTERESTED" })).toMatch(/entra em contato/);
+    const declined = renderAnswerMessage({ ...base, kind: "REPLY_DECLINED" });
     expect(declined).toMatch(/quando precisar/i);
     expect(declined).not.toContain("*1*");
   });

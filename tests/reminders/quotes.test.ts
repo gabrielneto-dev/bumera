@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { evaluateQuoteGuard } from "@/lib/reminders/guard";
-import { renderReminderMessage } from "@/lib/reminders/messages";
 import { planQuoteReminders, QUOTE_VALID_DAYS } from "@/lib/reminders/plan";
 
 const DAY = 86_400_000;
@@ -48,32 +47,5 @@ describe("evaluateQuoteGuard", () => {
   it("respects opt-out and consent", () => {
     expect(evaluateQuoteGuard({ quote, patient: { ...patient, doNotContact: true } }, now)).toMatchObject({ ok: false, status: "SKIPPED" });
     expect(evaluateQuoteGuard({ quote, patient: { ...patient, consentAt: null } }, now)).toMatchObject({ ok: false, status: "SKIPPED" });
-  });
-});
-
-describe("quote messages", () => {
-  const base = {
-    clinicName: "Odonto Company",
-    patientName: "Maria Souza",
-    startsAt: "2026-10-20T13:00:00.000Z",
-    dentistName: "",
-    procedureName: "",
-    quoteDescription: "Implante dente 36",
-  };
-
-  it.each(["QUOTE_FOLLOWUP_1", "QUOTE_FOLLOWUP_2"] as const)("%s names the quote and offers the two answers", (kind) => {
-    const text = renderReminderMessage({ ...base, kind });
-    expect(text.split("\n\n")[0]).toBe("Olá, Maria!");
-    expect(text).toContain("*Implante dente 36*");
-    expect(text).toContain("*Odonto Company*");
-    expect(text).toContain("*1* para falar com a equipe");
-    expect(text).toContain("*2* para agora não");
-    expect(text).toContain("*SAIR*");
-  });
-
-  it("does not let the quote description add links or formatting", () => {
-    const text = renderReminderMessage({ ...base, quoteDescription: "*Promo* http://evil.example/x", kind: "QUOTE_FOLLOWUP_1" });
-    expect(text).not.toMatch(/evil|http/);
-    expect(text).toContain("*Promo*");
   });
 });
