@@ -1,7 +1,7 @@
 # Deploy and M3 runbook
 
 Applied on 2026-10-21. Server layout: shared stack `~/infra` (Postgres, pgAdmin, n8n; docker network `infra`) and the Bumera stack in `~/bumera-app` (`app`, `evolution`, `redis`). The old `~/bumera` stack is stopped and kept only as a backup.
-Files: `Dockerfile`, `deploy/compose.app.yml` (copied to `~/bumera-app/compose.yml`), `deploy/env.production.example`, `n8n/workflows/reminders-whatsapp.json`.
+Files: `Dockerfile`, `deploy/compose.app.yml` (copied to `~/bumera-app/compose.yml`), `deploy/env.production.example`, `n8n/workflows/reminders-v2.json`.
 Never print `.env` contents; only variable names are listed.
 
 ## Update the app
@@ -23,7 +23,8 @@ Instance `bumera-teste` (Baileys), paired by QR code through the Evolution API (
 
 ## n8n
 Create two *Header Auth* credentials: `Bumera service key` (name `Authorization`, value `Bearer <SERVICE_API_KEY>`) and `Evolution API key` (name `apikey`, value `<EVOLUTION_API_KEY>`).
-Import `n8n/workflows/reminders-whatsapp.json`, link both credentials, run it once manually, then activate.
+Import `n8n/workflows/reminders-v2.json` into the `bumera` folder, link both credentials, run it once manually, then publish.
+That file is the reviewed copy of the live workflow and `tests/n8n-workflows/reminders-v2.test.ts` runs its texts against the app's real due reminders. After changing the workflow in n8n, export it again (`docker exec infra-n8n n8n export:workflow --id=<id> --output=/tmp/wf.json`), keep only `id`, `name`, `description`, `versionId`, `nodes`, `connections` and `settings`, and run the tests.
 
 ## WhatsApp conversations live in n8n
 Since 2026-10-26 (`CTX-DEC-20261026-whatsapp-in-n8n`) the app has no WhatsApp code: no webhook, no buffer, no AI. n8n workflows talk to patients through Evolution and call the app's API with the `Bumera service key` credential (reference: `docs/n8n-whatsapp-api.md`):

@@ -1,0 +1,830 @@
+{
+  "id": "bnwruBnpnSy151QN",
+  "name": "Bumera - Lembretes por WhatsApp (v2)",
+  "description": "Envia os lembretes do Bumera (confirmação, 24 h, 2 h, falta, retomada, orçamento). O app decide quem e quando; este fluxo monta o texto de cada tipo.",
+  "versionId": "fd2baab4-6f0a-45bb-ae06-2b2aed2d46cf",
+  "nodes": [
+    {
+      "id": "944e8a7f-1150-4509-960c-f64160e71356",
+      "name": "A cada minuto",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        672
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0041c7e1-30b9-468b-9d93-8254fe0611e8",
+      "name": "Buscar lembretes devidos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        672
+      ],
+      "parameters": {
+        "url": "http://bumera-app:3000/api/v1/reminders/due",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YZSzgaHSl5XbQpHb",
+          "name": "Bumera service key"
+        }
+      }
+    },
+    {
+      "id": "9ea2361b-7736-46ac-8cdf-c304c4e1605c",
+      "name": "Uma por lembrete",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        448,
+        672
+      ],
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      }
+    },
+    {
+      "id": "3feb4f31-0739-43c5-90df-2e20f5761a7a",
+      "name": "Dados da mensagem",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        672
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ola",
+              "name": "ola",
+              "type": "string",
+              "value": "={{ (n => n ? 'Olá, ' + n + '!' : 'Olá!')($json.patient.dependent ? $json.patient.guardianFirstName : $json.patient.firstName) }}"
+            },
+            {
+              "id": "quem",
+              "name": "quem",
+              "type": "string",
+              "value": "={{ $json.patient.firstName }}"
+            },
+            {
+              "id": "dependente",
+              "name": "dependente",
+              "type": "boolean",
+              "value": "={{ $json.patient.dependent }}"
+            },
+            {
+              "id": "clinica",
+              "name": "clinica",
+              "type": "string",
+              "value": "={{ '*' + $json.clinic.name + '*' }}"
+            },
+            {
+              "id": "quando",
+              "name": "quando",
+              "type": "string",
+              "value": "={{ $json.appointment ? $json.appointment.day + ' às ' + $json.appointment.time : '' }}"
+            },
+            {
+              "id": "procedimento",
+              "name": "procedimento",
+              "type": "string",
+              "value": "={{ $json.appointment ? $json.appointment.procedureName : '' }}"
+            },
+            {
+              "id": "detalhes",
+              "name": "detalhes",
+              "type": "string",
+              "value": "={{ $json.appointment ? '📅 ' + $json.appointment.day + ' às ' + $json.appointment.time + '\\n🦷 ' + $json.appointment.procedureName + '\\n👤 ' + $json.appointment.dentistName : '' }}"
+            },
+            {
+              "id": "orcamento",
+              "name": "orcamento",
+              "type": "string",
+              "value": "={{ $json.quote ? $json.quote.description : '' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "7c9516e6-0ffc-4cdd-8917-6ffb13690ec7",
+      "name": "Separar por tipo",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        576
+      ],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "renameOutput": true,
+              "outputKey": "Confirmação",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "CONFIRMATION"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "renameOutput": true,
+              "outputKey": "Lembrete 24 h",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "REMINDER_24H"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "renameOutput": true,
+              "outputKey": "Lembrete 2 h",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "REMINDER_2H"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "renameOutput": true,
+              "outputKey": "Falta",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "NO_SHOW_FOLLOWUP"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "renameOutput": true,
+              "outputKey": "Retomada",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "REACTIVATION"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "renameOutput": true,
+              "outputKey": "Orçamento 1",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "QUOTE_FOLLOWUP_1"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "renameOutput": true,
+              "outputKey": "Orçamento 2",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "QUOTE_FOLLOWUP_2"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Tipo desconhecido"
+        }
+      }
+    },
+    {
+      "id": "acba7bb0-4450-47db-8615-d9a88260bfb6",
+      "name": "Texto: Confirmação",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        0
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "texto",
+              "name": "texto",
+              "type": "string",
+              "value": "={{ $json.ola }}\n\n{{ $json.dependente ? 'A consulta de *' + $json.quem + '* na ' + $json.clinica + ' foi agendada.' : 'Sua consulta na ' + $json.clinica + ' foi agendada.' }}\n\n{{ $json.detalhes }}\n\nResponda:\n*1* para confirmar\n*2* para remarcar\n\nPara não receber mais mensagens, responda *SAIR*."
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cadc3b9a-908a-424a-aa8b-037060c445a6",
+      "name": "Enviar pela Evolution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1344,
+        576
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://bumera-evolution:8080/message/sendText/{{ $json.whatsapp.instance }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.patient.phone.replace(/\\D/g, ''), text: $json.texto, delay: 1200 }) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 4000
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "DFN8nEBbLbdlzqpX",
+          "name": "Evolution API key"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "0b5d40be-ffb7-4774-b55f-fcd5b4627953",
+      "name": "Reportar enviado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1568,
+        480
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://bumera-app:3000/api/v1/reminders/{{ $('Uma por lembrete').item.json.id }}/result",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ outcome: 'sent', attempt: $('Uma por lembrete').item.json.attempt }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YZSzgaHSl5XbQpHb",
+          "name": "Bumera service key"
+        }
+      }
+    },
+    {
+      "id": "9b9b145e-56e6-4cc7-8f00-15a705349263",
+      "name": "Reportar falha",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1568,
+        672
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://bumera-app:3000/api/v1/reminders/{{ $('Uma por lembrete').item.json.id }}/result",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ outcome: 'failed', attempt: $('Uma por lembrete').item.json.attempt, error: 'evolution_send_failed' }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YZSzgaHSl5XbQpHb",
+          "name": "Bumera service key"
+        }
+      }
+    },
+    {
+      "id": "a5dd1c0c-3429-483e-a13c-d176b8bdb56a",
+      "name": "Texto: Lembrete 24 h",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        192
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "texto",
+              "name": "texto",
+              "type": "string",
+              "value": "={{ $json.ola }}\n\n{{ $json.dependente ? 'Lembrete: *' + $json.quem + '* tem uma consulta na ' + $json.clinica + '.' : 'Lembrete: você tem uma consulta na ' + $json.clinica + '.' }}\n\n{{ $json.detalhes }}\n\nResponda:\n*1* para confirmar\n*2* para remarcar\n\nPara não receber mais mensagens, responda *SAIR*."
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e753bc7a-1dd9-4664-aea8-5b246b7ac042",
+      "name": "Texto: Lembrete 2 h",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        384
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "texto",
+              "name": "texto",
+              "type": "string",
+              "value": "={{ $json.ola }}\n\n{{ $json.dependente ? 'Lembrete: a consulta de *' + $json.quem + '* na ' + $json.clinica + ' está chegando.' : 'Lembrete: sua consulta na ' + $json.clinica + ' está chegando.' }}\n\n{{ $json.detalhes }}\n\nAté já!"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "bd88b5fd-c2a3-4473-80c0-29b36bfdbd4d",
+      "name": "Texto: Falta",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        576
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "texto",
+              "name": "texto",
+              "type": "string",
+              "value": "={{ $json.ola }}\n\n{{ $json.dependente ? 'Sentimos a falta de *' + $json.quem + '* na consulta de ' + $json.quando + ' na ' + $json.clinica + '.' : 'Sentimos sua falta na consulta de ' + $json.quando + ' na ' + $json.clinica + '.' }}\n\nQuer remarcar? Responda *2* e nossa equipe entra em contato.\n\nPara não receber mais mensagens, responda *SAIR*."
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0fb41dd6-c669-4ce1-b9cd-041addbc21a2",
+      "name": "Texto: Retomada",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        768
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "texto",
+              "name": "texto",
+              "type": "string",
+              "value": "={{ $json.ola }}\n\n{{ $json.dependente ? 'Faz um tempo desde o atendimento de *' + $json.quem + '* na ' + $json.clinica + ' (' + $json.procedimento + '). Que tal agendar o retorno?' : 'Faz um tempo desde o seu atendimento na ' + $json.clinica + ' (' + $json.procedimento + '). Que tal agendar o seu retorno?' }}\n\nResponda:\n*1* para agendar\n*2* para agora não\n\nPara não receber mais mensagens, responda *SAIR*."
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "76831ef3-9ae0-4652-966f-8e2de008e273",
+      "name": "Texto: Orçamento 1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        960
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "texto",
+              "name": "texto",
+              "type": "string",
+              "value": "={{ $json.ola }}\n\nPassando para saber se ficou alguma dúvida sobre o orçamento *{{ $json.orcamento }}* na {{ $json.clinica }}.\n\nResponda:\n*1* para falar com a equipe\n*2* para agora não\n\nPara não receber mais mensagens, responda *SAIR*."
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ea28cb7e-d51e-4cdd-b632-8da9b994849c",
+      "name": "Texto: Orçamento 2",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        1152
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "texto",
+              "name": "texto",
+              "type": "string",
+              "value": "={{ $json.ola }}\n\nO seu orçamento *{{ $json.orcamento }}* na {{ $json.clinica }} continua disponível. Quer conversar sobre as condições?\n\nResponda:\n*1* para falar com a equipe\n*2* para agora não\n\nPara não receber mais mensagens, responda *SAIR*."
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "66c4f3c1-b19c-4630-a24b-ef8b276517bb",
+      "name": "Reportar tipo desconhecido",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        1344
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://bumera-app:3000/api/v1/reminders/{{ $('Uma por lembrete').item.json.id }}/result",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ outcome: 'failed', attempt: $('Uma por lembrete').item.json.attempt, error: 'unknown_kind' }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YZSzgaHSl5XbQpHb",
+          "name": "Bumera service key"
+        }
+      }
+    },
+    {
+      "id": "99be7bbe-0e1d-4042-b84c-64d37b27ef97",
+      "name": "Sticky Note f9fb588b",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        720,
+        1344
+      ],
+      "parameters": {
+        "content": "## Lembretes por WhatsApp\nO Bumera decide **quem** recebe e **quando** (prazo, horário de silêncio, limite diário, consentimento, SAIR).\n\nEste fluxo decide **o texto**: cada tipo tem o seu nó \"Texto: ...\". Para mudar uma mensagem, edite só o nó daquele tipo.\n\nUse só os dados do lembrete (data, dentista, procedimento, orçamento); nunca invente horário ou valor.",
+        "color": 4
+      }
+    }
+  ],
+  "connections": {
+    "A cada minuto": {
+      "main": [
+        [
+          {
+            "node": "Buscar lembretes devidos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar lembretes devidos": {
+      "main": [
+        [
+          {
+            "node": "Uma por lembrete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uma por lembrete": {
+      "main": [
+        [
+          {
+            "node": "Dados da mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados da mensagem": {
+      "main": [
+        [
+          {
+            "node": "Separar por tipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar por tipo": {
+      "main": [
+        [
+          {
+            "node": "Texto: Confirmação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: Lembrete 24 h",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: Lembrete 2 h",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: Falta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: Retomada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: Orçamento 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto: Orçamento 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reportar tipo desconhecido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto: Confirmação": {
+      "main": [
+        [
+          {
+            "node": "Enviar pela Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar pela Evolution": {
+      "main": [
+        [
+          {
+            "node": "Reportar enviado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reportar falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto: Lembrete 24 h": {
+      "main": [
+        [
+          {
+            "node": "Enviar pela Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto: Lembrete 2 h": {
+      "main": [
+        [
+          {
+            "node": "Enviar pela Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto: Falta": {
+      "main": [
+        [
+          {
+            "node": "Enviar pela Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto: Retomada": {
+      "main": [
+        [
+          {
+            "node": "Enviar pela Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto: Orçamento 1": {
+      "main": [
+        [
+          {
+            "node": "Enviar pela Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto: Orçamento 2": {
+      "main": [
+        [
+          {
+            "node": "Enviar pela Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  }
+}
